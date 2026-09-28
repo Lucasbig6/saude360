@@ -13,6 +13,7 @@ from app.models import (
     Dashboard,
     DashboardFilter,
     DashboardWidget,
+    Project,
     Role,
     Source,
     User,
@@ -25,6 +26,7 @@ EXPECTED_TABLES = {
     "dashboard_filters",
     "dashboard_widgets",
     "dashboards",
+    "projects",
     "roles",
     "sources",
     "user_roles",
@@ -38,7 +40,10 @@ EXPECTED_ON_DELETE = {
     "fk_user_roles_user_id_users": "c",
     "fk_user_roles_role_id_roles": "c",
     "fk_analyses_created_by_users": "n",
+    "fk_analyses_project_id_projects": "n",
     "fk_dashboards_created_by_users": "n",
+    "fk_dashboards_project_id_projects": "n",
+    "fk_projects_created_by_users": "n",
     "fk_sources_created_by_users": "n",
     "fk_audit_logs_user_id_users": "n",
 }
@@ -78,7 +83,7 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0001_initial"
+    assert version == "0002_projects"
 
 
 def test_expected_tables_exist(db):
@@ -364,3 +369,30 @@ def test_audit_log_user_set_null_when_user_deleted(db):
     assert row is not None
     assert row.user_id is None
     assert row.data == {}
+
+
+def test_project_delete_sets_null_on_resources(db):
+    project = Project(name=f"projeto-{sfx()}", description="Tema")
+    analysis = Analysis(name=f"analise-{sfx()}", sql="SELECT 1")
+    dashboard = Dashboard(name="Painel", slug=f"painel-{sfx()}")
+    db.add_all([project, analysis, dashboard])
+    db.flush()
+    analysis.project_id = project.id
+    dashboard.project_id = project.id
+    db.commit()
+
+    db.execute(text("DELETE FROM projects WHERE id = :id"), {"id": project.id})
+    db.commit()
+
+    analysis_project = db.scalar(
+        select(Analysis.project_id).where(Analysis.id == analysis.id)
+    )
+    dashboard_project = db.scalar(
+        select(Dashboard.project_id).where(Dashboard.id == dashboard.id)
+    )
+
+    assert count_rows(db, Project, project.id) == 0
+    assert count_rows(db, Analysis, analysis.id) == 1
+    assert count_rows(db, Dashboard, dashboard.id) == 1
+    assert analysis_project is None
+    assert dashboard_project is None

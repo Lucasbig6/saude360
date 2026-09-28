@@ -39,6 +39,7 @@ function ExplorarContent() {
   const searchParams = useSearchParams()
   const analysisId = searchParams.get("analysisId")
   const datasetIdParam = searchParams.get("datasetId")
+  const projectId = searchParams.get("projectId")
 
   const [datasets, setDatasets] = useState<DatasetListItem[]>([])
   const [loadingDatasets, setLoadingDatasets] = useState(true)
@@ -397,6 +398,7 @@ function ExplorarContent() {
               databaseId={selectedDataset?.database.id}
               dbSchema={selectedDataset?.schema ?? null}
               datasetId={selectedDataset?.id ?? null}
+              projectId={projectId ?? undefined}
               onDatasetPublished={handleDatasetPublished}
             />
           </div>

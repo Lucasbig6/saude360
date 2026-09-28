@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Database,
   FileChartColumn,
+  Hospital,
   LayoutDashboard,
   Loader2,
   Plus,
@@ -17,20 +18,19 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
 import type { Analysis } from "@/lib/types/analysis"
+import type { Project } from "@/lib/types/project"
 import { chartTypeIcon, chartTypeLabel } from "@/lib/types/charts"
 import { getDashboards } from "@/lib/api/dashboards"
 import { getAnalyses } from "@/lib/api/analyses"
+import { getProjects } from "@/lib/api/projects"
 import {
   listDatasets,
   datasetDisplayName,
   type DatasetListItem,
 } from "@/lib/api/datasets"
-import { AddToDashboardDialog } from "@/components/dashboard/add-to-dashboard-dialog"
 import { ApiError } from "@/lib/api"
 
 type RecentKind = "dashboard" | "analysis" | "chart"
-type DashboardFilter = "recent" | "mine" | "all"
-type ChartFilter = "recent" | "mine" | "all"
 
 interface RecentItem {
   id: string
@@ -50,10 +50,6 @@ interface SearchHit {
 }
 
 const RECENT_LIMIT = 8
-const DASHBOARD_LIMIT = 8
-const CHART_LIMIT = 8
-const ANALYSIS_LIMIT = 8
-const DATASET_LIMIT = 10
 
 function formatDate(iso: string): string {
   try {
@@ -118,7 +114,6 @@ function Section({
   onToggle,
   actions,
   children,
-  emphasis = false,
 }: {
   title: string
   count?: number
@@ -126,7 +121,6 @@ function Section({
   onToggle: () => void
   actions?: React.ReactNode
   children: React.ReactNode
-  emphasis?: boolean
 }) {
   return (
     <section className="border-b border-slate-200/80 last:border-b-0">
@@ -144,12 +138,7 @@ function Section({
               open ? "rotate-0" : "-rotate-90"
             )}
           />
-          <h2
-            className={cn(
-              "text-sm font-semibold tracking-tight",
-              emphasis ? "text-slate-900" : "text-slate-800"
-            )}
-          >
+          <h2 className="text-sm font-semibold tracking-tight text-slate-800">
             {title}
           </h2>
           {typeof count === "number" && (
@@ -162,36 +151,6 @@ function Section({
       </div>
       {open && <div className="pb-4">{children}</div>}
     </section>
-  )
-}
-
-function Tabs({
-  value,
-  onChange,
-  options,
-}: {
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string }[]
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-            value === opt.value
-              ? "bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/80"
-              : "text-slate-600 hover:text-slate-900"
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
   )
 }
 
@@ -225,7 +184,6 @@ function EntryCard({
   iconClassName,
   title,
   description,
-  countLabel,
   createHref,
   createLabel,
 }: {
@@ -234,29 +192,36 @@ function EntryCard({
   iconClassName: string
   title: string
   description: string
-  countLabel: string
   createHref: string
   createLabel: string
 }) {
   return (
-    <div className="group flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-teal-200/80 hover:bg-slate-50/60">
+    <div className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-teal-300 hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <span
           className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
             iconClassName
           )}
         >
           {icon}
         </span>
-        <span className="text-[11px] font-medium text-slate-500">
-          {countLabel}
+        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-teal-600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M9 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
       </div>
-      <h3 className="mt-3 text-sm font-semibold tracking-tight text-slate-900">
+      <h3 className="mt-4 text-base font-semibold tracking-tight text-slate-900">
         {title}
       </h3>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+      <p className="mt-1 text-sm leading-relaxed text-slate-500">
         {description}
       </p>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
@@ -361,6 +326,60 @@ function ListRow({
   )
 }
 
+function RecentCard({
+  href,
+  icon,
+  iconClassName,
+  title,
+  timeLabel,
+  badge,
+}: {
+  href: string
+  icon: React.ReactNode
+  iconClassName: string
+  title: string
+  timeLabel: string
+  badge: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex h-full flex-col rounded-lg border border-slate-200/60 bg-slate-50/60 p-3 transition-colors hover:border-teal-300 hover:bg-white"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+            iconClassName
+          )}
+        >
+          {icon}
+        </span>
+        <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200/70">
+          {badge}
+        </span>
+      </div>
+      <h3 className="mt-2 line-clamp-2 text-[13px] font-semibold tracking-tight text-slate-900">
+        {title}
+      </h3>
+      <div className="mt-auto flex items-center justify-between pt-2">
+        <span className="text-[11px] text-slate-500">{timeLabel}</span>
+        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-teal-600">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M9 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </div>
+    </Link>
+  )
+}
+
 export default function Home() {
   const [query, setQuery] = useState("")
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
@@ -368,23 +387,11 @@ export default function Home() {
   const [loadingDomain, setLoadingDomain] = useState(true)
   const [domainError, setDomainError] = useState<string | null>(null)
   const [datasets, setDatasets] = useState<DatasetListItem[]>([])
-  const [loadingDatasets, setLoadingDatasets] = useState(true)
-  const [datasetsError, setDatasetsError] = useState<string | null>(null)
-  const [dashboardFilter, setDashboardFilter] = useState<DashboardFilter>("recent")
-  const [chartFilter, setChartFilter] = useState<ChartFilter>("recent")
-  const [addToDashboardTarget, setAddToDashboardTarget] =
-    useState<Analysis | null>(null)
+  const [projects, setProjects] = useState<Project[] | null>(null)
+  const [recentOpen, setRecentOpen] = useState(true)
 
-  const [openSections, setOpenSections] = useState({
-    recent: true,
-    dashboards: true,
-    charts: true,
-    analyses: true,
-    datasets: true,
-  })
-
-  function toggleSection(key: keyof typeof openSections) {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  function toggleRecent() {
+    setRecentOpen((prev) => !prev)
   }
 
   useEffect(() => {
@@ -426,20 +433,9 @@ export default function Home() {
     async function load() {
       try {
         const data = await listDatasets()
-        if (!cancelled) {
-          setDatasets(data.result ?? [])
-          setDatasetsError(null)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const msg =
-            err instanceof ApiError
-              ? err.detail
-              : "Erro ao carregar conjuntos de dados."
-          setDatasetsError(msg)
-        }
-      } finally {
-        if (!cancelled) setLoadingDatasets(false)
+        if (!cancelled) setDatasets(data.result ?? [])
+      } catch {
+        if (!cancelled) setDatasets([])
       }
     }
 
@@ -449,26 +445,38 @@ export default function Home() {
     }
   }, [])
 
-  const chartItems = useMemo(
-    () =>
-      analyses
-        .filter((a) => a.chartType !== "table")
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [analyses]
-  )
+  // Projetos: falha silenciosa (mesmo precedente dos datasets) — o bloco
+  // simplesmente não aparece se a API de projetos estiver indisponível.
+  useEffect(() => {
+    let cancelled = false
 
-  const analysisItems = useMemo(
-    () =>
-      analyses
-        .filter((a) => a.chartType === "table")
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [analyses]
-  )
+    async function load() {
+      try {
+        const list = await getProjects()
+        if (!cancelled) setProjects(list)
+      } catch {
+        if (!cancelled) setProjects([])
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const sortedDashboards = useMemo(
     () =>
       [...dashboards].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [dashboards]
+  )
+
+  const recentProjects = useMemo(
+    () =>
+      [...(projects ?? [])]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, 3),
+    [projects]
   )
 
   const recentItems = useMemo<RecentItem[]>(() => {
@@ -543,36 +551,14 @@ export default function Home() {
     return hits.slice(0, 12)
   }, [query, sortedDashboards, analyses, datasets])
 
-  const visibleDashboards = useMemo(() => {
-    if (dashboardFilter === "recent") {
-      return sortedDashboards.slice(0, DASHBOARD_LIMIT)
-    }
-    return sortedDashboards
-  }, [sortedDashboards, dashboardFilter])
-
-  const visibleCharts = useMemo(() => {
-    if (chartFilter === "recent") {
-      return chartItems.slice(0, CHART_LIMIT)
-    }
-    return chartItems
-  }, [chartItems, chartFilter])
-
-  const visibleAnalyses = analysisItems.slice(0, ANALYSIS_LIMIT)
-  const visibleDatasets = datasets.slice(0, DATASET_LIMIT)
-
   const trimmedQuery = query.trim()
   const showSearchResults = trimmedQuery.length > 0
 
-  const filterOptions = [
-    { value: "recent", label: "Recentes" },
-    { value: "mine", label: "Meus" },
-    { value: "all", label: "Todos" },
-  ]
-
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Intro + search (sem hero verde) */}
-      <section className="pb-6 border-b border-slate-200">
+    <>
+    {/* Hero: intro + busca */}
+    <div className="border-b">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-15">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-600">
           Saude360
         </p>
@@ -608,71 +594,36 @@ export default function Home() {
           )}
         </div>
       </section>
+    </div>
 
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Cards de entrada — atalhos por área */}
       <section aria-label="Atalhos por área" className="pt-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <EntryCard
             href="/paineis"
-            icon={<LayoutDashboard size={17} />}
-            iconClassName="bg-teal-50 text-teal-700"
+            icon={<LayoutDashboard size={20} />}
+            iconClassName="bg-teal-100 text-teal-700"
             title="Dashboards"
             description="Painéis para acompanhamento de indicadores."
-            countLabel={
-              loadingDomain
-                ? "…"
-                : dashboards.length === 1
-                  ? "1 painel"
-                  : `${dashboards.length} painéis`
-            }
             createHref="/paineis"
             createLabel="Novo"
           />
           <EntryCard
             href="/analises"
-            icon={<BarChart3 size={17} />}
-            iconClassName="bg-purple-50 text-purple-700"
-            title="Gráficos"
-            description="Visualizações salvas a partir de consultas."
-            countLabel={
-              loadingDomain
-                ? "…"
-                : chartItems.length === 1
-                  ? "1 gráfico"
-                  : `${chartItems.length} gráficos`
-            }
-            createHref="/explorar"
-            createLabel="Novo"
-          />
-          <EntryCard
-            href="/analises"
-            icon={<FileChartColumn size={17} />}
-            iconClassName="bg-slate-100 text-slate-700"
-            title="Análises"
-            description="Consultas e tabelas analíticas salvas."
-            countLabel={
-              loadingDomain
-                ? "…"
-                : analysisItems.length === 1
-                  ? "1 análise"
-                  : `${analysisItems.length} análises`
-            }
+            icon={<BarChart3 size={20} />}
+            iconClassName="bg-purple-100 text-purple-700"
+            title="Análises e gráficos"
+            description="Consultas, tabelas analíticas e visualizações salvas."
             createHref="/explorar"
             createLabel="Nova"
           />
           <EntryCard
             href="/explorar"
-            icon={<Database size={17} />}
-            iconClassName="bg-sky-50 text-sky-700"
+            icon={<Database size={20} />}
+            iconClassName="bg-sky-100 text-sky-700"
             title="Conjuntos de dados"
             description="Dados prontos para exploração e análise."
-            countLabel={
-              loadingDatasets
-                ? "…"
-                : datasets.length === 1
-                  ? "1 dataset"
-                  : `${datasets.length} datasets`
-            }
             createHref="/fontes"
             createLabel="Fontes"
           />
@@ -733,7 +684,7 @@ export default function Home() {
                     ? "bg-sky-50 text-sky-700"
                     : hit.kind === "chart"
                       ? "bg-purple-50 text-purple-700"
-                      : hit.kind === "analysis"
+                      : hit.kind === "dashboard"
                         ? "bg-teal-50 text-teal-700"
                         : "bg-slate-100 text-slate-700"
 
@@ -754,20 +705,59 @@ export default function Home() {
         </section>
       ) : (
         <div className="mt-6 border-t border-slate-200 pt-2">
+          {/* Projetos — resumo da atividade */}
+          <section aria-label="Projetos" className="border-b border-slate-200/80">
+            <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+              <h2 className="text-sm font-semibold tracking-tight text-slate-800">
+                Projetos
+              </h2>
+              <Link
+                href="/projetos"
+                className="text-xs font-medium text-teal-700 transition-colors hover:text-teal-800"
+              >
+                Ver todos os projetos →
+              </Link>
+            </div>
+
+            {projects !== null &&
+              (recentProjects.length === 0 ? (
+                <p className="pb-3.5 text-xs text-slate-500">
+                  Nenhum projeto ainda.{" "}
+                  <Link
+                    href="/projetos"
+                    className="font-medium text-teal-700 transition-colors hover:text-teal-800"
+                  >
+                    Criar um projeto
+                  </Link>{" "}
+                  para organizar análises, gráficos e painéis.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-100 pb-1">
+                  {recentProjects.map((project) => (
+                    <ListRow
+                      key={project.id}
+                      href={`/projetos/${project.id}`}
+                      icon={<Hospital size={15} />}
+                      iconClassName="bg-teal-50 text-teal-700"
+                      title={project.name}
+                      meta={project.description || undefined}
+                      right={
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {formatRelative(project.updatedAt)}
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+          </section>
+
           {/* Recentes */}
           <Section
             title="Recentes"
             count={recentItems.length}
-            open={openSections.recent}
-            onToggle={() => toggleSection("recent")}
-            actions={
-              <Link
-                href="/analises"
-                className="text-xs font-medium text-teal-700 hover:text-teal-800"
-              >
-                Ver todos →
-              </Link>
-            }
+            open={recentOpen}
+            onToggle={toggleRecent}
           >
             {recentItems.length === 0 ? (
               <EmptyInline
@@ -777,7 +767,7 @@ export default function Home() {
                 actionHref="/explorar"
               />
             ) : (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-white">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {recentItems.map((item) => {
                   const Icon =
                     item.kind === "dashboard"
@@ -794,13 +784,13 @@ export default function Home() {
                         : "bg-slate-100 text-slate-700"
 
                   return (
-                    <ListRow
+                    <RecentCard
                       key={`${item.kind}-${item.id}`}
                       href={item.href}
                       icon={<Icon size={15} />}
                       iconClassName={iconCls}
                       title={item.name}
-                      meta={formatRelative(item.updatedAt)}
+                      timeLabel={formatRelative(item.updatedAt)}
                       badge={kindLabel(item.kind)}
                     />
                   )
@@ -808,257 +798,9 @@ export default function Home() {
               </div>
             )}
           </Section>
-
-          {/* Dashboards — maior destaque */}
-          <Section
-            title="Dashboards"
-            count={dashboards.length}
-            open={openSections.dashboards}
-            onToggle={() => toggleSection("dashboards")}
-            emphasis
-            actions={
-              <>
-                <Tabs
-                  value={dashboardFilter}
-                  onChange={(v) => setDashboardFilter(v as DashboardFilter)}
-                  options={filterOptions}
-                />
-                <Link href="/paineis">
-                  <Button size="sm" className="bg-teal-600 text-white hover:bg-teal-700">
-                    <Plus size={14} />
-                    Dashboard
-                  </Button>
-                </Link>
-              </>
-            }
-          >
-            {dashboards.length === 0 ? (
-              <EmptyInline
-                title="Nenhum dashboard criado"
-                description="Crie seu primeiro dashboard para acompanhar seus indicadores."
-                actionLabel="+ Criar dashboard"
-                actionHref="/paineis"
-              />
-            ) : (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-white">
-                {visibleDashboards.map((d) => (
-                  <ListRow
-                    key={d.id}
-                    href={`/paineis/${d.id}`}
-                    icon={<LayoutDashboard size={15} />}
-                    iconClassName="bg-teal-50 text-teal-700"
-                    title={d.name}
-                    meta={`${d.widgets.length} widget${
-                      d.widgets.length !== 1 ? "s" : ""
-                    } · ${formatRelative(d.updatedAt)}`}
-                  />
-                ))}
-              </div>
-            )}
-            {dashboards.length > DASHBOARD_LIMIT && dashboardFilter === "recent" && (
-              <button
-                type="button"
-                onClick={() => setDashboardFilter("all")}
-                className="mt-2 text-xs font-medium text-teal-700 hover:text-teal-800"
-              >
-                Ver todos ({dashboards.length})
-              </button>
-            )}
-          </Section>
-
-          {/* Gráficos */}
-          <Section
-            title="Gráficos"
-            count={chartItems.length}
-            open={openSections.charts}
-            onToggle={() => toggleSection("charts")}
-            actions={
-              <>
-                <Tabs
-                  value={chartFilter}
-                  onChange={(v) => setChartFilter(v as ChartFilter)}
-                  options={filterOptions}
-                />
-                <Link href="/explorar">
-                  <Button size="sm" variant="outline" className="bg-white">
-                    <Plus size={14} />
-                    Gráfico
-                  </Button>
-                </Link>
-              </>
-            }
-          >
-            {chartItems.length === 0 ? (
-              <EmptyInline
-                title="Nenhum gráfico salvo"
-                description="No Explorer, use Visualizar e salve um gráfico."
-                actionLabel="+ Novo gráfico"
-                actionHref="/explorar"
-              />
-            ) : (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-white">
-                {visibleCharts.map((a) => {
-                  const Icon = chartTypeIcon[a.chartType]
-                  return (
-                    <div
-                      key={a.id}
-                      className="flex items-center gap-1 px-1"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <ListRow
-                          href={`/analises/${a.id}`}
-                          icon={<Icon size={15} />}
-                          iconClassName="bg-purple-50 text-purple-700"
-                          title={a.name}
-                          meta={`${chartTypeLabel[a.chartType]} · ${formatRelative(
-                            a.updatedAt
-                          )}`}
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 text-slate-500 hover:text-teal-700"
-                        onClick={() => setAddToDashboardTarget(a)}
-                      >
-                        Ao painel
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            {chartItems.length > CHART_LIMIT && chartFilter === "recent" && (
-              <button
-                type="button"
-                onClick={() => setChartFilter("all")}
-                className="mt-2 text-xs font-medium text-teal-700 hover:text-teal-800"
-              >
-                Ver todos ({chartItems.length})
-              </button>
-            )}
-          </Section>
-
-          {/* Análises */}
-          <Section
-            title="Análises"
-            count={analysisItems.length}
-            open={openSections.analyses}
-            onToggle={() => toggleSection("analyses")}
-            actions={
-              <Link href="/explorar">
-                <Button size="sm" variant="outline" className="bg-white">
-                  <Plus size={14} />
-                  Análise
-                </Button>
-              </Link>
-            }
-          >
-            {analysisItems.length === 0 ? (
-              <EmptyInline
-                title="Nenhuma análise salva ainda."
-                description="Execute uma consulta ou análise para começar."
-                actionLabel="Nova análise"
-                actionHref="/explorar"
-              />
-            ) : (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-white">
-                {visibleAnalyses.map((a) => (
-                  <ListRow
-                    key={a.id}
-                    href={`/analises/${a.id}`}
-                    icon={<FileChartColumn size={15} />}
-                    iconClassName="bg-slate-100 text-slate-700"
-                    title={a.name}
-                    meta={`${chartTypeLabel[a.chartType]} · ${formatRelative(
-                      a.updatedAt
-                    )}`}
-                  />
-                ))}
-              </div>
-            )}
-            {analysisItems.length > ANALYSIS_LIMIT && (
-              <Link
-                href="/analises"
-                className="mt-2 inline-block text-xs font-medium text-teal-700 hover:text-teal-800"
-              >
-                Ver todas ({analysisItems.length})
-              </Link>
-            )}
-          </Section>
-
-          {/* Conjuntos de dados */}
-          <Section
-            title="Conjuntos de dados"
-            count={loadingDatasets ? undefined : datasets.length}
-            open={openSections.datasets}
-            onToggle={() => toggleSection("datasets")}
-            actions={
-              <Link
-                href="/fontes"
-                className="text-xs font-medium text-slate-500 hover:text-teal-700"
-              >
-                Gerenciar fontes →
-              </Link>
-            }
-          >
-            {loadingDatasets ? (
-              <div className="flex items-center gap-2 px-2 py-3 text-sm text-slate-500">
-                <Loader2 size={15} className="animate-spin text-teal-600" />
-                Carregando conjuntos de dados...
-              </div>
-            ) : datasetsError ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-                {datasetsError}
-              </div>
-            ) : datasets.length === 0 ? (
-              <EmptyInline
-                title="Nenhum dataset disponível"
-                description="Publique um dataset a partir de uma fonte."
-                actionLabel="Gerenciar fontes"
-                actionHref="/fontes"
-              />
-            ) : (
-              <div className="divide-y divide-slate-100 rounded-lg border border-slate-200/80 bg-white">
-                {visibleDatasets.map((ds) => {
-                  const name = datasetDisplayName(ds)
-                  const cols = ds.columns?.length ?? 0
-                  return (
-                    <ListRow
-                      key={ds.id}
-                      href={`/explorar?datasetId=${ds.id}`}
-                      icon={<Database size={15} />}
-                      iconClassName="bg-sky-50 text-sky-700"
-                      title={name}
-                      meta={`${cols} coluna${cols !== 1 ? "s" : ""} · pronto para análise`}
-                      badge="Explorar"
-                      badgeClassName="bg-teal-50 text-teal-700"
-                    />
-                  )
-                })}
-              </div>
-            )}
-            {!loadingDatasets &&
-              !datasetsError &&
-              datasets.length > DATASET_LIMIT && (
-                <Link
-                  href="/explorar"
-                  className="mt-2 inline-block text-xs font-medium text-teal-700 hover:text-teal-800"
-                >
-                  Explorar no Explorer ({datasets.length})
-                </Link>
-              )}
-          </Section>
         </div>
       )}
-
-      <AddToDashboardDialog
-        open={addToDashboardTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setAddToDashboardTarget(null)
-        }}
-        analysis={addToDashboardTarget}
-      />
     </div>
+    </>
   )
 }

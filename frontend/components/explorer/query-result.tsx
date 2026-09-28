@@ -19,7 +19,8 @@ import {
 } from "@/components/explorer/visualization-panel"
 import { SaveAnalysisDialog } from "@/components/explorer/save-analysis-dialog"
 import { PublishDatasetDialog } from "@/components/explorer/publish-dataset-dialog"
-import { createAnalysis } from "@/lib/api/analyses"
+import { createAnalysis, updateAnalysis } from "@/lib/api/analyses"
+import type { Analysis } from "@/lib/types/analysis"
 import { ApiError } from "@/lib/api"
 
 const PAGE_SIZE = 10
@@ -32,10 +33,17 @@ interface QueryResultProps {
   databaseId?: number
   dbSchema?: string | null
   datasetId?: number | null
+  /** Vem de `/explorar?projectId=`: semeia o projeto selecionado no diálogo. */
+  projectId?: string
+  /**
+   * Análise restaurada via `?analysisId=`: quando presente, Salvar atualiza
+   * (PUT) em vez de criar duplicata, e pré-preenche nome/descrição/projeto.
+   */
+  editingAnalysis?: Analysis | null
   onDatasetPublished?: (datasetId: number) => void
 }
 
-export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, datasetId, onDatasetPublished }: QueryResultProps) {
+export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, datasetId, projectId, editingAnalysis, onDatasetPublished }: QueryResultProps) {
   const [page, setPage] = useState(0)
   const [prevData, setPrevData] = useState(data)
   const [viewMode, setViewMode] = useState<"table" | "chart">("table")
@@ -95,22 +103,35 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
     containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
-  async function handleSaveAnalysis(name: string, description: string) {
+  async function handleSaveAnalysis(
+    name: string,
+    description: string,
+    selectedProjectId: string | null
+  ) {
     setSavingAnalysis(true)
     setSaveError(null)
 
+    const payload = {
+      name,
+      description,
+      sql: sql ?? "",
+      databaseId: databaseId ?? null,
+      dbSchema: dbSchema ?? null,
+      datasetId: datasetId ?? null,
+      chartType: viewMode === "table" ? "table" : chartType,
+      dimension: viewMode === "table" ? null : effectiveDimension,
+      metric: viewMode === "table" ? null : effectiveMetric,
+      // string -> associa; null -> sem vínculo (create) / remove vínculo (update)
+      projectId: selectedProjectId,
+    }
+
     try {
-      await createAnalysis({
-        name,
-        description,
-        sql: sql ?? "",
-        databaseId: databaseId ?? null,
-        dbSchema: dbSchema ?? null,
-        datasetId: datasetId ?? null,
-        chartType: viewMode === "table" ? "table" : chartType,
-        dimension: viewMode === "table" ? null : effectiveDimension,
-        metric: viewMode === "table" ? null : effectiveMetric,
-      })
+      // Edição (?analysisId restaurado) atualiza a mesma análise; sem edição, cria.
+      if (editingAnalysis) {
+        await updateAnalysis(editingAnalysis.id, payload)
+      } else {
+        await createAnalysis(payload)
+      }
       setSaveDialogOpen(false)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)

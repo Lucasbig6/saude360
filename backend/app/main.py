@@ -7,7 +7,16 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import analyses, charts, dashboards, datasets, queries, sources, superset_dashboards
+from app.api import (
+    analyses,
+    charts,
+    dashboards,
+    datasets,
+    projects,
+    queries,
+    sources,
+    superset_dashboards,
+)
 from app.auth import routes as auth_routes
 from app.core.config import settings
 from app.superset.client import superset_client
@@ -43,6 +52,7 @@ app.add_middleware(
 app.include_router(auth_routes.router, prefix=settings.api_prefix)
 app.include_router(analyses.router, prefix=settings.api_prefix)
 app.include_router(dashboards.router, prefix=settings.api_prefix)
+app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(superset_dashboards.router, prefix=settings.api_prefix)
 app.include_router(charts.router, prefix=settings.api_prefix)
 app.include_router(datasets.router, prefix=settings.api_prefix)

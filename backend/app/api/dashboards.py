@@ -3,13 +3,13 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_created_by, get_current_token
 from app.db.session import get_db
-from app.models import Analysis, Dashboard, DashboardFilter, DashboardWidget
+from app.models import Analysis, Dashboard, DashboardFilter, DashboardWidget, Project
 from app.schemas.dashboards import (
     DashboardCreate,
     DashboardResponse,
@@ -48,6 +48,14 @@ def _get_or_404(db: Session, dashboard_id: uuid.UUID) -> Dashboard:
     if dashboard is None:
         raise HTTPException(status_code=404, detail="Dashboard não encontrado")
     return dashboard
+
+
+def _validate_project(db: Session, project_id: uuid.UUID | None) -> None:
+    """Associação é erro de requisição (400), não 404."""
+    if project_id is None:
+        return
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status_code=400, detail="Projeto não encontrado")
 
 
 def _reload(db: Session, dashboard: Dashboard) -> Dashboard:
@@ -89,6 +97,7 @@ def _to_response(dashboard: Dashboard) -> DashboardResponse:
             "appearance": dashboard.appearance,
             "widgets": [_widget_dto(row) for row in dashboard.widgets],
             "filters": [_filter_dto(row) for row in dashboard.filters],
+            "projectId": dashboard.project_id,
             "createdBy": dashboard.created_by,
             "createdAt": dashboard.created_at,
             "updatedAt": dashboard.updated_at,
@@ -224,11 +233,15 @@ def _sync_filters(
 
 @router.get("", response_model=list[DashboardResponse])
 def list_dashboards(
+    project_id: uuid.UUID | None = Query(default=None, alias="projectId"),
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
 ) -> list[DashboardResponse]:
-    dashboards = db.scalars(select(Dashboard).order_by(Dashboard.created_at.desc())).all()
-    return [_to_response(dashboard) for dashboard in dashboards]
+    stmt = select(Dashboard).order_by(Dashboard.created_at.desc())
+    if project_id is not None:
+        # Projeto inexistente não casa nenhuma linha -> coleção vazia (não 404).
+        stmt = stmt.where(Dashboard.project_id == project_id)
+    return [_to_response(dashboard) for dashboard in db.scalars(stmt).all()]
 
 
 @router.get("/by-slug/{slug}", response_model=DashboardResponse)
@@ -252,6 +265,7 @@ def create_dashboard(
     token: str = Depends(get_current_token),
     created_by: uuid.UUID | None = Depends(get_created_by),
 ) -> DashboardResponse:
+    _validate_project(db, payload.project_id)
     slug = _resolve_slug(db, payload.slug, payload.name)
     dashboard = Dashboard(
         name=payload.name,
@@ -259,6 +273,7 @@ def create_dashboard(
         slug=slug,
         appearance=payload.appearance,
         created_by=created_by,
+        project_id=payload.project_id,
     )
     db.add(dashboard)
     db.flush()
@@ -297,6 +312,10 @@ def update_dashboard(
         dashboard.description = data["description"]
     if "appearance" in data:
         dashboard.appearance = data["appearance"]
+    if "project_id" in data:
+        # presente (UUID ou null) -> valida/aplica; ausente -> não altera o vínculo.
+        _validate_project(db, data["project_id"])
+        dashboard.project_id = data["project_id"]
 
     if widgets is not None:
         _sync_widgets(db, dashboard, payload.widgets or [])

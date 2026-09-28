@@ -90,10 +90,14 @@ class DashboardCreate(CamelModel):
     appearance: dict[str, Any] = Field(default_factory=dict)
     widgets: list[WidgetIn] = Field(default_factory=list)
     filters: list[FilterIn] = Field(default_factory=list)
+    project_id: uuid.UUID | None = None
 
 
 class DashboardUpdate(CamelModel):
-    """PUT: campos ausentes mantêm o valor atual; listas vazias limpam."""
+    """PUT: campos ausentes mantêm o valor atual; listas vazias limpam.
+
+    ``project_id`` ausente não altera o vínculo; ``null`` remove do projeto.
+    """
 
     name: Annotated[str, Field(min_length=1, max_length=255)] | None = None
     description: str | None = None
@@ -101,6 +105,7 @@ class DashboardUpdate(CamelModel):
     appearance: dict[str, Any] | None = None
     widgets: list[WidgetIn] | None = None
     filters: list[FilterIn] | None = None
+    project_id: uuid.UUID | None = None
 
 
 class DashboardResponse(CamelModel):
@@ -111,6 +116,7 @@ class DashboardResponse(CamelModel):
     appearance: dict[str, Any]
     widgets: list[WidgetOut] = Field(default_factory=list)
     filters: list[FilterOut] = Field(default_factory=list)
+    project_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime

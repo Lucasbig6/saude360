@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProjectSelect } from "@/components/project/project-select"
+import { getProjects } from "@/lib/api/projects"
+import type { Project } from "@/lib/types/project"
 
 interface SaveAnalysisDialogProps {
   open: boolean
@@ -21,11 +24,20 @@ interface SaveAnalysisDialogProps {
    * Sucesso/falha são decididos pelo chamador: ele fecha o diálogo no sucesso e
    * expõe `error`. Em caso de rejeição os campos são preservados.
    */
-  onSave: (name: string, description: string) => void | Promise<void>
+  onSave: (
+    name: string,
+    description: string,
+    projectId: string | null
+  ) => void | Promise<void>
   title?: string
   dialogDescription?: string
   saving?: boolean
   error?: string | null
+  /** Pré-seleciona o projeto ao abrir (URL `?projectId=` ou projeto da análise em edição). */
+  defaultProjectId?: string | null
+  /** Nome/descrição pré-preenchidos ao editar análise existente. */
+  initialName?: string
+  initialDescription?: string
 }
 
 export function SaveAnalysisDialog({
@@ -36,10 +48,35 @@ export function SaveAnalysisDialog({
   dialogDescription = "Dê um nome para esta análise para encontrá-la facilmente depois.",
   saving = false,
   error = null,
+  defaultProjectId = null,
+  initialName = "",
+  initialDescription = "",
 }: SaveAnalysisDialogProps) {
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
+  const [name, setName] = useState(initialName)
+  const [description, setDescription] = useState(initialDescription)
+  const [projectId, setProjectId] = useState<string | null>(defaultProjectId)
+  const [projects, setProjects] = useState<Project[] | null>(null)
+  const [projectsError, setProjectsError] = useState(false)
   const savingRef = useRef(false)
+  const projectsLoadedRef = useRef(false)
+
+  // Busca lazy na primeira abertura: o diálogo abre por prop programática
+  // (sem passar pelo handler do Base UI), então o gatilho é o efeito. O
+  // setState acontece só em callbacks de promise (lint-safe) e não há refetch
+  // em reaberturas nem request no carregamento do /explorar.
+  useEffect(() => {
+    if (!open || projectsLoadedRef.current) return
+    projectsLoadedRef.current = true
+    getProjects()
+      .then(setProjects)
+      .catch(() => setProjectsError(true))
+  }, [open])
+
+  function resetFields() {
+    setName(initialName)
+    setDescription(initialDescription)
+    setProjectId(defaultProjectId)
+  }
 
   async function handleSave() {
     const trimmed = name.trim()
@@ -47,9 +84,8 @@ export function SaveAnalysisDialog({
 
     savingRef.current = true
     try {
-      await onSave(trimmed, description.trim())
-      setName("")
-      setDescription("")
+      await onSave(trimmed, description.trim(), projectId)
+      resetFields()
     } catch {
       // o chamador controla `error`; campos do usuário permanecem
     } finally {
@@ -59,10 +95,7 @@ export function SaveAnalysisDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen && saving) return
-    if (!nextOpen) {
-      setName("")
-      setDescription("")
-    }
+    if (!nextOpen) resetFields()
     onOpenChange(nextOpen)
   }
 
@@ -100,6 +133,24 @@ export function SaveAnalysisDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="analysis-project">Projeto (opcional)</Label>
+            <ProjectSelect
+              id="analysis-project"
+              value={projectId}
+              onChange={setProjectId}
+              projects={projects ?? []}
+              loading={projects === null && !projectsError}
+              disabled={saving}
+            />
+            {projectsError && (
+              <p className="text-xs text-slate-500">
+                Não foi possível carregar os projetos — você pode salvar sem
+                projeto e vincular depois.
+              </p>
+            )}
           </div>
         </div>
 

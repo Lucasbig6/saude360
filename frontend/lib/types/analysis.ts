@@ -11,6 +11,7 @@ export interface Analysis {
   chartType: ChartType
   dimension: string | null
   metric: string | null
+  projectId: string | null
   createdAt: string
   updatedAt: string
 }

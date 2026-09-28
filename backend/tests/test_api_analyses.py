@@ -15,7 +15,7 @@ def truncate_domain() -> None:
         conn.execute(
             text(
                 "TRUNCATE dashboard_filters, dashboard_widgets, dashboards, "
-                "analyses, users CASCADE"
+                "analyses, projects, users CASCADE"
             )
         )
 
@@ -178,3 +178,139 @@ async def test_delete_analysis_then_get_is_404(client, auth_headers):
 
     response = await client.get(f"/api/analyses/{analysis_id}", headers=auth_headers)
     assert response.status_code == 404
+
+
+async def create_project(client, headers, name: str = "Projeto Beta") -> str:
+    response = await client.post(
+        "/api/projects", json={"name": name}, headers=headers
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+async def test_create_analysis_with_project_returns_project_id(client, auth_headers):
+    project_id = await create_project(client, auth_headers)
+
+    response = await client.post(
+        "/api/analyses", json=payload(projectId=project_id), headers=auth_headers
+    )
+    assert response.status_code == 201
+    assert response.json()["projectId"] == project_id
+
+
+async def test_create_analysis_without_project_has_null_project_id(
+    client, auth_headers
+):
+    response = await client.post("/api/analyses", json=payload(), headers=auth_headers)
+    assert response.status_code == 201
+    assert response.json()["projectId"] is None
+
+
+async def test_create_analysis_with_unknown_project_is_400(client, auth_headers):
+    response = await client.post(
+        "/api/analyses",
+        json=payload(projectId=str(uuid.uuid4())),
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Projeto não encontrado"
+
+
+async def test_put_associates_analysis_with_project(client, auth_headers):
+    project_id = await create_project(client, auth_headers)
+    created = await client.post("/api/analyses", json=payload(), headers=auth_headers)
+
+    response = await client.put(
+        f"/api/analyses/{created.json()['id']}",
+        json={"projectId": project_id},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["projectId"] == project_id
+
+
+async def test_put_clears_analysis_project_with_null(client, auth_headers):
+    project_id = await create_project(client, auth_headers)
+    created = await client.post(
+        "/api/analyses", json=payload(projectId=project_id), headers=auth_headers
+    )
+
+    response = await client.put(
+        f"/api/analyses/{created.json()['id']}",
+        json={"projectId": None},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["projectId"] is None
+
+
+async def test_put_without_project_id_preserves_link(client, auth_headers):
+    project_id = await create_project(client, auth_headers)
+    created = await client.post(
+        "/api/analyses", json=payload(projectId=project_id), headers=auth_headers
+    )
+
+    response = await client.put(
+        f"/api/analyses/{created.json()['id']}",
+        json={"name": "Renomeada"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "Renomeada"
+    assert data["projectId"] == project_id
+
+
+async def test_put_analysis_with_unknown_project_is_400(client, auth_headers):
+    created = await client.post("/api/analyses", json=payload(), headers=auth_headers)
+
+    response = await client.put(
+        f"/api/analyses/{created.json()['id']}",
+        json={"projectId": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Projeto não encontrado"
+
+    unchanged = await client.get(
+        f"/api/analyses/{created.json()['id']}", headers=auth_headers
+    )
+    assert unchanged.json()["projectId"] is None
+
+
+async def test_list_analyses_filters_by_project(client, auth_headers):
+    project_id = await create_project(client, auth_headers)
+    await client.post(
+        "/api/analyses",
+        json=payload(name="Dentro do projeto", projectId=project_id),
+        headers=auth_headers,
+    )
+    await client.post(
+        "/api/analyses", json=payload(name="Sem projeto"), headers=auth_headers
+    )
+
+    filtered = await client.get(
+        f"/api/analyses?projectId={project_id}", headers=auth_headers
+    )
+    assert filtered.status_code == 200
+    items = filtered.json()
+    assert len(items) == 1
+    assert items[0]["name"] == "Dentro do projeto"
+    assert items[0]["projectId"] == project_id
+
+    # sem filtro -> comportamento legado: tudo
+    legacy = await client.get("/api/analyses", headers=auth_headers)
+    assert legacy.status_code == 200
+    assert len(legacy.json()) == 2
+
+
+async def test_list_analyses_filter_unknown_project_returns_empty(
+    client, auth_headers
+):
+    await client.post("/api/analyses", json=payload(), headers=auth_headers)
+
+    response = await client.get(
+        f"/api/analyses?projectId={uuid.uuid4()}", headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json() == []

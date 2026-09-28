@@ -21,6 +21,9 @@ class Dashboard(Base):
     appearance: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'")
     )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="SET NULL"), index=True
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )

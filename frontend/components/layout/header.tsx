@@ -10,6 +10,7 @@ import {
   Database,
   FileChartColumn,
   Home,
+  Hospital,
   Menu,
   Search,
   Settings,
@@ -29,6 +30,7 @@ import { clearTokens } from "@/lib/auth"
 
 const navigation = [
   { name: "Início", href: "/inicio" },
+  { name: "Projetos", href: "/projetos" },
   { name: "Painéis", href: "/paineis" },
   { name: "Explorar", href: "/explorar" },
   { name: "Fontes", href: "/fontes" },
@@ -37,6 +39,7 @@ const navigation = [
 
 const mobileNavIcons: Record<string, typeof Home> = {
   "/inicio": Home,
+  "/projetos": Hospital,
   "/paineis": BarChart3,
   "/explorar": Search,
   "/fontes": Database,

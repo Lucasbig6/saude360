@@ -16,6 +16,7 @@ import type {
  *   - defaultValue  : string|string[]|null -> string|string[] ("" quando null)
  *   - scope         : string|string[]|null -> "dashboard" | string[] (o frontend só
  *                     grava "dashboard" ou array; outra string qualquer é repassada)
+ *   - projectId     : string|null (UUID do projeto; null = sem projeto)
  */
 export interface ApiLayout {
   x: number
@@ -47,6 +48,7 @@ export interface ApiDashboard {
   appearance: Record<string, unknown>
   widgets: ApiWidget[]
   filters: ApiFilter[]
+  projectId: string | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -58,6 +60,8 @@ export interface DashboardPayload {
   appearance?: DashboardAppearance
   widgets?: DashboardWidget[]
   filters?: DashboardFilter[]
+  /** ausente: PUT não altera o vínculo; null: remove; string: associa */
+  projectId?: string | null
 }
 
 export interface DashboardInput extends DashboardPayload {
@@ -175,6 +179,7 @@ export function toDashboard(raw: unknown): Dashboard {
     widgets: toWidgets(value.widgets),
     filters: toFilters(value.filters),
     appearance: toAppearance(value.appearance),
+    projectId: typeof value.projectId === "string" ? value.projectId : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   }
@@ -207,6 +212,8 @@ function toWidgetsPayload(widgets: DashboardWidget[]): DashboardWidget[] {
 
 /**
  * PUT completo. `slug` NUNCA é enviado: a identidade do slug é do backend.
+ * `projectId` é enviado sempre (round-trip do objeto): manter o valor atual
+ * preserva o vínculo; `null` limpa.
  */
 export function toDashboardPayload(dashboard: Dashboard): DashboardPayload {
   return {
@@ -222,11 +229,12 @@ export function toDashboardPayload(dashboard: Dashboard): DashboardPayload {
       defaultValue: filter.defaultValue,
       scope: filter.scope,
     })),
+    projectId: dashboard.projectId,
   }
 }
 
 function toCreatePayload(data: DashboardInput): DashboardPayload {
-  return {
+  const payload: DashboardPayload = {
     name: data.name,
     description: data.description ?? null,
     appearance: data.appearance ?? {},
@@ -240,10 +248,18 @@ function toCreatePayload(data: DashboardInput): DashboardPayload {
       scope: filter.scope,
     })),
   }
+  // ausente -> cria sem projeto; null -> cria sem projeto; string -> associa.
+  if (data.projectId !== undefined) {
+    payload.projectId = data.projectId
+  }
+  return payload
 }
 
-export async function getDashboards(): Promise<Dashboard[]> {
-  const raw = await apiGet<unknown>("/api/dashboards")
+export async function getDashboards(projectId?: string): Promise<Dashboard[]> {
+  const path = projectId
+    ? `/api/dashboards?projectId=${encodeURIComponent(projectId)}`
+    : "/api/dashboards"
+  const raw = await apiGet<unknown>(path)
   if (!Array.isArray(raw)) {
     throw contractError("/api/dashboards: esperava uma lista")
   }

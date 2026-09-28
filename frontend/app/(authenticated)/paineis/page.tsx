@@ -13,25 +13,11 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Input,
-} from "@/components/ui/input"
-import {
-  Label,
-} from "@/components/ui/label"
 import type { Dashboard } from "@/lib/types/dashboard"
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
+import { CreateDashboardDialog } from "@/components/dashboard/create-dashboard-dialog"
 import {
   getDashboards,
-  createDashboard,
   deleteDashboard,
 } from "@/lib/api/dashboards"
 import { ApiError } from "@/lib/api"
@@ -59,10 +45,6 @@ export default function PaineisPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
-  const [newName, setNewName] = useState("")
-  const [newDescription, setNewDescription] = useState("")
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -115,34 +97,6 @@ export default function PaineisPage() {
       }
     } finally {
       setDeleting(false)
-    }
-  }
-
-  async function handleCreate() {
-    const trimmed = newName.trim()
-    if (!trimmed || creating) return
-
-    setCreating(true)
-    setCreateError(null)
-
-    try {
-      const dashboard = await createDashboard({
-        name: trimmed,
-        description: newDescription.trim(),
-        widgets: [],
-        filters: [],
-      })
-      setDashboards((prev) => [...(prev ?? []), dashboard])
-      setCreateOpen(false)
-      setNewName("")
-      setNewDescription("")
-      router.push(`/paineis/${dashboard.id}`)
-    } catch (err) {
-      setCreateError(
-        err instanceof ApiError ? err.detail : "Erro ao criar o painel."
-      )
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -290,85 +244,14 @@ export default function PaineisPage() {
       ) : null}
 
       {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={(open) => {
-        if (!open) {
-          setCreateOpen(false)
-          setNewName("")
-          setNewDescription("")
-          setCreateError(null)
-        }
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Novo dashboard</DialogTitle>
-            <DialogDescription>
-              Dê um nome para seu dashboard para encontrá-lo facilmente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {createError && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                <AlertCircle size={15} className="shrink-0" />
-                {createError}
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="dashboard-name">Nome *</Label>
-              <Input
-                id="dashboard-name"
-                placeholder="Ex: Atendimentos Mensais"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    void handleCreate()
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dashboard-description">Descrição</Label>
-              <Input
-                id="dashboard-description"
-                placeholder="Ex: Visão geral de atendimentos por período."
-                value={newDescription}
-                onChange={(e) => setNewDescription(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCreateOpen(false)
-                setNewName("")
-                setNewDescription("")
-                setCreateError(null)
-              }}
-              disabled={creating}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => void handleCreate()}
-              disabled={!newName.trim() || creating}
-              className="bg-teal-600 text-white hover:bg-teal-700"
-            >
-              {creating ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Plus size={14} />
-              )}
-              Criar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateDashboardDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(dashboard) => {
+          setDashboards((prev) => [...(prev ?? []), dashboard])
+          router.push(`/paineis/${dashboard.id}`)
+        }}
+      />
 
       {/* Delete confirmation dialog */}
       <DeleteConfirmationDialog

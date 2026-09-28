@@ -28,10 +28,14 @@ class AnalysisCreate(CamelModel):
     chart_type: Annotated[str | None, Field(max_length=100)] = None
     dimension: Annotated[str | None, Field(max_length=255)] = None
     metric: Annotated[str | None, Field(max_length=255)] = None
+    project_id: uuid.UUID | None = None
 
 
 class AnalysisUpdate(CamelModel):
-    """PUT: só os campos presentes no payload são aplicados."""
+    """PUT: só os campos presentes no payload são aplicados.
+
+    ``project_id`` ausente não altera o vínculo; ``null`` remove do projeto.
+    """
 
     name: Annotated[str, Field(min_length=1, max_length=255)] | None = None
     description: str | None = None
@@ -42,6 +46,7 @@ class AnalysisUpdate(CamelModel):
     chart_type: Annotated[str | None, Field(max_length=100)] = None
     dimension: Annotated[str | None, Field(max_length=255)] = None
     metric: Annotated[str | None, Field(max_length=255)] = None
+    project_id: uuid.UUID | None = None
 
 
 class AnalysisResponse(CamelModel):
@@ -55,6 +60,7 @@ class AnalysisResponse(CamelModel):
     chart_type: str | None = None
     dimension: str | None = None
     metric: str | None = None
+    project_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime

@@ -11,6 +11,7 @@ import { chartTypeIcon } from "@/lib/types/charts"
  *   - databaseId           : number|null  -> number  (0 quando null; falsy, como antes)
  *   - chartType            : string|null  -> ChartType (fallback "table" se desconhecido)
  *   - createdBy            : existe só na API, fora do tipo do frontend
+ *   - projectId            : string|null (UUID do projeto; null = sem projeto)
  */
 export interface ApiAnalysis {
   id: string
@@ -23,6 +24,7 @@ export interface ApiAnalysis {
   chartType: string | null
   dimension: string | null
   metric: string | null
+  projectId: string | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -38,6 +40,8 @@ export interface AnalysisInput {
   chartType?: string | null
   dimension?: string | null
   metric?: string | null
+  /** ausente: PUT não altera o vínculo; null: remove; string: associa */
+  projectId?: string | null
 }
 
 function contractError(what: string): ApiError {
@@ -79,13 +83,14 @@ export function toAnalysis(raw: unknown): Analysis {
     chartType: assertChartType(value.chartType),
     dimension: value.dimension ?? null,
     metric: value.metric ?? null,
+    projectId: typeof value.projectId === "string" ? value.projectId : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   }
 }
 
 function toAnalysisPayload(data: AnalysisInput): Record<string, unknown> {
-  return {
+  const payload: Record<string, unknown> = {
     name: data.name,
     description: data.description ?? null,
     sql: data.sql ?? null,
@@ -96,10 +101,18 @@ function toAnalysisPayload(data: AnalysisInput): Record<string, unknown> {
     dimension: data.dimension ?? null,
     metric: data.metric ?? null,
   }
+  // ausente -> PUT não altera o vínculo; null -> remove; string -> associa.
+  if (data.projectId !== undefined) {
+    payload.projectId = data.projectId
+  }
+  return payload
 }
 
-export async function getAnalyses(): Promise<Analysis[]> {
-  const raw = await apiGet<unknown>("/api/analyses")
+export async function getAnalyses(projectId?: string): Promise<Analysis[]> {
+  const path = projectId
+    ? `/api/analyses?projectId=${encodeURIComponent(projectId)}`
+    : "/api/analyses"
+  const raw = await apiGet<unknown>(path)
   if (!Array.isArray(raw)) {
     throw contractError("/api/analyses: esperava uma lista")
   }

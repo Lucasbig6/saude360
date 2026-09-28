@@ -34,6 +34,7 @@ export interface Dashboard {
   widgets: DashboardWidget[]
   filters: DashboardFilter[]
   appearance?: DashboardAppearance
+  projectId: string | null
   createdAt: string
   updatedAt: string
 }
