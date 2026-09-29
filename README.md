@@ -590,6 +590,33 @@ MoniSUS
 
 ---
 
+# 🐳 Ambiente de desenvolvimento (Docker)
+
+Comandos principais:
+
+```text
+make dev       # sobe a stack completa (db + superset + backend + frontend)
+make stop      # para os containers (mantém volumes)
+make logs      # tail dos logs de todos os containers
+make down      # para e remove os containers (mantém volumes)
+```
+
+### Observações importantes
+
+* **`superset_init` é um job one-shot**: roda as migrations e a configuração do Superset e termina com `Exited (0)`. Isso é **esperado** — ele não deve ficar rodando. O `superset_app` só sobe depois que ele completa com sucesso.
+* **Volume de `node_modules` do frontend**: o container monta o volume `saude360_frontend_node_modules` sobre `/app/node_modules`, que é preenchido uma única vez a partir do image. Sempre que o `package-lock.json` mudar, esse volume fica desatualizado (faltam binários como `@next/swc-linux-x64-gnu`) e o `next dev` quebra. Nesse caso, remova o volume para que ele seja repovoado pelo image:
+
+  ```bash
+  docker compose rm -sf frontend
+  docker volume rm saude360_frontend_node_modules saude360_frontend_next
+  docker compose up --build frontend
+  ```
+
+* ⚠️ **Não use `docker compose down -v`** para isso: o `-v` apaga também os volumes de dados do Postgres (`saude360_saude360_pgdata`) e do Superset (`saude360_db_home`).
+* **Scripts `.sh` sempre com LF**: o repositório usa `.gitattributes` (`*.sh text eol=lf`) porque um `docker-entrypoint.sh` com CRLF falha no Linux com `exec: no such file or directory`. O `backend/Dockerfile` também remove `\r` no build como defesa.
+
+---
+
 # 📁 Estrutura inicial
 
 ```text
