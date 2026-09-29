@@ -21,6 +21,9 @@ from app.models import (
 )
 
 EXPECTED_TABLES = {
+    "ai_messages",
+    "ai_sessions",
+    "ai_tool_calls",
     "analyses",
     "audit_logs",
     "dashboard_filters",
@@ -83,7 +86,7 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0002_projects"
+    assert version == "0003_ai_sessions"
 
 
 def test_expected_tables_exist(db):

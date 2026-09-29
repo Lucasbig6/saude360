@@ -130,6 +130,12 @@
   html, body {
     @apply min-h-screen;
   }
+  button:not(:disabled),
+  select:not(:disabled),
+  [role="menuitem"],
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* Mobile scrollbar utilities */

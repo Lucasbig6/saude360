@@ -751,53 +751,6 @@ export default function Home() {
                 </div>
               ))}
           </section>
-
-          {/* Recentes */}
-          <Section
-            title="Recentes"
-            count={recentItems.length}
-            open={recentOpen}
-            onToggle={toggleRecent}
-          >
-            {recentItems.length === 0 ? (
-              <EmptyInline
-                title="Nada por aqui ainda"
-                description="Crie um dashboard ou execute uma análise para começar."
-                actionLabel="Explorar dados"
-                actionHref="/explorar"
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {recentItems.map((item) => {
-                  const Icon =
-                    item.kind === "dashboard"
-                      ? LayoutDashboard
-                      : item.kind === "chart"
-                        ? BarChart3
-                        : FileChartColumn
-
-                  const iconCls =
-                    item.kind === "dashboard"
-                      ? "bg-teal-50 text-teal-700"
-                      : item.kind === "chart"
-                        ? "bg-purple-50 text-purple-700"
-                        : "bg-slate-100 text-slate-700"
-
-                  return (
-                    <RecentCard
-                      key={`${item.kind}-${item.id}`}
-                      href={item.href}
-                      icon={<Icon size={15} />}
-                      iconClassName={iconCls}
-                      title={item.name}
-                      timeLabel={formatRelative(item.updatedAt)}
-                      badge={kindLabel(item.kind)}
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </Section>
         </div>
       )}
     </div>

@@ -337,7 +337,7 @@ export function AddFilterDialog({
                         distinctValues.map((v) => (
                           <label
                             key={v}
-                            className="flex items-center gap-2 text-xs text-slate-700"
+                            className="flex cursor-pointer items-center gap-2 text-xs text-slate-700"
                           >
                             <input
                               type="checkbox"
@@ -490,7 +490,7 @@ export function AddFilterDialog({
                       {analysesInDashboard.map((a) => (
                         <label
                           key={a.id}
-                          className="flex items-center gap-2 text-xs text-slate-700"
+                          className="flex cursor-pointer items-center gap-2 text-xs text-slate-700"
                         >
                           <input
                             type="checkbox"

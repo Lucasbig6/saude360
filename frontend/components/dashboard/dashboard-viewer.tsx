@@ -32,12 +32,18 @@ interface DashboardViewerProps {
   /** When true, shows a discreet link back to the editor (authenticated context). */
   canEdit?: boolean
   editHref?: string
+  /**
+   * Habilita o Copiloto (sessão de IA). Falso no painel público anônimo:
+   * a IA não é exposta fora de uma sessão autenticada.
+   */
+  enableCopilot?: boolean
 }
 
 export function DashboardViewer({
   dashboard,
   canEdit = false,
   editHref,
+  enableCopilot = false,
 }: DashboardViewerProps) {
   const [shareOpen, setShareOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
@@ -137,22 +143,24 @@ export function DashboardViewer({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCopilotOpen((v) => !v)}
-              aria-expanded={copilotOpen}
-              aria-controls="dashboard-copilot-panel"
-              className={cn(
-                isDark
-                  ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                  : "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100"
-              )}
-              title="Abrir copiloto de análise"
-            >
-              <Sparkles size={14} />
-              Copiloto
-            </Button>
+            {enableCopilot && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCopilotOpen((v) => !v)}
+                aria-expanded={copilotOpen}
+                aria-controls="dashboard-copilot-panel"
+                className={cn(
+                  isDark
+                    ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                    : "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100"
+                )}
+                title="Abrir copiloto de análise"
+              >
+                <Sparkles size={14} />
+                Copiloto
+              </Button>
+            )}
 
             <Button
               variant="outline"
@@ -311,11 +319,14 @@ export function DashboardViewer({
         dashboard={dashboard}
       />
 
-      <DashboardCopilot
-        open={copilotOpen}
-        onOpenChange={setCopilotOpen}
-        dashboard={dashboard}
-      />
+      {enableCopilot && (
+        <DashboardCopilot
+          open={copilotOpen}
+          onOpenChange={setCopilotOpen}
+          dashboard={dashboard}
+          enabled={enableCopilot}
+        />
+      )}
     </div>
   )
 }

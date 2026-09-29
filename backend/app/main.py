@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.ai.router import router as ai_router
 from app.api import (
     analyses,
     charts,
@@ -58,6 +59,7 @@ app.include_router(charts.router, prefix=settings.api_prefix)
 app.include_router(datasets.router, prefix=settings.api_prefix)
 app.include_router(queries.router, prefix=settings.api_prefix)
 app.include_router(sources.router, prefix=settings.api_prefix)
+app.include_router(ai_router, prefix=settings.api_prefix)
 
 
 @app.get("/")

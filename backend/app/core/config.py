@@ -16,5 +16,19 @@ class Settings(BaseSettings):
         "postgresql+psycopg://saude360:saude360_password@localhost:5433/saude360_test"
     )
 
+    # --- IA (camada app/ai) -------------------------------------------------
+    # AI_PROVIDER: chave em app.ai.providers.factory.PROVIDER_TYPES
+    # (ex.: "openai" para API compatível, "sesapi" para a IA da SESAPI).
+    ai_provider: str = "openai"
+    ai_model: str = ""
+    ai_base_url: str = ""  # ex.: https://api.openai.com/v1
+    ai_api_key: str = ""
+    ai_timeout: float = 60.0
+    ai_max_steps: int = 8
+    ai_max_rows: int = 500
+    ai_tool_timeout: float = 60.0
+    # Padrão false: a auditoria guarda apenas o hash do SQL, nunca o texto.
+    ai_audit_store_sql: bool = False
+
 
 settings = Settings()

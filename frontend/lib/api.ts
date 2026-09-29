@@ -101,19 +101,28 @@ async function request<T>(
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    if (response.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/refresh") {
-      forceLogout()
-    }
-    const detail =
-      typeof data?.detail === "string"
-        ? data.detail
-        : typeof data?.message === "string"
-          ? data.message
-          : "Erro desconhecido"
-    throw new ApiError(response.status, detail)
+    throwFromResponse(response, data, path)
   }
 
   return data as T
+}
+
+function throwFromResponse(response: Response, data: unknown, path: string): never {
+  if (
+    response.status === 401 &&
+    path !== "/api/auth/login" &&
+    path !== "/api/auth/refresh"
+  ) {
+    forceLogout()
+  }
+  const payload = (data ?? {}) as Record<string, unknown>
+  const detail =
+    typeof payload.detail === "string"
+      ? payload.detail
+      : typeof payload.message === "string"
+        ? payload.message
+        : "Erro desconhecido"
+  throw new ApiError(response.status, detail)
 }
 
 export function apiGet<T>(path: string): Promise<T> {
@@ -130,4 +139,42 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function apiDelete(path: string): Promise<void> {
   return request<void>("DELETE", path)
+}
+
+/**
+ * Requisição que devolve o `Response` cru (para streaming SSE).
+ * Mesma autenticação/refresh/erros de `apiPost`.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  options: { signal?: AbortSignal; method?: string } = {},
+  retried = false
+): Promise<Response> {
+  const method = options.method ?? "POST"
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...authHeaders(),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: options.signal,
+    cache: "no-store",
+  })
+
+  if (response.status === 401 && !retried) {
+    const recovered = await handleUnauthorized(path)
+    if (recovered) {
+      return apiStream(path, body, options, true)
+    }
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throwFromResponse(response, data, path)
+  }
+
+  return response
 }

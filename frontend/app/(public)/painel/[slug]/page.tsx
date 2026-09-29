@@ -121,6 +121,8 @@ export default function PainelViewerPage({
       dashboard={dashboard}
       canEdit={canEdit}
       editHref={`/paineis/${dashboard.id}`}
+      // IA só com sessão autenticada: o painel público anônimo não expõe o copiloto.
+      enableCopilot={canEdit}
     />
   )
 }

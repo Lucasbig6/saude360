@@ -76,9 +76,12 @@ export function ObjectBrowser({
   )
 
   useEffect(() => {
-    if (selectedTable) {
-      loadMetadata(selectedTable.schema, selectedTable.table)
-    }
+    if (!selectedTable) return
+    // Carregamento assíncrono: as atualizações de estado acontecem depois
+    // do await, nunca de forma síncrona dentro do effect.
+    queueMicrotask(() => {
+      void loadMetadata(selectedTable.schema, selectedTable.table)
+    })
   }, [selectedTable, loadMetadata])
 
   const filteredSchemas = schemas.filter((schema) => {
