@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useCallback, useMemo, useRef, useState } from "react"
-import { BarChart3, ChevronLeft, LineChart, PieChart } from "lucide-react"
+import { ChevronLeft } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -9,7 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ChartRenderer } from "./chart-renderer"
+import { CHART_TYPES } from "@/lib/charts/chart-config"
+import { CHART_TYPE_META } from "@/components/charts/chart-types"
+import { PreviewChart } from "./preview-chart"
 import { DraggableField } from "./draggable-field"
 import { FieldDropSlot } from "./field-drop-slot"
 
@@ -44,12 +47,12 @@ type SlotType = "dimension" | "metric"
 const CHART_OPTIONS: {
   value: Exclude<ChartType, "table">
   label: string
-  icon: typeof BarChart3
-}[] = [
-  { value: "bar", label: "Barras", icon: BarChart3 },
-  { value: "line", label: "Linha", icon: LineChart },
-  { value: "pie", label: "Pizza", icon: PieChart },
-]
+  icon: LucideIcon
+}[] = CHART_TYPES.map((type) => ({
+  value: type,
+  label: CHART_TYPE_META[type].label,
+  icon: CHART_TYPE_META[type].icon,
+}))
 
 export function analyzeColumns(
   data: Record<string, unknown>[]
@@ -306,7 +309,7 @@ export function VisualizationPanel({
 
         {/* Chart */}
         <div className="h-[400px] rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-          <ChartRenderer
+          <PreviewChart
             data={data}
             chartType={chartType}
             dimension={dimension}

@@ -36,6 +36,29 @@ async def create_analysis(client, headers, name: str = "Análise base") -> str:
     return response.json()["id"]
 
 
+async def create_chart_analysis(
+    client,
+    headers,
+    *,
+    chart_type: str | None = "line",
+    dimension: str | None = "mes",
+    metric: str | None = "total",
+) -> str:
+    response = await client.post(
+        "/api/analyses",
+        json={
+            "name": "Análise com chart",
+            "sql": "SELECT 1",
+            "chartType": chart_type,
+            "dimension": dimension,
+            "metric": metric,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
 def widget(analysis_id: str, **layout) -> dict:
     return {
         "analysisId": analysis_id,
@@ -595,3 +618,217 @@ async def test_list_dashboards_filter_unknown_project_returns_empty(
     )
     assert response.status_code == 200
     assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Widget v2 (config em JSONB)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_widget_with_v2_config_round_trip(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    config = {
+        "type": "bar",
+        "encoding": {"x": "municipio", "y": "total"},
+        "aggregation": {"field": "total", "function": "sum"},
+        "sort": {"field": "total", "direction": "desc"},
+        "limit": 5,
+        "legend": False,
+        "tooltip": True,
+        "title": "Atendimentos",
+        "options": {"barMaxWidth": 40},
+    }
+
+    response = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel v2",
+            "widgets": [{**widget(analysis_id), "widget": config}],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["widgets"][0]["widget"] == config
+
+    reread = await client.get(
+        f"/api/dashboards/{response.json()['id']}", headers=auth_headers
+    )
+    assert reread.json()["widgets"][0]["widget"] == config
+
+
+async def test_widget_without_config_is_derived_from_analysis(client, auth_headers):
+    analysis_id = await create_chart_analysis(
+        client, auth_headers, chart_type="line", dimension="mes", metric="total"
+    )
+
+    response = await client.post(
+        "/api/dashboards",
+        json={"name": "Painel legado", "widgets": [widget(analysis_id)]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["widgets"][0]["widget"] == {
+        "type": "line",
+        "legend": True,
+        "tooltip": True,
+        "encoding": {"x": "mes", "y": "total"},
+    }
+
+
+async def test_widget_derivation_handles_table_and_unknown_chart_type(
+    client, auth_headers
+):
+    table_id = await create_chart_analysis(
+        client, auth_headers, chart_type="table", dimension=None, metric=None
+    )
+    unknown_id = await create_chart_analysis(
+        client, auth_headers, chart_type="boxplot", dimension=None, metric=None
+    )
+    plain_id = await create_analysis(client, auth_headers, name="Sem chartType")
+
+    response = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Derivação",
+            "widgets": [
+                widget(table_id),
+                widget(unknown_id),
+                widget(plain_id),
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    widgets = response.json()["widgets"]
+    assert widgets[0]["widget"] == {"type": "table"}
+    assert widgets[1]["widget"] == {
+        "type": "bar",
+        "legend": True,
+        "tooltip": True,
+    }
+    assert widgets[2]["widget"] == {
+        "type": "bar",
+        "legend": True,
+        "tooltip": True,
+    }
+
+
+async def test_widget_with_unknown_type_is_422(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+
+    response = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel inválido",
+            "widgets": [
+                {**widget(analysis_id), "widget": {"type": "sunburst"}},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+async def test_widget_invalid_config_is_422(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+
+    invalid_payloads = [
+        {"type": "bar", "aggregation": {"field": "total", "function": "median"}},
+        {"type": "bar", "limit": 0},
+        {"type": "bar", "sort": {"field": "total", "direction": "up"}},
+        {"type": "bar", "aggregation": {"field": "", "function": "sum"}},
+    ]
+    for payload in invalid_payloads:
+        response = await client.post(
+            "/api/dashboards",
+            json={
+                "name": "Painel inválido",
+                "widgets": [{**widget(analysis_id), "widget": payload}],
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 422, payload
+
+
+async def test_widget_with_non_chart_type_keeps_extra_fields(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    config = {"type": "kpi", "field": "total", "aggregation": "sum"}
+
+    response = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel kpi",
+            "widgets": [{**widget(analysis_id), "widget": config}],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["widgets"][0]["widget"] == config
+
+
+async def test_put_updates_widget_config(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    first_config = {"type": "pie", "encoding": {"x": "municipio", "y": "total"}}
+    second_config = {
+        "type": "bar",
+        "encoding": {"x": "municipio", "y": "total"},
+        "limit": 10,
+    }
+
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel editável",
+            "widgets": [{**widget(analysis_id), "widget": first_config}],
+        },
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+    existing_id = created.json()["widgets"][0]["id"]
+
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={
+            "widgets": [
+                {
+                    "id": existing_id,
+                    **widget(analysis_id),
+                    "widget": second_config,
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["widgets"][0]["widget"] == second_config
+
+    reread = await client.get(
+        f"/api/dashboards/{dashboard_id}", headers=auth_headers
+    )
+    assert reread.json()["widgets"][0]["widget"] == second_config
+
+
+async def test_put_without_widget_keeps_derived_config(client, auth_headers):
+    analysis_id = await create_chart_analysis(
+        client, auth_headers, chart_type="pie", dimension="municipio", metric="total"
+    )
+    created = await client.post(
+        "/api/dashboards",
+        json={"name": "Painel", "widgets": [widget(analysis_id)]},
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+    expected = created.json()["widgets"][0]["widget"]
+
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={
+            "widgets": [
+                {"id": created.json()["widgets"][0]["id"], **widget(analysis_id)}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["widgets"][0]["widget"] == expected
+    assert expected["type"] == "pie"

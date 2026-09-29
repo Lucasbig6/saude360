@@ -13,19 +13,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn, dashboardWidthClass } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
-import { DashboardWidgetView } from "./dashboard-widget"
 import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { DashboardCopilot } from "./dashboard-copilot"
-import {
-  ResponsiveGridLayout,
-  useContainerWidth,
-  verticalCompactor,
-} from "react-grid-layout"
-
-const GRID_COLS = { lg: 12, md: 10, sm: 6 }
-const GRID_BREAKPOINTS = { lg: 1024, md: 768, sm: 0 }
-const GRID_ROW_HEIGHT = 80
-const GRID_MARGIN: [number, number] = [16, 16]
+import { DashboardCanvas } from "./dashboard-canvas"
 
 interface DashboardViewerProps {
   dashboard: Dashboard
@@ -58,36 +48,6 @@ export function DashboardViewer({
     }
     return initial
   }, [dashboard.filters])
-
-  const layouts = useMemo(() => {
-    const lg = dashboard.widgets.map((w) => ({
-      i: w.id,
-      x: w.layout.x,
-      y: w.layout.y,
-      w: w.layout.w,
-      h: w.layout.h,
-    }))
-
-    const md = lg.map((item) => ({
-      ...item,
-      w: Math.min(item.w, 10),
-      x: Math.min(item.x, 10 - item.w),
-    }))
-
-    const sm = lg.map((item) => ({
-      ...item,
-      w: 6,
-      x: 0,
-      y: item.y,
-    }))
-
-    return { lg, md, sm }
-  }, [dashboard.widgets])
-
-  const { width, mounted, containerRef } = useContainerWidth({
-    measureBeforeMount: true,
-    initialWidth: 1280,
-  })
 
   return (
     <div
@@ -244,7 +204,7 @@ export function DashboardViewer({
 
         {/* Grid — no drag/resize, no edit controls */}
         <section className="mt-6">
-          <div ref={containerRef}>
+          <div>
             {dashboard.widgets.length === 0 ? (
               <div
                 className={cn(
@@ -263,35 +223,14 @@ export function DashboardViewer({
                   Este painel ainda não possui gráficos.
                 </p>
               </div>
-            ) : mounted ? (
-              <ResponsiveGridLayout
-                className="layout"
-                width={width}
-                layouts={layouts}
-                breakpoints={GRID_BREAKPOINTS}
-                cols={GRID_COLS}
-                rowHeight={GRID_ROW_HEIGHT}
-                margin={GRID_MARGIN}
-                dragConfig={{ enabled: false }}
-                resizeConfig={{ enabled: false }}
-                compactor={verticalCompactor}
-              >
-                {dashboard.widgets.map((widget) => (
-                  <div key={widget.id}>
-                    <div className="h-full">
-                      <DashboardWidgetView
-                        widget={widget}
-                        filters={dashboard.filters}
-                        filterValues={filterValues}
-                        onRemove={() => undefined}
-                        readOnly
-                        key={`${widget.id}-${refreshKey}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </ResponsiveGridLayout>
-            ) : null}
+            ) : (
+              <DashboardCanvas
+                dashboard={dashboard}
+                readOnly
+                filterValues={filterValues}
+                refreshKey={refreshKey}
+              />
+            )}
           </div>
         </section>
 

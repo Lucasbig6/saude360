@@ -160,62 +160,6 @@
   }
 }
 
-/* React Grid Layout */
-.react-grid-layout {
-  position: relative;
-  transition: height 200ms ease;
-}
-.react-grid-item {
-  transition: all 200ms ease;
-  transition-property: left, top, width, height;
-}
-.react-grid-item.cssTransforms {
-  transition-property: transform, width, height;
-}
-.react-grid-item.resizing {
-  z-index: 1;
-  will-change: width, height;
-}
-.react-grid-item.react-draggable-dragging {
-  transition: none;
-  z-index: 3;
-  will-change: transform;
-}
-.react-grid-placeholder {
-  background-color: oklch(0.922 0 0);
-  opacity: 0.6;
-  border-radius: 0.75rem;
-  border: 2px dashed oklch(0.708 0 0);
-  transition-duration: 100ms;
-  z-index: 2;
-  user-select: none;
-}
-.react-resizable-handle {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  bottom: 0;
-  right: 0;
-  cursor: se-resize;
-  z-index: 10;
-}
-.react-resizable-handle::after {
-  content: "";
-  position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid oklch(0.708 0 0);
-  border-bottom: 2px solid oklch(0.708 0 0);
-}
-.react-grid-item > .react-resizable-handle {
-  display: none;
-}
-.react-grid-item.editing > .react-resizable-handle {
-  display: block;
-}
-
 /* Dashboard edit mode grid background */
 .dashboard-edit-grid {
   background-image:

@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertCircle,
+  Gauge,
+  Image as ImageIcon,
   Loader2,
   MoreVertical,
   RefreshCw,
+  SlidersHorizontal,
+  Table2,
   Trash2,
+  Type as TypeIcon,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -23,20 +29,42 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChartRenderer } from "@/components/explorer/chart-renderer"
+import { EChartRenderer } from "@/components/charts/EChartRenderer"
+import { CHART_TYPE_META } from "@/components/charts/chart-types"
+import { isChartType } from "@/lib/charts/chart-config"
 import type { Analysis } from "@/lib/types/analysis"
-import { chartTypeIcon } from "@/lib/types/charts"
 import type { DashboardFilter, DashboardWidget } from "@/lib/types/dashboard"
+import {
+  isChartWidgetConfig,
+  kpiValue,
+  legacyToWidgetConfig,
+  type StaticWidgetType,
+} from "@/lib/types/widgets"
 import { getAnalysis } from "@/lib/api/analyses"
 import { executeQuery, executeQueryFiltered } from "@/lib/api/queries"
 import type { FilterClause } from "@/lib/api/queries"
 import { ApiError } from "@/lib/api"
+
+const STATIC_ICONS: Record<StaticWidgetType, LucideIcon> = {
+  table: Table2,
+  kpi: Gauge,
+  text: TypeIcon,
+  image: ImageIcon,
+}
+
+const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 })
+
+function formatKpi(value: number | null): string {
+  if (value === null) return "—"
+  return numberFormat.format(value)
+}
 
 interface DashboardWidgetViewProps {
   widget: DashboardWidget
   filters: DashboardFilter[]
   filterValues: Record<string, string | string[]>
   onRemove: (widgetId: string) => void
+  onConfigure?: (widgetId: string) => void
   readOnly?: boolean
 }
 
@@ -76,6 +104,7 @@ export function DashboardWidgetView({
   filters,
   filterValues,
   onRemove,
+  onConfigure,
   readOnly = false,
 }: DashboardWidgetViewProps) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
@@ -90,6 +119,12 @@ export function DashboardWidgetView({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(true)
+
+  // Widgets estáticos (texto/imagem) não dependem da consulta da análise;
+  // sem config explícita, o comportamento é o legado (sempre consulta).
+  const needsData =
+    !widget.config ||
+    (widget.config.type !== "text" && widget.config.type !== "image")
 
   const fetchQuery = useCallback(
     async (sql: string, databaseId: number, dbSchema: string | null) => {
@@ -166,7 +201,7 @@ export function DashboardWidgetView({
           setAnalysisState(loaded ? "ready" : "missing")
           setAnalysisError(null)
 
-          if (loaded?.databaseId && loaded.sql) {
+          if (needsData && loaded?.databaseId && loaded.sql) {
             fetchQueryRef.current(loaded.sql, loaded.databaseId, loaded.dbSchema)
           }
         })
@@ -196,7 +231,7 @@ export function DashboardWidgetView({
       cancelled = true
       mountedRef.current = false
     }
-  }, [widget.analysisId, analysisReload])
+  }, [widget.analysisId, analysisReload, needsData])
 
   // só remove o widget quando a análise realmente não existe (404/ausente);
   // falhas de rede/contrato caem em "error" e preservam o widget
@@ -207,12 +242,17 @@ export function DashboardWidgetView({
   }, [analysisState, onRemove, widget.id])
 
   useEffect(() => {
-    if (analysisState === "ready" && analysis?.databaseId && analysis.sql) {
+    if (
+      needsData &&
+      analysisState === "ready" &&
+      analysis?.databaseId &&
+      analysis.sql
+    ) {
       requestAnimationFrame(() => {
         fetchQueryRef.current(analysis.sql, analysis.databaseId, analysis.dbSchema)
       })
     }
-  }, [filterValues, analysisState, analysis])
+  }, [filterValues, analysisState, analysis, needsData])
 
   if (analysisState === "loading" || analysisState === "missing") {
     return null
@@ -275,7 +315,11 @@ export function DashboardWidgetView({
     return null
   }
 
-  const Icon = chartTypeIcon[analysis.chartType]
+  const config = widget.config ?? legacyToWidgetConfig(analysis)
+  const title = config.title || analysis.name
+  const Icon = isChartType(config.type)
+    ? CHART_TYPE_META[config.type].icon
+    : STATIC_ICONS[config.type]
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900">
@@ -284,7 +328,7 @@ export function DashboardWidgetView({
         <div className="flex items-center gap-2 min-w-0">
           <Icon size={15} className="shrink-0 text-teal-600 dark:text-teal-400" />
           <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {analysis.name}
+            {title}
           </h3>
         </div>
 
@@ -312,6 +356,12 @@ export function DashboardWidgetView({
                 <MoreVertical size={14} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {onConfigure && (
+                  <DropdownMenuItem onClick={() => onConfigure(widget.id)}>
+                    <SlidersHorizontal size={14} />
+                    Configurar
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => onRemove(widget.id)}>
                   <Trash2 size={14} />
                   Remover
@@ -324,7 +374,7 @@ export function DashboardWidgetView({
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-4">
-        {loading && (
+        {needsData && loading && (
           <div className="flex h-full items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 size={16} className="animate-spin" />
@@ -333,7 +383,7 @@ export function DashboardWidgetView({
           </div>
         )}
 
-        {error && (
+        {needsData && error && (
           <div className="flex h-full flex-col items-center justify-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 dark:bg-red-950">
               <AlertCircle size={18} className="text-red-500" />
@@ -354,9 +404,38 @@ export function DashboardWidgetView({
           </div>
         )}
 
-        {!loading && !error && data && (
+        {!needsData && config.type === "text" && (
+          <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
+            {config.content}
+          </p>
+        )}
+
+        {!needsData && config.type === "image" && (
+          config.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={config.src}
+              alt={config.alt ?? ""}
+              className="mx-auto max-h-full rounded-lg object-contain"
+            />
+          ) : (
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+              Imagem sem URL.
+            </p>
+          )
+        )}
+
+        {needsData && !loading && !error && data && data.length === 0 && (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nenhum dado retornado.
+            </p>
+          </div>
+        )}
+
+        {needsData && !loading && !error && data && data.length > 0 && (
           <>
-            {analysis.chartType === "table" ? (
+            {config.type === "table" && (
               <div className="max-h-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
                 <Table>
                   <TableHeader>
@@ -372,7 +451,7 @@ export function DashboardWidgetView({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.slice(0, 50).map((row, i) => (
+                    {data.slice(0, config.limit ?? 50).map((row, i) => (
                       <TableRow
                         key={i}
                         className="even:bg-slate-50/50 dark:even:bg-slate-800/50"
@@ -392,25 +471,22 @@ export function DashboardWidgetView({
                   </TableBody>
                 </Table>
               </div>
-            ) : (
+            )}
+
+            {config.type === "kpi" && (
+              <div className="flex h-full flex-col items-center justify-center gap-1">
+                <span className="text-4xl font-semibold text-teal-600 dark:text-teal-400">
+                  {formatKpi(kpiValue(data, config))}
+                </span>
+              </div>
+            )}
+
+            {isChartWidgetConfig(config) && (
               <div className="h-full min-h-[200px]">
-                <ChartRenderer
-                  data={data}
-                  chartType={analysis.chartType}
-                  dimension={analysis.dimension}
-                  metric={analysis.metric}
-                />
+                <EChartRenderer config={config} rows={data} />
               </div>
             )}
           </>
-        )}
-
-        {!loading && !error && data && data.length === 0 && (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Nenhum dado retornado.
-            </p>
-          </div>
         )}
       </div>
     </div>

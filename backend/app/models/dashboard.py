@@ -75,6 +75,9 @@ class DashboardWidget(Base):
     height: Mapped[int] = mapped_column(
         Integer, nullable=False, default=4, server_default=text("4")
     )
+    widget: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

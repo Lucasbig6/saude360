@@ -10,6 +10,7 @@ from app.ai.tools.registry import (
     ToolRegistry,
     ToolSpec,
 )
+from app.ai.tools.widgets import update_widget_config_spec
 
 
 def build_registry() -> ToolRegistry:
@@ -25,6 +26,7 @@ def build_registry() -> ToolRegistry:
         column_values_spec(),
         execute_query_spec(),
         create_analysis_spec(),
+        update_widget_config_spec(),
     ):
         registry.register(spec)
     return registry

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Analysis } from "@/lib/types/analysis"
 import type { Dashboard, DashboardWidget } from "@/lib/types/dashboard"
+import { legacyToWidgetConfig } from "@/lib/types/widgets"
 import {
   getDashboards,
   createDashboard,
@@ -30,11 +31,12 @@ interface AddToDashboardDialogProps {
   analysis: Analysis | null
 }
 
-function createWidget(analysisId: string): DashboardWidget {
+function createWidget(analysis: Analysis): DashboardWidget {
   return {
     id: crypto.randomUUID(),
-    analysisId,
+    analysisId: analysis.id,
     layout: { x: 0, y: Infinity, w: 6, h: 4 },
+    config: legacyToWidgetConfig(analysis),
   }
 }
 
@@ -116,7 +118,7 @@ export function AddToDashboardDialog({
 
     const updated: Dashboard = {
       ...dashboard,
-      widgets: [...dashboard.widgets, createWidget(analysis.id)],
+      widgets: [...dashboard.widgets, createWidget(analysis)],
     }
 
     try {
@@ -145,7 +147,7 @@ export function AddToDashboardDialog({
       const dashboard = await createDashboard({
         name: trimmed,
         description: "",
-        widgets: [createWidget(analysis.id)],
+        widgets: [createWidget(analysis)],
         filters: [],
       })
       handleOpenChange(false)

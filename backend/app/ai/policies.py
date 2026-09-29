@@ -96,6 +96,7 @@ def _copilot_policy() -> AgentPolicy:
                 "get_dataset_schema",
                 "get_column_values",
                 "execute_query",
+                "update_widget_config",
             }
         ),
         confirmation_tools=frozenset(),

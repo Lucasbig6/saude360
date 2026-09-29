@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ChartRenderer } from "@/components/explorer/chart-renderer"
+import { PreviewChart } from "@/components/explorer/preview-chart"
 import type { Analysis } from "@/lib/types/analysis"
 import { chartTypeLabel, chartTypeIcon } from "@/lib/types/charts"
 import { getAnalysis } from "@/lib/api/analyses"
@@ -413,7 +413,7 @@ export default function AnaliseDetailPage({
                   </div>
                 ) : (
                   <div className="h-[400px] rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                    <ChartRenderer
+                    <PreviewChart
                       data={result}
                       chartType={analysis.chartType}
                       dimension={analysis.dimension}

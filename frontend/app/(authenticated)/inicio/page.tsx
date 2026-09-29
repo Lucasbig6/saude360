@@ -558,7 +558,7 @@ export default function Home() {
     <>
     {/* Hero: intro + busca */}
     <div className="border-b">
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-15">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 bg-[url('/images/hero.png')] bg-cover bg-center">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-600">
           Saude360
         </p>
@@ -569,7 +569,7 @@ export default function Home() {
           Pesquise dashboards, gráficos, análises ou dados.
         </p>
 
-        <div className="relative mt-5 max-w-2xl">
+        <div className="relative mt-4 max-w-2xl">
           <Search
             size={16}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -580,7 +580,7 @@ export default function Home() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar dashboards, gráficos, análises ou dados..."
             aria-label="Pesquisar na plataforma"
-            className="h-10 rounded-lg border-slate-200 bg-white pl-9 pr-10 text-sm shadow-sm placeholder:text-slate-400 focus-visible:ring-teal-500/40"
+            className="h-10 rounded-lg border-slate-200 bg-white pl-9 pr-5 text-sm shadow-sm placeholder:text-slate-400 focus-visible:ring-teal-500/40"
           />
           {query && (
             <button

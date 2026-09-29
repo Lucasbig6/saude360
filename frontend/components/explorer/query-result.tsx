@@ -48,15 +48,14 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   const [prevData, setPrevData] = useState(data)
   const [viewMode, setViewMode] = useState<"table" | "chart">("table")
   const containerRef = useRef<HTMLDivElement>(null)
+  const [chartType, setChartType] = useState<Exclude<ChartType, "table">>("bar")
+  const [dimension, setDimension] = useState<string | null>(null)
+  const [metric, setMetric] = useState<string | null>(null)
 
   if (prevData !== data) {
     setPrevData(data)
     setPage(0)
   }
-
-  const [chartType, setChartType] = useState<Exclude<ChartType, "table">>("bar")
-  const [dimension, setDimension] = useState<string | null>(null)
-  const [metric, setMetric] = useState<string | null>(null)
 
   const columns = useMemo(
     () => (data ? analyzeColumns(data) : []),

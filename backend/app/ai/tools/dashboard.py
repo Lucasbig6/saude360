@@ -54,6 +54,7 @@ def _load_context(db: Session, dashboard_id: uuid.UUID) -> dict[str, Any]:
             continue
         widgets.append(
             {
+                "id": str(widget.id),
                 "analysisId": str(analysis.id),
                 "title": analysis.name,
                 "chartType": analysis.chart_type,
@@ -63,6 +64,7 @@ def _load_context(db: Session, dashboard_id: uuid.UUID) -> dict[str, Any]:
                 "dimension": analysis.dimension,
                 "metric": analysis.metric,
                 "sql": analysis.sql,
+                "widget": widget.widget or {},
             }
         )
 

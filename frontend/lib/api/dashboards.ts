@@ -5,6 +5,7 @@ import type {
   DashboardFilter,
   DashboardWidget,
 } from "@/lib/types/dashboard"
+import { normalizeWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
 
 /**
  * Payload cru de `GET/POST/PUT /api/dashboards` (camelCase do backend).
@@ -29,6 +30,8 @@ export interface ApiWidget {
   id: string
   analysisId: string
   layout: ApiLayout
+  /** Config v2 validada pelo backend (presente desde a migração 0004). */
+  widget?: unknown
 }
 
 export interface ApiFilter {
@@ -54,11 +57,18 @@ export interface ApiDashboard {
   updatedAt: string
 }
 
+export interface WidgetPayload {
+  id: string
+  analysisId: string
+  layout: ApiLayout
+  widget?: WidgetConfig
+}
+
 export interface DashboardPayload {
   name: string
   description?: string | null
   appearance?: DashboardAppearance
-  widgets?: DashboardWidget[]
+  widgets?: WidgetPayload[]
   filters?: DashboardFilter[]
   /** ausente: PUT não altera o vínculo; null: remove; string: associa */
   projectId?: string | null
@@ -112,6 +122,16 @@ function toLayout(layout: ApiLayout | null | undefined): DashboardWidget["layout
   }
 }
 
+function toConfig(raw: unknown): WidgetConfig | undefined {
+  if (raw === undefined || raw === null) return undefined
+  try {
+    return normalizeWidgetConfig(raw)
+  } catch {
+    // payload inválido/antigo: o renderizador deriva da análise
+    return undefined
+  }
+}
+
 function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
   const widgets = rawWidgets.map((widget, index) => {
     if (
@@ -124,6 +144,7 @@ function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
       id: widget.id,
       analysisId: widget.analysisId,
       layout: toLayout(widget.layout),
+      config: toConfig(widget.widget),
     }
   })
 
@@ -190,7 +211,7 @@ export function toDashboard(raw: unknown): Dashboard {
  * ao JSON: ela é convertida para a primeira linha livre abaixo dos widgets já
  * posicionados, para o widget não voltar ao topo ao recarregar.
  */
-function toWidgetsPayload(widgets: DashboardWidget[]): DashboardWidget[] {
+function toWidgetsPayload(widgets: DashboardWidget[]): WidgetPayload[] {
   const appendY = widgets.reduce((max, widget) => {
     const y = widget.layout?.y
     const h = widget.layout?.h
@@ -207,6 +228,7 @@ function toWidgetsPayload(widgets: DashboardWidget[]): DashboardWidget[] {
       w: finite(widget.layout?.w, 4),
       h: finite(widget.layout?.h, 4),
     },
+    ...(widget.config ? { widget: widget.config } : {}),
   }))
 }
 

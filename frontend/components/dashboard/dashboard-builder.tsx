@@ -25,27 +25,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { Dashboard, DashboardAppearance, DashboardFilter, DashboardWidth, DashboardWidget } from "@/lib/types/dashboard"
 import type { Analysis } from "@/lib/types/analysis"
+import { legacyToWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
 import { updateDashboard, toDashboardPayload } from "@/lib/api/dashboards"
 import { cn, dashboardWidthClass, getDashboardSharePath } from "@/lib/utils"
 import { ApiError } from "@/lib/api"
 import { getDistinctValues } from "@/lib/api/datasets"
-import { DashboardWidgetView } from "./dashboard-widget"
 import { AddAnalysisDialog } from "./add-analysis-dialog"
 import { AddFilterDialog } from "./add-filter-dialog"
 import { DashboardFiltersBar } from "./dashboard-filters-bar"
 import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { EditDashboardInfoDialog } from "./edit-dashboard-info-dialog"
-
-import {
-  ResponsiveGridLayout,
-  useContainerWidth,
-  verticalCompactor,
-} from "react-grid-layout"
-
-const GRID_COLS = { lg: 12, md: 10, sm: 6 }
-const GRID_BREAKPOINTS = { lg: 1024, md: 768, sm: 0 }
-const GRID_ROW_HEIGHT = 80
-const GRID_MARGIN: [number, number] = [16, 16]
+import { DashboardCanvas } from "./dashboard-canvas"
+import { WidgetConfigDialog } from "./widget-config-dialog"
+import type { CanvasItem } from "./gridstack-canvas"
 
 const WIDTH_OPTIONS: {
   value: DashboardWidth
@@ -71,6 +63,9 @@ export function DashboardBuilder({
   const [addFilterOpen, setAddFilterOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [configuringWidgetId, setConfiguringWidgetId] = useState<string | null>(
+    null
+  )
   const [refreshKey, setRefreshKey] = useState(0)
 
   // Fila de persistência: PUT serializado com o snapshot mais recente.
@@ -134,11 +129,6 @@ export function DashboardBuilder({
   const [distinctValues, setDistinctValues] = useState<Record<string, string[]>>({})
   const [loadingDistinct, setLoadingDistinct] = useState(false)
 
-  const { width, mounted, containerRef } = useContainerWidth({
-    measureBeforeMount: true,
-    initialWidth: 1280,
-  })
-
   useEffect(() => {
     requestAnimationFrame(() => {
       setFilterValues((prev) => {
@@ -187,85 +177,47 @@ export function DashboardBuilder({
     }
   }, [dashboard.filters])
 
-  const layouts = useMemo(() => {
-    const lg = dashboard.widgets.map((w) => ({
-      i: w.id,
-      x: w.layout.x,
-      y: w.layout.y,
-      w: w.layout.w,
-      h: w.layout.h,
-    }))
+  const handleLayoutChange = useCallback(
+    (layout: CanvasItem[]) => {
+      const layoutById = new Map(layout.map((item) => [item.id, item]))
+      let changed = false
 
-    const md = lg.map((item) => ({
-      ...item,
-      w: Math.min(item.w, 10),
-      x: Math.min(item.x, 10 - item.w),
-    }))
-
-    const sm = lg.map((item) => ({
-      ...item,
-      w: 6,
-      x: 0,
-      y: item.y,
-    }))
-
-    return { lg, md, sm }
-  }, [dashboard.widgets])
-
-  const handleLayoutChange = useCallback(() => {}, [])
-
-  const handleDragStop = useCallback(
-    (newLayout: import("react-grid-layout").Layout) => {
       const updatedWidgets = dashboard.widgets.map((w) => {
-        const layoutItem = newLayout.find((l) => l.i === w.id)
-        if (!layoutItem) return w
-
+        const next = layoutById.get(w.id)
+        if (!next) return w
+        if (
+          w.layout.x === next.x &&
+          w.layout.y === next.y &&
+          w.layout.w === next.w &&
+          w.layout.h === next.h
+        ) {
+          return w
+        }
+        changed = true
         return {
           ...w,
-          layout: {
-            x: layoutItem.x,
-            y: layoutItem.y,
-            w: layoutItem.w,
-            h: layoutItem.h,
-          },
+          layout: { x: next.x, y: next.y, w: next.w, h: next.h },
         }
       })
 
-      const updated = { ...dashboard, widgets: updatedWidgets }
-      persist(updated)
-    },
-    [dashboard, persist]
-  )
-
-  const handleResizeStop = useCallback(
-    (newLayout: import("react-grid-layout").Layout) => {
-      const updatedWidgets = dashboard.widgets.map((w) => {
-        const layoutItem = newLayout.find((l) => l.i === w.id)
-        if (!layoutItem) return w
-
-        return {
-          ...w,
-          layout: {
-            x: layoutItem.x,
-            y: layoutItem.y,
-            w: layoutItem.w,
-            h: layoutItem.h,
-          },
-        }
-      })
-
-      const updated = { ...dashboard, widgets: updatedWidgets }
-      persist(updated)
+      if (!changed) return
+      persist({ ...dashboard, widgets: updatedWidgets })
     },
     [dashboard, persist]
   )
 
   const handleAddAnalysis = useCallback(
     (analysis: Analysis) => {
+      // anexa na primeira linha livre (paridade com o "novo, embaixo" legado)
+      const appendY = dashboard.widgets.reduce(
+        (max, w) => Math.max(max, w.layout.y + w.layout.h),
+        0
+      )
       const newWidget: DashboardWidget = {
         id: crypto.randomUUID(),
         analysisId: analysis.id,
-        layout: { x: 0, y: Infinity, w: 6, h: 4 },
+        layout: { x: 0, y: appendY, w: 6, h: 4 },
+        config: legacyToWidgetConfig(analysis),
       }
 
       const updated = {
@@ -283,6 +235,26 @@ export function DashboardBuilder({
       const updated = {
         ...dashboard,
         widgets: dashboard.widgets.filter((w) => w.id !== widgetId),
+      }
+
+      persist(updated)
+    },
+    [dashboard, persist]
+  )
+
+  const handleConfigure = useCallback((widgetId: string) => {
+    setConfiguringWidgetId(widgetId)
+  }, [])
+
+  const handleConfigSave = useCallback(
+    (widgetId: string, config: WidgetConfig) => {
+      setConfiguringWidgetId(null)
+
+      const updated = {
+        ...dashboard,
+        widgets: dashboard.widgets.map((w) =>
+          w.id === widgetId ? { ...w, config } : w
+        ),
       }
 
       persist(updated)
@@ -571,7 +543,6 @@ export function DashboardBuilder({
       {/* Grid */}
       <section className="mt-6">
         <div
-          ref={containerRef}
           className={editing && dashboard.widgets.length > 0 ? "dashboard-edit-grid" : ""}
         >
           {dashboard.widgets.length === 0 ? (
@@ -594,44 +565,17 @@ export function DashboardBuilder({
                 Adicionar gráfico
               </Button>
             </div>
-          ) : mounted ? (
-            <ResponsiveGridLayout
-              className="layout"
-              width={width}
-              layouts={layouts}
-              breakpoints={GRID_BREAKPOINTS}
-              cols={GRID_COLS}
-              rowHeight={GRID_ROW_HEIGHT}
-              margin={GRID_MARGIN}
+          ) : (
+            <DashboardCanvas
+              dashboard={dashboard}
+              editing={editing}
+              filterValues={filterValues}
+              refreshKey={refreshKey}
+              onRemoveWidget={handleRemoveWidget}
+              onConfigure={handleConfigure}
               onLayoutChange={handleLayoutChange}
-              onDragStop={handleDragStop}
-              onResizeStop={handleResizeStop}
-              dragConfig={{ enabled: editing, handle: ".drag-handle" }}
-              resizeConfig={{ enabled: editing }}
-              compactor={verticalCompactor}
-            >
-              {dashboard.widgets.map((widget) => (
-                <div key={widget.id} className={editing ? "editing" : ""}>
-                  {editing && (
-                    <div className="drag-handle absolute left-0 right-0 top-0 z-20 flex h-6 cursor-grab items-center justify-center rounded-t-xl bg-slate-100/80 hover:bg-slate-200/80 active:cursor-grabbing">
-                      <div className="flex gap-0.5">
-                        <span className="block h-0.5 w-4 rounded-full bg-slate-400" />
-                      </div>
-                    </div>
-                  )}
-                  <div className={editing ? "pt-6 h-full" : "h-full"}>
-                    <DashboardWidgetView
-                      widget={widget}
-                      filters={dashboard.filters}
-                      filterValues={filterValues}
-                      onRemove={handleRemoveWidget}
-                      key={`${widget.id}-${refreshKey}`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </ResponsiveGridLayout>
-          ) : null}
+            />
+          )}
         </div>
       </section>
 
@@ -665,6 +609,17 @@ export function DashboardBuilder({
         onOpenChange={setInfoOpen}
         dashboard={dashboard}
         onSave={handleSaveInfo}
+      />
+
+      {/* Widget config */}
+      <WidgetConfigDialog
+        widget={
+          dashboard.widgets.find((w) => w.id === configuringWidgetId) ?? null
+        }
+        onOpenChange={(open) => {
+          if (!open) setConfiguringWidgetId(null)
+        }}
+        onSave={handleConfigSave}
       />
     </div>
   )

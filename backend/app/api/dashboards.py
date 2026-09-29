@@ -11,6 +11,7 @@ from app.auth.dependencies import get_created_by, get_current_token
 from app.db.session import get_db
 from app.models import Analysis, Dashboard, DashboardFilter, DashboardWidget, Project
 from app.schemas.dashboards import (
+    CHART_TYPES,
     DashboardCreate,
     DashboardResponse,
     DashboardUpdate,
@@ -72,6 +73,7 @@ def _widget_dto(row: DashboardWidget) -> dict[str, object]:
             "w": row.width,
             "h": row.height,
         },
+        "widget": row.widget or {},
     }
 
 
@@ -117,18 +119,46 @@ def _resolve_slug(db: Session, payload_slug: str | None, name: str,
     return _unique_slug(db, _slugify(name), exclude_id)
 
 
-def _validate_analyses(db: Session, widget_ids: list[uuid.UUID]) -> None:
-    if not widget_ids:
-        return
-    found = set(
-        db.scalars(select(Analysis.id).where(Analysis.id.in_(widget_ids))).all()
-    )
-    missing = [str(w) for w in widget_ids if w not in found]
+def _load_analyses(
+    db: Session, analysis_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, Analysis]:
+    """Valida a existência das análises e devolve as linhas para derivação."""
+    if not analysis_ids:
+        return {}
+    rows = db.scalars(
+        select(Analysis).where(Analysis.id.in_(analysis_ids))
+    ).all()
+    found = {row.id: row for row in rows}
+    missing = [str(w) for w in analysis_ids if w not in found]
     if missing:
         raise HTTPException(
             status_code=400,
             detail=f"Análises inexistentes: {', '.join(missing)}",
         )
+    return found
+
+
+def _default_widget(analysis: Analysis) -> dict[str, object]:
+    """Config v2 derivada da análise legada (espelha o frontend)."""
+    if analysis.chart_type == "table":
+        return {"type": "table"}
+    chart_type = analysis.chart_type if analysis.chart_type in CHART_TYPES else "bar"
+    config: dict[str, object] = {"type": chart_type, "legend": True, "tooltip": True}
+    encoding = {
+        key: value
+        for key, value in (("x", analysis.dimension), ("y", analysis.metric))
+        if value
+    }
+    if encoding:
+        config["encoding"] = encoding
+    return config
+
+
+def _widget_payload(widget: WidgetIn, analysis: Analysis) -> dict[str, object]:
+    """Payload do cliente (validado) ou derivação da análise para o legado."""
+    if widget.widget is None:
+        return _default_widget(analysis)
+    return widget.widget.model_dump(mode="json", exclude_none=True)
 
 
 def _next_timestamps(count: int) -> list[datetime]:
@@ -140,6 +170,7 @@ def _next_timestamps(count: int) -> list[datetime]:
 def _build_widget(
     dashboard_id: uuid.UUID,
     widget: WidgetIn,
+    analysis: Analysis,
     created_at: datetime,
 ) -> DashboardWidget:
     return DashboardWidget(
@@ -150,6 +181,7 @@ def _build_widget(
         position_y=widget.layout.y,
         width=widget.layout.w,
         height=widget.layout.h,
+        widget=_widget_payload(widget, analysis),
         created_at=created_at,
     )
 
@@ -176,12 +208,13 @@ def _sync_widgets(
     dashboard: Dashboard,
     widgets: list[WidgetIn],
 ) -> None:
-    _validate_analyses(db, [w.analysis_id for w in widgets])
+    analyses = _load_analyses(db, [w.analysis_id for w in widgets])
 
     existing = {widget.id: widget for widget in dashboard.widgets}
     seen: set[uuid.UUID] = set()
     ordered: list[DashboardWidget] = []
     for widget, created_at in zip(widgets, _next_timestamps(len(widgets))):
+        analysis = analyses[widget.analysis_id]
         if widget.id is not None and widget.id in existing:
             row = existing[widget.id]
             row.analysis_id = widget.analysis_id
@@ -189,8 +222,9 @@ def _sync_widgets(
             row.position_y = widget.layout.y
             row.width = widget.layout.w
             row.height = widget.layout.h
+            row.widget = _widget_payload(widget, analysis)
         else:
-            row = _build_widget(dashboard.id, widget, created_at)
+            row = _build_widget(dashboard.id, widget, analysis, created_at)
             db.add(row)
         seen.add(row.id)
         ordered.append(row)

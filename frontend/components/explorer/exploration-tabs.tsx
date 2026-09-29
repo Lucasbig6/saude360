@@ -1,9 +1,9 @@
 "use client"
 
-import { Code2, Bot, BarChart3 } from "lucide-react"
+import { Code2, Bot } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type ExplorationMode = "sql" | "ai" | "builder"
+export type ExplorationMode = "sql" | "ai"
 
 interface TabItem {
   id: ExplorationMode
@@ -14,7 +14,6 @@ interface TabItem {
 const TABS: TabItem[] = [
   { id: "sql", label: "SQL", icon: Code2 },
   { id: "ai", label: "Agente IA", icon: Bot },
-  { id: "builder", label: "Visual", icon: BarChart3 },
 ]
 
 interface ExplorationTabsProps {

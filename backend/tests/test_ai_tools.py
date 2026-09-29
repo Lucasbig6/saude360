@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.ai.policies import Scope, ToolPolicyError, build_policy
 from app.ai.tools import build_registry
-from app.ai.tools.registry import ToolContext
+from app.ai.tools.registry import ToolContext, ToolNotAllowedError
 from app.db.session import SessionLocal
 from app.models import Analysis, Dashboard, DashboardWidget, User
 
@@ -154,7 +154,9 @@ async def test_execute_query_rejects_missing_sql(client, mock_superset_client, d
 # ---------------------------------------------------------------------------
 
 
-def seed_dashboard(db) -> tuple[uuid.UUID, uuid.UUID]:
+def seed_dashboard(
+    db, widget_config: dict | None = None
+) -> tuple[uuid.UUID, uuid.UUID]:
     analysis = Analysis(
         name="Atendimentos por município",
         sql="SELECT municipio, COUNT(*) FROM atendimentos GROUP BY 1",
@@ -182,6 +184,7 @@ def seed_dashboard(db) -> tuple[uuid.UUID, uuid.UUID]:
             position_y=2,
             width=6,
             height=4,
+            widget=widget_config or {},
         )
     )
     db.commit()
@@ -383,3 +386,135 @@ async def test_create_analysis_requires_name(db):
 
     with pytest.raises(ToolPolicyError):
         await spec.handler(context, {})
+
+
+# ---------------------------------------------------------------------------
+# update_widget_config (escrita) + widget exposto no contexto
+# ---------------------------------------------------------------------------
+
+
+def first_widget(db, dashboard_id: uuid.UUID) -> DashboardWidget:
+    row = db.scalar(
+        select(DashboardWidget).where(
+            DashboardWidget.dashboard_id == dashboard_id
+        )
+    )
+    assert row is not None
+    return row
+
+
+async def test_get_dashboard_context_includes_widget_id_and_config(db):
+    dashboard_id, _ = seed_dashboard(
+        db, widget_config={"type": "bar", "legend": True}
+    )
+    policy = build_policy("dashboard_copilot", Scope(dashboard_id=dashboard_id))
+    spec = tool("get_dashboard_context")
+
+    result = await spec.handler(make_context(db, policy), {})
+
+    widget = result["widgets"][0]
+    assert widget["id"] == str(first_widget(db, dashboard_id).id)
+    assert widget["widget"] == {"type": "bar", "legend": True}
+
+
+async def test_get_dashboard_context_defaults_empty_widget_config(db):
+    dashboard_id, _ = seed_dashboard(db)
+    policy = build_policy("dashboard_copilot", Scope(dashboard_id=dashboard_id))
+    spec = tool("get_dashboard_context")
+
+    result = await spec.handler(make_context(db, policy), {})
+
+    assert result["widgets"][0]["widget"] == {}
+
+
+async def test_update_widget_config_persists_valid_config(db):
+    dashboard_id, analysis_id = seed_dashboard(db, widget_config={"type": "bar"})
+    row = first_widget(db, dashboard_id)
+    policy = build_policy("dashboard_copilot", Scope(dashboard_id=dashboard_id))
+    spec = tool("update_widget_config")
+
+    result = await spec.handler(
+        make_context(db, policy),
+        {
+            "widget_id": str(row.id),
+            "config": {
+                "type": "line",
+                "title": "Novo título",
+                "encoding": {"x": "municipio", "y": "count"},
+                "limit": 25,
+            },
+        },
+    )
+
+    assert result["updated"] is True
+    assert result["widgetId"] == str(row.id)
+    assert result["analysisId"] == str(analysis_id)
+    assert result["widget"]["type"] == "line"
+
+    db.refresh(row)
+    assert row.widget["type"] == "line"
+    assert row.widget["title"] == "Novo título"
+    assert row.widget["encoding"] == {"x": "municipio", "y": "count"}
+    assert row.widget["limit"] == 25
+
+
+async def test_update_widget_config_rejects_widget_outside_session_dashboard(db):
+    dashboard_id, _ = seed_dashboard(db)
+    other_dashboard_id, _ = seed_dashboard(db)
+    other_widget = first_widget(db, other_dashboard_id)
+    policy = build_policy("dashboard_copilot", Scope(dashboard_id=dashboard_id))
+    spec = tool("update_widget_config")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            make_context(db, policy),
+            {"widget_id": str(other_widget.id), "config": {"type": "pie"}},
+        )
+
+
+async def test_update_widget_config_rejects_invalid_config(db):
+    dashboard_id, _ = seed_dashboard(db)
+    row = first_widget(db, dashboard_id)
+    policy = build_policy("dashboard_copilot", Scope(dashboard_id=dashboard_id))
+    spec = tool("update_widget_config")
+    context = make_context(db, policy)
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {"widget_id": str(row.id), "config": {"type": "tipo-inexistente"}},
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"widget_id": str(row.id), "config": {}})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"widget_id": str(row.id)})
+
+    db.refresh(row)
+    assert row.widget == {}
+
+
+async def test_update_widget_config_requires_session_dashboard(db):
+    policy = build_policy("dashboard_copilot", Scope())
+    spec = tool("update_widget_config")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            make_context(db, policy),
+            {"widget_id": str(uuid.uuid4()), "config": {"type": "bar"}},
+        )
+
+
+async def test_update_widget_config_allowed_only_for_copilot():
+    registry = build_registry()
+    spec = registry.get("update_widget_config")
+    assert spec is not None
+    assert spec.requires_confirmation is True
+
+    copilot = build_policy("dashboard_copilot", Scope())
+    assert registry.resolve("update_widget_config", copilot).name == (
+        "update_widget_config"
+    )
+
+    explorer = build_policy("explorer", Scope())
+    with pytest.raises(ToolNotAllowedError):
+        registry.resolve("update_widget_config", explorer)

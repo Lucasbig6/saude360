@@ -107,6 +107,7 @@ def test_registry_builds_expected_tools():
         "get_column_values",
         "execute_query",
         "create_analysis",
+        "update_widget_config",
     }
 
 

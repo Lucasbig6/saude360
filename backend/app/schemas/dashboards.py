@@ -3,11 +3,28 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 
 from app.schemas.analyses import CamelModel
+
+CHART_TYPES = frozenset(
+    {
+        "bar",
+        "line",
+        "area",
+        "pie",
+        "donut",
+        "scatter",
+        "radar",
+        "gauge",
+        "funnel",
+        "heatmap",
+        "treemap",
+    }
+)
 
 
 def encode_filter_value(value: Any) -> Any:
@@ -36,10 +53,79 @@ class LayoutIn(CamelModel):
     h: int = 4
 
 
+class WidgetConfigModel(CamelModel):
+    """Base da config v2 do widget: campos extras são preservados.
+
+    O frontend evolui os formatos (F3+) antes do backend — validar só o que
+    é estrutural evita quebrar payloads futuros.
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+        extra="allow",
+    )
+
+
+class EncodingIn(WidgetConfigModel):
+    x: str | None = None
+    y: str | None = None
+    color: str | None = None
+    size: str | None = None
+    series: str | None = None
+
+
+class AggregationIn(WidgetConfigModel):
+    field: Annotated[str, Field(min_length=1)]
+    function: Literal["sum", "avg", "count", "min", "max"]
+
+
+class SortIn(WidgetConfigModel):
+    field: Annotated[str, Field(min_length=1)]
+    direction: Literal["asc", "desc"]
+
+
+class ChartWidgetIn(WidgetConfigModel):
+    type: Literal[
+        "bar",
+        "line",
+        "area",
+        "pie",
+        "donut",
+        "scatter",
+        "radar",
+        "gauge",
+        "funnel",
+        "heatmap",
+        "treemap",
+    ]
+    encoding: EncodingIn | None = None
+    aggregation: AggregationIn | None = None
+    sort: SortIn | None = None
+    limit: Annotated[int, Field(ge=1)] | None = None
+    legend: bool | None = None
+    tooltip: bool | None = None
+    title: str | None = None
+    options: dict[str, Any] | None = None
+
+
+class StaticWidgetIn(WidgetConfigModel):
+    """table/kpi/text/image: forma livre por enquanto (validação no F3)."""
+
+    type: Literal["table", "kpi", "text", "image"]
+
+
+WidgetConfigIn = Annotated[
+    ChartWidgetIn | StaticWidgetIn, Field(discriminator="type")
+]
+
+
 class WidgetIn(CamelModel):
     id: uuid.UUID | None = None
     analysis_id: uuid.UUID
     layout: LayoutIn = Field(default_factory=LayoutIn)
+    widget: WidgetConfigIn | None = None
 
 
 class LayoutOut(CamelModel):
@@ -53,6 +139,7 @@ class WidgetOut(CamelModel):
     id: uuid.UUID
     analysis_id: uuid.UUID
     layout: LayoutOut
+    widget: dict[str, Any] = Field(default_factory=dict)
 
 
 class FilterIn(CamelModel):

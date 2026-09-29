@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 import uuid
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, inspect, select, text
@@ -86,7 +88,93 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0003_ai_sessions"
+    assert version == "0004_dashboard_widgets_v2"
+
+
+def test_dashboard_widgets_has_widget_column(db):
+    inspector = inspect(db.get_bind())
+    columns = {c["name"]: str(c["type"]) for c in inspector.get_columns("dashboard_widgets")}
+    assert "widget" in columns
+    assert columns["widget"].lower() == "jsonb"
+
+
+def _load_backfill_sql() -> str:
+    """SQL do backfill da migração 0004 (mesmo arquivo da migração)."""
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "0004_dashboard_widgets_v2.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0004", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module._BACKFILL
+
+
+@pytest.mark.parametrize(
+    ("chart_type", "dimension", "metric", "expected"),
+    [
+        (
+            "line",
+            "mes",
+            "total",
+            {
+                "type": "line",
+                "legend": True,
+                "tooltip": True,
+                "encoding": {"x": "mes", "y": "total"},
+            },
+        ),
+        ("table", None, None, {"type": "table"}),
+        (
+            "boxplot",
+            None,
+            "total",
+            {
+                "type": "bar",
+                "legend": True,
+                "tooltip": True,
+                "encoding": {"y": "total"},
+            },
+        ),
+        (None, None, None, {"type": "bar", "legend": True, "tooltip": True}),
+    ],
+)
+def test_backfill_derives_widget_from_legacy_analysis(
+    db, chart_type, dimension, metric, expected
+):
+    analysis = Analysis(
+        name=f"analise-{sfx()}",
+        sql="SELECT 1",
+        chart_type=chart_type,
+        dimension=dimension,
+        metric=metric,
+    )
+    dashboard = Dashboard(name="Painel", slug=f"painel-{sfx()}")
+    db.add_all([analysis, dashboard])
+    db.flush()
+    db.add(
+        DashboardWidget(
+            dashboard_id=dashboard.id, analysis_id=analysis.id, widget={}
+        )
+    )
+    db.commit()
+
+    # linha pré-migração: config vazia
+    db.execute(
+        text("UPDATE dashboard_widgets SET widget = '{}'::jsonb WHERE dashboard_id = :id"),
+        {"id": dashboard.id},
+    )
+    db.execute(text(_load_backfill_sql()))
+
+    stored = db.scalar(
+        select(DashboardWidget.widget).where(
+            DashboardWidget.dashboard_id == dashboard.id
+        )
+    )
+    assert stored == expected
 
 
 def test_expected_tables_exist(db):

@@ -1,19 +1,36 @@
-import { BarChart3, LineChart, PieChart, Table2 } from "lucide-react"
+import { Table2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { CHART_TYPE_META } from "@/components/charts/chart-types"
+import type { ChartType as ChartWidgetType } from "@/lib/charts/chart-config"
 
-export type ChartType = "table" | "bar" | "line" | "pie"
-
-export type ChartVisualization = "bar" | "line" | "table"
+export type ChartType = ChartWidgetType | "table"
 
 export const chartTypeLabel: Record<ChartType, string> = {
   table: "Tabela",
-  bar: "Barras",
-  line: "Linha",
-  pie: "Pizza",
+  bar: CHART_TYPE_META.bar.label,
+  line: CHART_TYPE_META.line.label,
+  area: CHART_TYPE_META.area.label,
+  pie: CHART_TYPE_META.pie.label,
+  donut: CHART_TYPE_META.donut.label,
+  scatter: CHART_TYPE_META.scatter.label,
+  radar: CHART_TYPE_META.radar.label,
+  gauge: CHART_TYPE_META.gauge.label,
+  funnel: CHART_TYPE_META.funnel.label,
+  heatmap: CHART_TYPE_META.heatmap.label,
+  treemap: CHART_TYPE_META.treemap.label,
 }
 
-export const chartTypeIcon: Record<ChartType, typeof Table2> = {
+export const chartTypeIcon: Record<ChartType, LucideIcon> = {
   table: Table2,
-  bar: BarChart3,
-  line: LineChart,
-  pie: PieChart,
+  bar: CHART_TYPE_META.bar.icon,
+  line: CHART_TYPE_META.line.icon,
+  area: CHART_TYPE_META.area.icon,
+  pie: CHART_TYPE_META.pie.icon,
+  donut: CHART_TYPE_META.donut.icon,
+  scatter: CHART_TYPE_META.scatter.icon,
+  radar: CHART_TYPE_META.radar.icon,
+  gauge: CHART_TYPE_META.gauge.icon,
+  funnel: CHART_TYPE_META.funnel.icon,
+  heatmap: CHART_TYPE_META.heatmap.icon,
+  treemap: CHART_TYPE_META.treemap.icon,
 }

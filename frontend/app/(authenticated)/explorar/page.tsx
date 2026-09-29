@@ -10,10 +10,6 @@ import {
   ExplorationTabs,
   type ExplorationMode,
 } from "@/components/explorer/exploration-tabs"
-import {
-  ExplorationConfig,
-  type ExplorationRequest,
-} from "@/components/explorer/exploration-config"
 import { AiAgentTab } from "@/components/explorer/ai-agent-tab"
 import {
   listDatasets,
@@ -22,7 +18,7 @@ import {
   DatasetColumn,
 } from "@/lib/api/datasets"
 import { executeQuery } from "@/lib/api/queries"
-import { generateExplorationSql, generatePreviewSql } from "@/lib/explorer/sql"
+import { generatePreviewSql } from "@/lib/explorer/sql"
 import { ApiError } from "@/lib/api"
 import { getAnalysis } from "@/lib/api/analyses"
 import type { Analysis } from "@/lib/types/analysis"
@@ -51,7 +47,6 @@ function ExplorarContent() {
   const [mode, setMode] = useState<ExplorationMode>("sql")
 
   const [manualSql, setManualSql] = useState("")
-  const [generatedSql, setGeneratedSql] = useState<string | null>(null)
 
   const [result, setResult] = useState<Record<string, unknown>[] | null>(null)
   const [executing, setExecuting] = useState(false)
@@ -92,7 +87,6 @@ function ExplorarContent() {
     }
 
     setManualSql(previewSql)
-    setGeneratedSql(null)
     setExecuting(true)
     setExecuteError(null)
     setResult(null)
@@ -123,7 +117,6 @@ function ExplorarContent() {
   async function handleSelectDataset(dataset: DatasetListItem) {
     setSelectedDataset(dataset)
     setResult(null)
-    setGeneratedSql(null)
     setExecuteError(null)
     setManualSql("")
 
@@ -236,29 +229,8 @@ function ExplorarContent() {
   }
 
   function handleSqlExecute() {
-    setGeneratedSql(null)
     handleExecuteQuery(manualSql)
   }
-
-  function handleBuilderExecute(config: ExplorationRequest) {
-    if (!selectedDataset) return
-
-    try {
-      const sql = generateExplorationSql(
-        config,
-        selectedDataset.table_name,
-        datasetColumns
-      )
-      setGeneratedSql(sql)
-      handleExecuteQuery(sql)
-    } catch (err) {
-      setExecuteError(
-        err instanceof Error ? err.message : "Erro ao gerar SQL."
-      )
-    }
-  }
-
-  const activeSql = generatedSql ?? manualSql
 
   async function handleDatasetPublished(publishedId?: number) {
     try {
@@ -342,9 +314,8 @@ function ExplorarContent() {
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-900">Consulta SQL</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Consulte o dataset selecionado. Use Ctrl+Enter
-                para executar. O resultado e o salvamento de dataset funcionam da
-                mesma forma nas abas SQL e Visual.
+                Consulte o dataset selecionado. Use Ctrl+Enter para executar.
+                O resultado e o salvamento de dataset aparecem abaixo.
               </p>
 
               <div className="mt-4">
@@ -361,26 +332,6 @@ function ExplorarContent() {
           )}
 
           {mode === "ai" && <AiAgentTab />}
-
-          {mode === "builder" && (
-            <ExplorationConfig
-              columns={datasetColumns}
-              onExecute={handleBuilderExecute}
-              loading={executing}
-            />
-          )}
-        </section>
-      )}
-
-      {/* Generated SQL preview (Visual mode) */}
-      {generatedSql && (
-        <section className="mt-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium text-slate-500 mb-2">SQL gerado:</p>
-            <pre className="text-xs text-slate-700 bg-slate-50 rounded-lg p-3 overflow-x-auto">
-              {generatedSql}
-            </pre>
-          </div>
         </section>
       )}
 
@@ -394,7 +345,7 @@ function ExplorarContent() {
               data={result}
               loading={executing}
               error={executeError}
-              sql={activeSql}
+              sql={manualSql}
               databaseId={selectedDataset?.database.id}
               dbSchema={selectedDataset?.schema ?? null}
               datasetId={selectedDataset?.id ?? null}

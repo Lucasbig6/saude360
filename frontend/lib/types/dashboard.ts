@@ -1,3 +1,5 @@
+import type { WidgetConfig } from "@/lib/types/widgets"
+
 export interface DashboardFilter {
   id: string
   datasetId: number
@@ -16,6 +18,11 @@ export interface DashboardWidget {
     w: number
     h: number
   }
+  /**
+   * Config v2 (chart/table/kpi/text/image). Ausente só em payloads antigos:
+   * o renderizador deriva da análise legada.
+   */
+  config?: WidgetConfig
 }
 
 export type DashboardWidth = "default" | "wide" | "full"
