@@ -146,20 +146,28 @@ def create_session(
 
 @router.get("/sessions", response_model=list[AISessionResponse])
 def list_sessions(
-    dashboard_id: uuid.UUID = Query(..., alias="dashboardId"),
+    dashboard_id: uuid.UUID | None = Query(None, alias="dashboardId"),
+    dataset_id: int | None = Query(None, alias="datasetId"),
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
     created_by: uuid.UUID | None = Depends(get_created_by),
 ) -> list[AISessionResponse]:
-    """Sessões próprias de um dashboard (para o frontend retomar a conversa)."""
-    _resolve_dashboard(db, dashboard_id, created_by)
-    rows = db.scalars(
-        select(AISession)
-        .where(
-            AISession.user_id == created_by,
-            AISession.dashboard_id == dashboard_id,
+    """Sessões próprias de um dashboard ou dataset (para o frontend retomar)."""
+    if (dashboard_id is None) == (dataset_id is None):
+        raise HTTPException(
+            status_code=422,
+            detail="Informe exatamente um de: dashboardId, datasetId.",
         )
-        .order_by(AISession.updated_at.desc(), AISession.created_at.desc())
+
+    stmt = select(AISession).where(AISession.user_id == created_by)
+    if dashboard_id is not None:
+        _resolve_dashboard(db, dashboard_id, created_by)
+        stmt = stmt.where(AISession.dashboard_id == dashboard_id)
+    else:
+        stmt = stmt.where(AISession.dataset_id == dataset_id)
+
+    rows = db.scalars(
+        stmt.order_by(AISession.updated_at.desc(), AISession.created_at.desc())
     ).all()
     return [AISessionResponse.model_validate(_session_dto(row)) for row in rows]
 
