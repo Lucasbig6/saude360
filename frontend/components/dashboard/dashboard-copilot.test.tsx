@@ -398,3 +398,126 @@ describe("renderização markdown", () => {
     await waitFor(() => expect(input).toBeEnabled())
   })
 })
+
+function pendingConfirmationStream(
+  _id: string,
+  payload: { content?: string; confirmToolCallIds?: string[] },
+  handlers?: { onEvent?: (m: { event: string; data: Record<string, unknown> }) => void }
+) {
+  const onEvent = handlers?.onEvent
+  onEvent?.({ event: "message_start", data: {} })
+  if (payload.confirmToolCallIds?.length) {
+    onEvent?.({ event: "token", data: { delta: "Widget atualizado com sucesso." } })
+    onEvent?.({
+      event: "message_complete",
+      data: { content: "Widget atualizado com sucesso." },
+    })
+    return Promise.resolve()
+  }
+  onEvent?.({
+    event: "tool_call",
+    data: { toolCallId: "call_p1", name: "update_widget_config", arguments: {} },
+  })
+  onEvent?.({
+    event: "tool_result",
+    data: {
+      toolCallId: "call_p1",
+      name: "update_widget_config",
+      status: "pending_confirmation",
+    },
+  })
+  onEvent?.({
+    event: "confirmation_required",
+    data: { toolCallId: "call_p1", name: "update_widget_config", arguments: {} },
+  })
+  onEvent?.({
+    event: "message_complete",
+    data: { content: null, pendingConfirmation: true },
+  })
+  return Promise.resolve()
+}
+
+describe("confirmação de ações", () => {
+  it("mostra o cartão de confirmação e envia confirmToolCallIds ao aprovar", async () => {
+    api.listAISessions.mockResolvedValue([session])
+    api.listAIMessages.mockResolvedValue([])
+    api.streamAIMessage.mockImplementation(
+      pendingConfirmationStream as unknown as typeof aiApi.streamAIMessage
+    )
+
+    renderCopilot()
+    const input = await screen.findByLabelText("Mensagem para o copiloto")
+    await userEvent.type(input, "Atualize o widget de internações")
+    await userEvent.click(screen.getByLabelText("Enviar mensagem"))
+
+    // turno termina aguardando confirmação (sem spinner travado)
+    expect(
+      await screen.findByText("Confirmação necessária")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Pensando...")).not.toBeInTheDocument()
+    await waitFor(() => expect(input).toBeEnabled())
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar" }))
+
+    expect(await screen.findByText("Widget atualizado com sucesso.")).toBeInTheDocument()
+    expect(api.streamAIMessage).toHaveBeenNthCalledWith(
+      2,
+      "sess-1",
+      { confirmToolCallIds: ["call_p1"] },
+      expect.objectContaining({ onEvent: expect.any(Function) })
+    )
+    expect(
+      screen.queryByText("Confirmação necessária")
+    ).not.toBeInTheDocument()
+  })
+
+  it("dispensa a confirmação sem reenviar o turno", async () => {
+    api.listAISessions.mockResolvedValue([session])
+    api.listAIMessages.mockResolvedValue([])
+    api.streamAIMessage.mockImplementation(
+      pendingConfirmationStream as unknown as typeof aiApi.streamAIMessage
+    )
+
+    renderCopilot()
+    const input = await screen.findByLabelText("Mensagem para o copiloto")
+    await userEvent.type(input, "Mude o tipo do gráfico")
+    await userEvent.click(screen.getByLabelText("Enviar mensagem"))
+
+    expect(
+      await screen.findByText("Confirmação necessária")
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: "Agora não" }))
+
+    expect(
+      screen.queryByText("Confirmação necessária")
+    ).not.toBeInTheDocument()
+    expect(api.streamAIMessage).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(input).toBeEnabled())
+  })
+
+  it("reexibe a confirmação pendente ao recarregar o histórico", async () => {
+    api.listAISessions.mockResolvedValue([session])
+    api.listAIMessages.mockResolvedValue([
+      ...history(),
+      {
+        id: "m4",
+        sessionId: "sess-1",
+        role: "tool",
+        content: '{"message":"aguarda confirmação"}',
+        toolCallId: "call_h1",
+        toolName: "update_widget_config",
+        status: "pending_confirmation",
+        metadata: {},
+        createdAt: "2026-01-01T00:00:02Z",
+      },
+    ])
+
+    renderCopilot()
+
+    expect(
+      await screen.findByText("Confirmação necessária")
+    ).toBeInTheDocument()
+    expect(api.streamAIMessage).not.toHaveBeenCalled()
+  })
+})

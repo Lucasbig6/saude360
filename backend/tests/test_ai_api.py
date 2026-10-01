@@ -5,6 +5,7 @@ import uuid
 import pytest
 from sqlalchemy import select, text
 
+from app.core.config import settings as app_settings
 from app.db.session import SessionLocal, engine
 from app.models import (
     AIMessage,
@@ -260,8 +261,13 @@ async def test_unknown_session_is_404(client, db, override_llm_provider):
     assert response.status_code == 404
 
 
-async def test_create_session_without_provider_configured_is_503(client, db):
+async def test_create_session_without_provider_configured_is_503(
+    client, db, monkeypatch
+):
     """Sem AI_* configurado a sessão responde 503 com o motivo (sem segredos)."""
+    # Isola do .env local: sem base_url/modelo o provider não é configurado.
+    monkeypatch.setattr(app_settings, "ai_base_url", "")
+    monkeypatch.setattr(app_settings, "ai_model", "")
     headers = user_headers(db, "alice")
     dashboard_id = seed_dashboard(db)
     response = await client.post(

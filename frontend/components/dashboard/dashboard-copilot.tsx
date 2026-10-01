@@ -11,6 +11,7 @@ import {
   listAISessions,
   streamAIMessage,
   type AIMessage,
+  type AIMessagePayload,
   type AISession,
 } from "@/lib/api/ai"
 import type { SSEMessage } from "@/lib/sse"
@@ -28,6 +29,12 @@ interface CopilotMessage {
 interface ToolStatus {
   name: string
   label: string
+}
+
+/** Tool que exige confirmação do usuário antes de executar. */
+interface PendingConfirmation {
+  toolCallId: string
+  name: string
 }
 
 interface DashboardCopilotProps {
@@ -58,6 +65,17 @@ const TOOL_LABELS: Record<string, string> = {
   get_column_values: "Consultando os dados...",
   execute_query: "Consultando os dados...",
   create_analysis: "Analisando o resultado...",
+  update_widget_config: "Atualizando o widget...",
+}
+
+/** Descrição amigável das ações que pedem confirmação. */
+const CONFIRM_LABELS: Record<string, string> = {
+  update_widget_config: "atualizar a configuração de um widget deste painel",
+  create_analysis: "criar uma análise a partir dos dados consultados",
+}
+
+function confirmLabel(name: string): string {
+  return CONFIRM_LABELS[name] ?? "executar uma ação neste painel"
 }
 
 const ANALYZING_LABEL = "Analisando o resultado..."
@@ -115,6 +133,8 @@ export function DashboardCopilot({
   const [tool, setTool] = useState<ToolStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<PendingConfirmation | null>(null)
 
   const [session, setSession] = useState<AISession | null>(null)
   const sessionPromiseRef = useRef<Promise<AISession> | null>(null)
@@ -134,6 +154,15 @@ export function DashboardCopilot({
         historyLoadedForRef.current = loaded.id
         const history = await listAIMessages(loaded.id)
         setMessages(historyToUi(history))
+        // Tool pendente de confirmação de um turno anterior: reexibe o cartão.
+        const pendingRow = [...history]
+          .reverse()
+          .find((row) => row.role === "tool" && row.status === "pending_confirmation")
+        setPendingConfirmation(
+          pendingRow?.toolCallId
+            ? { toolCallId: pendingRow.toolCallId, name: pendingRow.toolName ?? "" }
+            : null
+        )
       }
     } catch (err) {
       sessionPromiseRef.current = null
@@ -188,13 +217,20 @@ export function DashboardCopilot({
         }
         case "confirmation_required": {
           setTool({ name: String(data.name ?? ""), label: ANALYZING_LABEL })
+          setPendingConfirmation({
+            toolCallId: String(data.toolCallId ?? ""),
+            name: String(data.name ?? ""),
+          })
           return
         }
         case "message_complete": {
           const content = typeof data.content === "string" ? data.content : null
           if (content !== null) {
             patchMessage(assistantId, (m) => ({ ...m, content, status: "complete" }))
+            return
           }
+          // Turno encerrado sem texto: aguardando confirmação de tool.
+          patchMessage(assistantId, (m) => ({ ...m, status: "complete" }))
           return
         }
         case "error": {
@@ -214,38 +250,17 @@ export function DashboardCopilot({
     [patchMessage]
   )
 
-  const send = useCallback(
-    async (raw: string) => {
-      const content = raw.trim()
-      if (!content || busy) return
-      if (!session) {
-        setSessionError("A sessão do copiloto ainda não está disponível.")
-        return
-      }
-
-      setSessionError(null)
-      setDraft("")
-      setBusy(true)
-      setTool(null)
-
-      const assistantId = createId()
-      setMessages((prev) => [
-        ...prev,
-        { id: createId(), role: "user", content, status: "complete" },
-        { id: assistantId, role: "assistant", content: "", status: "streaming" },
-      ])
-
+  /** Consome o stream SSE de um turno e finaliza a mensagem do assistente. */
+  const runStream = useCallback(
+    async (assistantId: string, payload: AIMessagePayload) => {
+      if (!session) return
       const controller = new AbortController()
       abortRef.current = controller
       try {
-        await streamAIMessage(
-          session.id,
-          { content },
-          {
-            signal: controller.signal,
-            onEvent: (message) => handleEvent(assistantId, message),
-          }
-        )
+        await streamAIMessage(session.id, payload, {
+          signal: controller.signal,
+          onEvent: (message) => handleEvent(assistantId, message),
+        })
         setMessages((prev) =>
           prev.map((message) =>
             message.id === assistantId && message.status === "streaming"
@@ -286,8 +301,57 @@ export function DashboardCopilot({
         if (abortRef.current === controller) abortRef.current = null
       }
     },
-    [busy, session, handleEvent]
+    [session, handleEvent]
   )
+
+  const send = useCallback(
+    async (raw: string) => {
+      const content = raw.trim()
+      if (!content || busy) return
+      if (!session) {
+        setSessionError("A sessão do copiloto ainda não está disponível.")
+        return
+      }
+
+      setSessionError(null)
+      setDraft("")
+      setBusy(true)
+      setTool(null)
+
+      const assistantId = createId()
+      setMessages((prev) => [
+        ...prev,
+        { id: createId(), role: "user", content, status: "complete" },
+        { id: assistantId, role: "assistant", content: "", status: "streaming" },
+      ])
+
+      await runStream(assistantId, { content })
+    },
+    [busy, session, runStream]
+  )
+
+  /** Reenvia o turno com a tool pendente confirmada. */
+  const confirmPending = useCallback(async () => {
+    const pending = pendingConfirmation
+    if (!pending?.toolCallId || busy || !session) return
+
+    setSessionError(null)
+    setPendingConfirmation(null)
+    setBusy(true)
+    setTool(null)
+
+    const assistantId = createId()
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "", status: "streaming" },
+    ])
+
+    await runStream(assistantId, { confirmToolCallIds: [pending.toolCallId] })
+  }, [pendingConfirmation, busy, session, runStream])
+
+  function dismissPending() {
+    setPendingConfirmation(null)
+  }
 
   function handleSuggestion(suggestion: string) {
     void send(suggestion)
@@ -483,6 +547,44 @@ export function DashboardCopilot({
                   </div>
                 </div>
               ))}
+
+              {pendingConfirmation && !busy && (
+                <div className="flex justify-start">
+                  <div
+                    role="alert"
+                    className="max-w-[90%] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+                  >
+                    <p className="flex items-center gap-1.5 font-medium">
+                      <AlertCircle size={14} className="shrink-0" />
+                      Confirmação necessária
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                      O copiloto quer {confirmLabel(pendingConfirmation.name)} e
+                      precisa da sua autorização.
+                    </p>
+                    <div className="mt-2.5 flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void confirmPending()}
+                        disabled={busy || !session}
+                        className="bg-teal-600 text-white hover:bg-teal-700"
+                      >
+                        Confirmar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={dismissPending}
+                        disabled={busy}
+                      >
+                        Agora não
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {showToolStatus && (
                 <div className="flex justify-start">
