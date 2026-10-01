@@ -9,11 +9,13 @@ import {
   Eye,
   Filter,
   Info,
+  LayoutGrid,
   Pencil,
   Plus,
   RefreshCw,
   Save,
   Share2,
+  Sparkles,
   StretchHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -27,6 +29,7 @@ import type { Dashboard, DashboardAppearance, DashboardFilter, DashboardWidth, D
 import type { Analysis } from "@/lib/types/analysis"
 import { legacyToWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
 import { updateDashboard, toDashboardPayload } from "@/lib/api/dashboards"
+import { getAnalysis } from "@/lib/api/analyses"
 import { cn, dashboardWidthClass, getDashboardSharePath } from "@/lib/utils"
 import { ApiError } from "@/lib/api"
 import { getDistinctValues } from "@/lib/api/datasets"
@@ -37,7 +40,8 @@ import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { EditDashboardInfoDialog } from "./edit-dashboard-info-dialog"
 import { DashboardCanvas } from "./dashboard-canvas"
 import { WidgetConfigDialog } from "./widget-config-dialog"
-import type { CanvasItem } from "./gridstack-canvas"
+import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
+import type { CanvasItem, GridDropAnalysisData } from "./gridstack-canvas"
 
 const WIDTH_OPTIONS: {
   value: DashboardWidth
@@ -59,6 +63,7 @@ export function DashboardBuilder({
   onDashboardChange,
 }: DashboardBuilderProps) {
   const [editing, setEditing] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addFilterOpen, setAddFilterOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -207,8 +212,11 @@ export function DashboardBuilder({
   )
 
   const handleAddAnalysis = useCallback(
-    (analysis: Analysis) => {
-      // anexa na primeira linha livre (paridade com o "novo, embaixo" legado)
+    (
+      analysis: Analysis,
+      position?: { x?: number; y?: number; w?: number; h?: number }
+    ) => {
+      // anexa na primeira linha livre quando nenhuma coordenada for especificada
       const appendY = dashboard.widgets.reduce(
         (max, w) => Math.max(max, w.layout.y + w.layout.h),
         0
@@ -216,7 +224,12 @@ export function DashboardBuilder({
       const newWidget: DashboardWidget = {
         id: crypto.randomUUID(),
         analysisId: analysis.id,
-        layout: { x: 0, y: appendY, w: 6, h: 4 },
+        layout: {
+          x: position?.x ?? 0,
+          y: position?.y !== undefined ? position.y : appendY,
+          w: position?.w ?? 6,
+          h: position?.h ?? 4,
+        },
         config: legacyToWidgetConfig(analysis),
       }
 
@@ -228,6 +241,25 @@ export function DashboardBuilder({
       persist(updated)
     },
     [dashboard, persist]
+  )
+
+  const handleDropAnalysis = useCallback(
+    async (data: GridDropAnalysisData) => {
+      try {
+        const analysis = await getAnalysis(data.analysisId)
+        if (analysis) {
+          handleAddAnalysis(analysis, {
+            x: data.x,
+            y: data.y,
+            w: data.w,
+            h: data.h,
+          })
+        }
+      } catch {
+        setSaveError("Não foi possível carregar o gráfico solto no painel.")
+      }
+    },
+    [handleAddAnalysis]
   )
 
   const handleRemoveWidget = useCallback(
@@ -363,7 +395,8 @@ export function DashboardBuilder({
     <div
       className={cn(
         dashboardWidthClass(dashboard.appearance),
-        "px-4 sm:px-6 lg:px-8 py-8"
+        "px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300",
+        editing && drawerOpen && "xl:pr-[440px]"
       )}
     >
       {/* Navigation */}
@@ -471,16 +504,34 @@ export function DashboardBuilder({
             {editing ? (
               <>
                 <Button
+                  variant={drawerOpen ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDrawerOpen((prev) => !prev)}
+                  className={
+                    drawerOpen
+                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      : ""
+                  }
+                  title="Abrir/fechar biblioteca de gráficos para arrastar e soltar"
+                >
+                  <LayoutGrid size={14} />
+                  <span className="hidden sm:inline">Biblioteca de gráficos</span>
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setAddDialogOpen(true)}
+                  title="Buscar e adicionar gráfico por lista"
                 >
                   <Plus size={14} />
-                  Adicionar gráfico
+                  <span className="hidden sm:inline">Adicionar por lista</span>
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => setEditing(false)}
+                  onClick={() => {
+                    setEditing(false)
+                    setDrawerOpen(false)
+                  }}
                   className="bg-teal-600 text-white hover:bg-teal-700"
                 >
                   <Save size={14} />
@@ -490,7 +541,10 @@ export function DashboardBuilder({
             ) : (
               <Button
                 size="sm"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setEditing(true)
+                  setDrawerOpen(true)
+                }}
                 className="bg-teal-600 text-white hover:bg-teal-700"
               >
                 <Pencil size={14} />
@@ -546,24 +600,52 @@ export function DashboardBuilder({
           className={editing && dashboard.widgets.length > 0 ? "dashboard-edit-grid" : ""}
         >
           {dashboard.widgets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                <Plus size={24} className="text-slate-400" />
-              </div>
-              <h2 className="mt-4 text-sm font-semibold text-slate-900">
-                Nenhum widget adicionado
-              </h2>
-              <p className="mt-1 max-w-sm text-sm text-slate-500">
-                Adicione gráficos e análises salvos para visualizar seus dados
-                neste painel.
-              </p>
-              <Button
-                onClick={() => setAddDialogOpen(true)}
-                className="mt-6 bg-teal-600 text-white hover:bg-teal-700"
+            <div
+              className={cn(
+                "flex flex-col items-center justify-center rounded-xl border p-12 text-center transition-colors",
+                editing
+                  ? "border-dashed border-teal-300 bg-teal-50/30"
+                  : "border-dashed border-slate-300 bg-white"
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-full",
+                  editing
+                    ? "bg-teal-100 text-teal-700"
+                    : "bg-slate-100 text-slate-400"
+                )}
               >
-                <Plus size={16} />
-                Adicionar gráfico
-              </Button>
+                {editing ? <Sparkles size={24} /> : <Plus size={24} />}
+              </div>
+              <h2 className="mt-4 text-base font-semibold text-slate-900">
+                {editing
+                  ? "Prancheta pronta para montagem"
+                  : "Nenhum widget adicionado"}
+              </h2>
+              <p className="mt-1 max-w-md text-sm text-slate-500">
+                {editing
+                  ? "Arraste qualquer gráfico da biblioteca lateral diretamente para esta área, ou utilize os botões abaixo para montar seu painel."
+                  : "Adicione gráficos e análises salvos para visualizar seus dados neste painel."}
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2.5 justify-center">
+                {editing && (
+                  <Button
+                    onClick={() => setDrawerOpen(true)}
+                    className="bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    <LayoutGrid size={15} />
+                    Abrir biblioteca lateral
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setAddDialogOpen(true)}
+                  className="bg-teal-600 text-white hover:bg-teal-700"
+                >
+                  <Plus size={16} />
+                  Adicionar por lista
+                </Button>
+              </div>
             </div>
           ) : (
             <DashboardCanvas
@@ -574,6 +656,7 @@ export function DashboardBuilder({
               onRemoveWidget={handleRemoveWidget}
               onConfigure={handleConfigure}
               onLayoutChange={handleLayoutChange}
+              onDropAnalysis={handleDropAnalysis}
             />
           )}
         </div>
@@ -621,6 +704,18 @@ export function DashboardBuilder({
         }}
         onSave={handleConfigSave}
       />
+
+      {/* Drawer lateral de gráficos prontos para arrastar e soltar estilo Metabase/Superset */}
+      {editing && drawerOpen && (
+        <div className="fixed inset-y-0 right-0 top-20 z-40 flex">
+          <DashboardComponentsDrawer
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
+            existingAnalysisIds={excludeAnalysisIds}
+          />
+        </div>
+      )}
     </div>
   )
 }

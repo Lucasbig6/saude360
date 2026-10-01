@@ -6,7 +6,7 @@ import type { ComponentMap } from "gridstack/dist/react"
 import type { Dashboard, DashboardFilter } from "@/lib/types/dashboard"
 import { DashboardWidgetView } from "./dashboard-widget"
 import { GridstackCanvas } from "./gridstack-canvas"
-import type { CanvasItem } from "./gridstack-canvas"
+import type { CanvasItem, GridDropAnalysisData } from "./gridstack-canvas"
 
 interface DashboardCanvasValue {
   widgets: Dashboard["widgets"]
@@ -77,6 +77,7 @@ interface DashboardCanvasProps {
   onRemoveWidget?: (widgetId: string) => void
   onConfigure?: (widgetId: string) => void
   onLayoutChange?: (items: CanvasItem[]) => void
+  onDropAnalysis?: (data: GridDropAnalysisData) => void
   className?: string
 }
 
@@ -89,6 +90,7 @@ export function DashboardCanvas({
   onRemoveWidget,
   onConfigure,
   onLayoutChange,
+  onDropAnalysis,
   className,
 }: DashboardCanvasProps) {
   const items = useMemo<CanvasItem[]>(
@@ -133,8 +135,10 @@ export function DashboardCanvas({
         editable={editing}
         components={PORTAL_COMPONENTS}
         onLayoutChange={onLayoutChange}
+        onDropAnalysis={onDropAnalysis}
         className={className}
       />
     </DashboardCanvasContext.Provider>
   )
 }
+

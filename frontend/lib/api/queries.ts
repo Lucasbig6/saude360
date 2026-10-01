@@ -1,5 +1,7 @@
 import { apiPost } from "../api"
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+
 export interface ExecuteQueryRequest {
   database_id: number
   sql: string
@@ -30,4 +32,25 @@ export async function executeQueryFiltered(
   params: ExecuteFilteredQueryRequest
 ): Promise<QueryResult> {
   return apiPost<QueryResult>("/api/queries/execute-filtered", params)
+}
+
+export interface PublicExecuteQueryRequest extends ExecuteQueryRequest {
+  analysis_id: string
+  filters?: FilterClause[]
+}
+
+/**
+ * Executa uma query no contexto de um painel público (sem autenticação).
+ * O backend valida que o `analysis_id` pertence a um dashboard antes de executar.
+ */
+export async function executePublicQuery(
+  params: PublicExecuteQueryRequest
+): Promise<QueryResult> {
+  const response = await fetch(`${API_BASE_URL}/api/queries/execute-public`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  const data = (await response.json().catch(() => ({}))) as QueryResult
+  return data
 }

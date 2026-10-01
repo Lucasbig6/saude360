@@ -63,8 +63,8 @@ def _reload(db: Session, dashboard: Dashboard) -> Dashboard:
     return db.scalar(select(Dashboard).where(Dashboard.id == dashboard.id))
 
 
-def _widget_dto(row: DashboardWidget) -> dict[str, object]:
-    return {
+def _widget_dto(row: DashboardWidget, include_analysis: bool = False) -> dict[str, object]:
+    dto: dict[str, object] = {
         "id": row.id,
         "analysisId": row.analysis_id,
         "layout": {
@@ -75,6 +75,19 @@ def _widget_dto(row: DashboardWidget) -> dict[str, object]:
         },
         "widget": row.widget or {},
     }
+    if include_analysis and row.analysis is not None:
+        a = row.analysis
+        dto["analysisData"] = {
+            "id": str(a.id),
+            "name": a.name,
+            "sql": a.sql,
+            "databaseId": a.database_id,
+            "dbSchema": a.db_schema,
+            "chartType": a.chart_type,
+            "dimension": a.dimension,
+            "metric": a.metric,
+        }
+    return dto
 
 
 def _filter_dto(row: DashboardFilter) -> dict[str, object]:
@@ -88,7 +101,7 @@ def _filter_dto(row: DashboardFilter) -> dict[str, object]:
     }
 
 
-def _to_response(dashboard: Dashboard) -> DashboardResponse:
+def _to_response(dashboard: Dashboard, include_analysis: bool = False) -> DashboardResponse:
     """ORM -> payload camelCase (`layout`, `column`, `defaultValue`...)."""
     return DashboardResponse.model_validate(
         {
@@ -97,7 +110,7 @@ def _to_response(dashboard: Dashboard) -> DashboardResponse:
             "description": dashboard.description,
             "slug": dashboard.slug,
             "appearance": dashboard.appearance,
-            "widgets": [_widget_dto(row) for row in dashboard.widgets],
+            "widgets": [_widget_dto(row, include_analysis) for row in dashboard.widgets],
             "filters": [_filter_dto(row) for row in dashboard.filters],
             "projectId": dashboard.project_id,
             "createdBy": dashboard.created_by,
@@ -283,13 +296,17 @@ def get_dashboard_by_slug(
     slug: str,
     db: Session = Depends(get_db),
 ) -> DashboardResponse:
-    """Leitura pública (sem auth): o link compartilhado precisa abrir."""
+    """Leitura pública (sem auth): o link compartilhado precisa abrir.
+
+    Os dados de cada análise são embutidos em ``analysisData`` para que o
+    viewer público não precise chamar /api/analyses/:id (rota autenticada).
+    """
     dashboard = db.scalar(
         select(Dashboard).where(Dashboard.slug == slug.strip().lower())
     )
     if dashboard is None:
         raise HTTPException(status_code=404, detail="Dashboard não encontrado")
-    return _to_response(dashboard)
+    return _to_response(dashboard, include_analysis=True)
 
 
 @router.post("", status_code=201, response_model=DashboardResponse)

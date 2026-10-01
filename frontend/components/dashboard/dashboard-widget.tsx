@@ -41,7 +41,7 @@ import {
   type StaticWidgetType,
 } from "@/lib/types/widgets"
 import { getAnalysis } from "@/lib/api/analyses"
-import { executeQuery, executeQueryFiltered } from "@/lib/api/queries"
+import { executeQuery, executeQueryFiltered, executePublicQuery } from "@/lib/api/queries"
 import type { FilterClause } from "@/lib/api/queries"
 import { ApiError } from "@/lib/api"
 
@@ -66,6 +66,8 @@ interface DashboardWidgetViewProps {
   onRemove: (widgetId: string) => void
   onConfigure?: (widgetId: string) => void
   readOnly?: boolean
+  /** Quando true, usa endpoints públicos (sem auth) para buscar dados. */
+  publicMode?: boolean
 }
 
 function buildFilterClauses(
@@ -106,6 +108,7 @@ export function DashboardWidgetView({
   onRemove,
   onConfigure,
   readOnly = false,
+  publicMode = false,
 }: DashboardWidgetViewProps) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   // loading: buscando · ready: renderiza · missing: análise não existe (remove)
@@ -133,7 +136,20 @@ export function DashboardWidgetView({
 
       try {
         let response
-        if (filters.length > 0 && analysis) {
+        if (publicMode) {
+          // Modo público: usa o endpoint sem auth, validado por analysis_id
+          const filterClauses =
+            filters.length > 0 && analysis
+              ? buildFilterClauses(filters, filterValues, analysis)
+              : []
+          response = await executePublicQuery({
+            analysis_id: widget.analysisId,
+            database_id: databaseId,
+            sql,
+            db_schema: dbSchema ?? undefined,
+            ...(filterClauses.length > 0 ? { filters: filterClauses } : {}),
+          })
+        } else if (filters.length > 0 && analysis) {
           const filterClauses = buildFilterClauses(filters, filterValues, analysis)
           if (filterClauses.length > 0) {
             response = await executeQueryFiltered({
@@ -178,7 +194,7 @@ export function DashboardWidgetView({
         }
       }
     },
-    [filters, filterValues, analysis]
+    [filters, filterValues, analysis, publicMode, widget.analysisId]
   )
 
   const fetchQueryRef = useRef(fetchQuery)
@@ -191,6 +207,37 @@ export function DashboardWidgetView({
     let cancelled = false
 
     async function load() {
+      // Modo público: usa os dados inline da análise (sem chamada autenticada)
+      if (publicMode && widget.analysisData) {
+        const ad = widget.analysisData
+        const loaded: Analysis = {
+          id: ad.id,
+          name: ad.name,
+          description: "",
+          sql: ad.sql ?? "",
+          databaseId: ad.databaseId ?? 0,
+          dbSchema: ad.dbSchema ?? null,
+          datasetId: null,
+          chartType: assertChartType(ad.chartType),
+          dimension: ad.dimension ?? null,
+          metric: ad.metric ?? null,
+          projectId: null,
+          createdAt: "",
+          updatedAt: "",
+        }
+        if (!mountedRef.current) return
+        requestAnimationFrame(() => {
+          if (!mountedRef.current) return
+          setAnalysis(loaded)
+          setAnalysisState(loaded ? "ready" : "missing")
+          setAnalysisError(null)
+          if (needsData && loaded.databaseId && loaded.sql) {
+            fetchQueryRef.current(loaded.sql, loaded.databaseId, loaded.dbSchema)
+          }
+        })
+        return
+      }
+
       try {
         const loaded = await getAnalysis(widget.analysisId)
         if (cancelled || !mountedRef.current) return
@@ -231,7 +278,7 @@ export function DashboardWidgetView({
       cancelled = true
       mountedRef.current = false
     }
-  }, [widget.analysisId, analysisReload, needsData])
+  }, [widget.analysisId, widget.analysisData, analysisReload, needsData, publicMode])
 
   // só remove o widget quando a análise realmente não existe (404/ausente);
   // falhas de rede/contrato caem em "error" e preservam o widget

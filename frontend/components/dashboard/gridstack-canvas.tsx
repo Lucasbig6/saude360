@@ -21,6 +21,14 @@ export interface CanvasItem {
   h: number
 }
 
+export interface GridDropAnalysisData {
+  analysisId: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 const GRID_COLUMNS = 12
 
 interface GridstackCanvasProps {
@@ -28,6 +36,7 @@ interface GridstackCanvasProps {
   editable?: boolean
   components: ComponentMap
   onLayoutChange?: (items: CanvasItem[]) => void
+  onDropAnalysis?: (data: GridDropAnalysisData) => void
   className?: string
 }
 
@@ -71,11 +80,14 @@ export function GridstackCanvas({
   editable = false,
   components,
   onLayoutChange,
+  onDropAnalysis,
   className,
 }: GridstackCanvasProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<GridStackHandle>(null)
   const itemsRef = useRef(items)
   const onLayoutChangeRef = useRef(onLayoutChange)
+  const onDropAnalysisRef = useRef(onDropAnalysis)
   const emitScheduledRef = useRef(false)
 
   // Os eventos do GridStack disparam dentro dos efeitos do wrapper (filho);
@@ -84,6 +96,7 @@ export function GridstackCanvas({
   useIsomorphicLayoutEffect(() => {
     itemsRef.current = items
     onLayoutChangeRef.current = onLayoutChange
+    onDropAnalysisRef.current = onDropAnalysis
   })
 
   const children = useMemo(
@@ -106,6 +119,7 @@ export function GridstackCanvas({
       cellHeight: 80,
       margin: 16,
       float: false,
+      acceptWidgets: ".grid-stack-item-drag-in",
       columnOpts: {
         columnMax: GRID_COLUMNS,
         breakpointForWindow: true,
@@ -150,14 +164,152 @@ export function GridstackCanvas({
     grid.enableResize(editable)
   }, [editable])
 
+  // Configura o drag-in do GridStack para elementos com a classe .grid-stack-item-drag-in
+  useEffect(() => {
+    if (!editable) return
+    let unmounted = false
+
+    import("gridstack").then(({ GridStack: GS }) => {
+      if (unmounted) return
+      try {
+        GS.setupDragIn(".grid-stack-item-drag-in", {
+          appendTo: "body",
+          helper: "clone",
+        })
+      } catch {
+        // Fallback gracioso caso executado em ambiente restrito
+      }
+    }).catch(() => {})
+
+    return () => {
+      unmounted = true
+    }
+  }, [editable])
+
+  // Trata o drop disparado pelo GridStack quando um item externo é solto no grid
+  const handleGridDropped = useCallback(
+    (_event: unknown, _prevNode: unknown, newNode: {
+      x?: number
+      y?: number
+      w?: number
+      h?: number
+      el?: HTMLElement
+    }) => {
+      if (!newNode) return
+      const grid = handleRef.current?.getGrid()
+      const el = newNode.el
+
+      const analysisId =
+        el?.getAttribute("data-analysis-id") ||
+        (el?.firstElementChild as HTMLElement | null)?.getAttribute("data-analysis-id")
+
+      const x = typeof newNode.x === "number" ? newNode.x : 0
+      const y = typeof newNode.y === "number" ? newNode.y : 0
+      const w = typeof newNode.w === "number" ? newNode.w : 6
+      const h = typeof newNode.h === "number" ? newNode.h : 4
+
+      // Remove o elemento DOM clonado pelo motor para que a árvore React renderize declarativamente
+      if (grid && el) {
+        try {
+          grid.removeWidget(el, true, false)
+        } catch {
+          // nó já removido
+        }
+      }
+
+      if (analysisId && onDropAnalysisRef.current) {
+        onDropAnalysisRef.current({
+          analysisId,
+          x,
+          y,
+          w,
+          h,
+        })
+      }
+    },
+    []
+  )
+
+  // Drag & drop HTML5 nativo como suporte para arrasto e soltura fluidos
+  const handleHtml5DragOver = useCallback((e: React.DragEvent) => {
+    if (!editable) return
+    if (
+      e.dataTransfer.types.includes("application/json") ||
+      e.dataTransfer.types.includes("text/plain")
+    ) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = "copy"
+    }
+  }, [editable])
+
+  const handleHtml5Drop = useCallback((e: React.DragEvent) => {
+    if (!editable || !onDropAnalysisRef.current) return
+    const jsonStr = e.dataTransfer.getData("application/json")
+    const plainId = e.dataTransfer.getData("text/plain")
+
+    let analysisId: string | null = null
+    let w = 6
+    let h = 4
+
+    if (jsonStr) {
+      try {
+        const parsed = JSON.parse(jsonStr)
+        if (parsed?.analysisId) {
+          analysisId = parsed.analysisId
+          w = parsed.w ?? 6
+          h = parsed.h ?? 4
+        }
+      } catch {
+        // ignora erro de parse
+      }
+    }
+
+    if (!analysisId && plainId) {
+      analysisId = plainId
+    }
+
+    if (!analysisId) return
+    e.preventDefault()
+
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const relX = Math.max(0, e.clientX - rect.left)
+    const relY = Math.max(0, e.clientY - rect.top)
+
+    const colWidth = rect.width / GRID_COLUMNS
+    const rowHeight = 96 // cellHeight (80) + margin (16)
+
+    const x = Math.min(GRID_COLUMNS - 1, Math.max(0, Math.floor(relX / colWidth)))
+    const y = Math.max(0, Math.floor(relY / rowHeight))
+
+    onDropAnalysisRef.current({
+      analysisId,
+      x,
+      y,
+      w,
+      h,
+    })
+  }, [editable])
+
   return (
-    <GridStack
-      ref={handleRef}
-      options={options}
-      components={components}
-      className={className}
-      onChange={scheduleEmit}
-      onAdded={scheduleEmit}
-    />
+    <div
+      ref={containerRef}
+      onDragOver={handleHtml5DragOver}
+      onDrop={handleHtml5Drop}
+      className="relative w-full"
+    >
+      <GridStack
+        ref={handleRef}
+        options={options}
+        components={components}
+        className={className}
+        onChange={scheduleEmit}
+        onAdded={scheduleEmit}
+        onDropped={handleGridDropped}
+      />
+    </div>
   )
 }
+

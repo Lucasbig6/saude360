@@ -9,6 +9,17 @@ export interface DashboardFilter {
   scope: "dashboard" | string[]
 }
 
+export interface WidgetAnalysisData {
+  id: string
+  name: string
+  sql: string | null
+  databaseId: number | null
+  dbSchema: string | null
+  chartType: string | null
+  dimension: string | null
+  metric: string | null
+}
+
 export interface DashboardWidget {
   id: string
   analysisId: string
@@ -23,6 +34,11 @@ export interface DashboardWidget {
    * o renderizador deriva da análise legada.
    */
   config?: WidgetConfig
+  /**
+   * Dados inline da análise — presente apenas no endpoint público /by-slug.
+   * Evita a chamada autenticada a /api/analyses/:id no viewer anônimo.
+   */
+  analysisData?: WidgetAnalysisData
 }
 
 export type DashboardWidth = "default" | "wide" | "full"

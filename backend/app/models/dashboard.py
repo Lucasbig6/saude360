@@ -83,6 +83,9 @@ class DashboardWidget(Base):
     )
 
     dashboard: Mapped[Dashboard] = relationship(back_populates="widgets")
+    analysis: Mapped["Analysis"] = relationship("Analysis", foreign_keys=[analysis_id], lazy="selectin")
+
+
 
 
 class DashboardFilter(Base):

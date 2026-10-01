@@ -32,6 +32,8 @@ export interface ApiWidget {
   layout: ApiLayout
   /** Config v2 validada pelo backend (presente desde a migração 0004). */
   widget?: unknown
+  /** Dados inline da análise — presente no endpoint público /by-slug. */
+  analysisData?: unknown
 }
 
 export interface ApiFilter {
@@ -140,11 +142,29 @@ function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
     ) {
       throw contractError(`/api/dashboards: widget[${index}] inválido`)
     }
+
+    // Parse analysisData embutida (apenas no endpoint público /by-slug)
+    let analysisData: DashboardWidget["analysisData"] | undefined
+    if (widget.analysisData && typeof widget.analysisData === "object") {
+      const raw = widget.analysisData as Record<string, unknown>
+      analysisData = {
+        id: typeof raw.id === "string" ? raw.id : "",
+        name: typeof raw.name === "string" ? raw.name : "",
+        sql: typeof raw.sql === "string" ? raw.sql : null,
+        databaseId: typeof raw.databaseId === "number" ? raw.databaseId : null,
+        dbSchema: typeof raw.dbSchema === "string" ? raw.dbSchema : null,
+        chartType: typeof raw.chartType === "string" ? raw.chartType : null,
+        dimension: typeof raw.dimension === "string" ? raw.dimension : null,
+        metric: typeof raw.metric === "string" ? raw.metric : null,
+      }
+    }
+
     return {
       id: widget.id,
       analysisId: widget.analysisId,
       layout: toLayout(widget.layout),
       config: toConfig(widget.widget),
+      ...(analysisData ? { analysisData } : {}),
     }
   })
 

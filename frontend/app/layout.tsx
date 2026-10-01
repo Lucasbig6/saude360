@@ -17,6 +17,9 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   title: "Saude360 - Plataforma de monitoramento e análise de dados do SUS",
   description: "Plataforma de monitoramento e análise de dados do SUS",
+  other: {
+    google: "notranslate",
+  },
 }
 
 export default function RootLayout({
@@ -25,8 +28,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body>{children}</body>
+    <html
+      lang="pt-BR"
+      className={`${inter.variable} ${jetbrainsMono.variable} notranslate`}
+      translate="no"
+      suppressHydrationWarning
+    >
+      <head suppressHydrationWarning />
+      <body suppressHydrationWarning>{children}</body>
     </html>
   )
 }

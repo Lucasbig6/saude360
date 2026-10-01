@@ -172,3 +172,22 @@
 .dashboard-edit-grid:hover {
   background-color: oklch(0.98 0 0 / 50%);
 }
+
+/* GridStack placeholder estilo Metabase / Superset */
+.grid-stack > .grid-stack-placeholder > .placeholder-content {
+  border: 2px dashed #0d9488 !important;
+  background-color: rgba(13, 148, 136, 0.08) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1) !important;
+  transition: all 150ms ease;
+}
+
+/* Elemento arrastado externo */
+.grid-stack-item-drag-in.ui-draggable-dragging {
+  opacity: 0.9 !important;
+  cursor: grabbing !important;
+  z-index: 9999 !important;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.25) !important;
+  border-color: #0d9488 !important;
+  transform: scale(0.98) !important;
+}
