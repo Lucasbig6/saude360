@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
   BarChart3,
@@ -20,6 +20,15 @@ import {
   getDashboards,
   deleteDashboard,
 } from "@/lib/api/dashboards"
+import { getProjects } from "@/lib/api/projects"
+import type { Project } from "@/lib/types/project"
+import {
+  ProjectFilter,
+  projectFilterHref,
+  projectFilterLabel,
+  readProjectFilter,
+  type ProjectFilterValue,
+} from "@/components/project/project-filter"
 import { ApiError } from "@/lib/api"
 
 function formatDate(iso: string): string {
@@ -36,41 +45,95 @@ function formatDate(iso: string): string {
   }
 }
 
-export default function PaineisPage() {
+function PaineisContent() {
   const router = useRouter()
-  const [dashboards, setDashboards] = useState<Dashboard[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const projectFilter = readProjectFilter(searchParams.get("project"))
+
+  // Chave derivada: "carregando" = ausência de resultado para a chave atual
+  // (escopo de projeto + recarga), evitando setState síncrono no efeito.
+  const [dashboardsLoad, setDashboardsLoad] = useState<{
+    key: string
+    items: Dashboard[]
+    error: string | null
+  } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [projects, setProjects] = useState<Project[] | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Dashboard | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
 
+  const loadKey = `${projectFilter}#${reloadKey}`
+  const scopedProjectId =
+    projectFilter !== "all" && projectFilter !== "none" ? projectFilter : undefined
+
   useEffect(() => {
     let cancelled = false
 
-    getDashboards()
+    getDashboards(scopedProjectId)
       .then((list) => {
-        if (!cancelled) setDashboards(list)
+        if (cancelled) return
+        // "none" não tem equivalente na API -> filtrado aqui.
+        const items =
+          projectFilter === "none"
+            ? list.filter((item) => item.projectId === null)
+            : list
+        setDashboardsLoad({ key: loadKey, items, error: null })
       })
       .catch((err) => {
         if (cancelled) return
-        setLoadError(
-          err instanceof ApiError
-            ? err.detail
-            : "Erro ao carregar os dashboards."
-        )
+        setDashboardsLoad({
+          key: loadKey,
+          items: [],
+          error:
+            err instanceof ApiError
+              ? err.detail
+              : "Erro ao carregar os dashboards.",
+        })
       })
 
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [loadKey, projectFilter, scopedProjectId])
+
+  useEffect(() => {
+    let cancelled = false
+    getProjects()
+      .then((list) => {
+        if (!cancelled) setProjects(list)
+      })
+      .catch(() => {
+        // O filtro continua funcional sem a lista de nomes.
+        if (!cancelled) setProjects([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const currentLoad = dashboardsLoad?.key === loadKey ? dashboardsLoad : null
+  const loadError = currentLoad?.error ?? null
+  const dashboards = currentLoad ? currentLoad.items : null
+  const loading = currentLoad === null
 
   function handleRetry() {
-    setDashboards(null)
-    setLoadError(null)
     setReloadKey((key) => key + 1)
+  }
+
+  function handleFilterChange(value: ProjectFilterValue) {
+    router.replace(projectFilterHref("/paineis", value, searchParams), {
+      scroll: false,
+    })
+  }
+
+  function patchItems(updater: (items: Dashboard[]) => Dashboard[]) {
+    setDashboardsLoad((prev) =>
+      prev && prev.key === loadKey
+        ? { ...prev, items: updater(prev.items) }
+        : prev
+    )
   }
 
   async function handleDelete() {
@@ -80,15 +143,11 @@ export default function PaineisPage() {
 
     try {
       await deleteDashboard(deleteTarget.id)
-      setDashboards((prev) =>
-        (prev ?? []).filter((d) => d.id !== deleteTarget.id)
-      )
+      patchItems((items) => items.filter((d) => d.id !== deleteTarget.id))
       setDeleteTarget(null)
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
-        setDashboards((prev) =>
-          (prev ?? []).filter((d) => d.id !== deleteTarget.id)
-        )
+        patchItems((items) => items.filter((d) => d.id !== deleteTarget.id))
         setDeleteTarget(null)
       } else {
         setDeleteError(
@@ -112,7 +171,7 @@ export default function PaineisPage() {
           Início
         </Link>
 
-        <div className="mt-3 flex items-start justify-between">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
               Painéis
@@ -122,18 +181,31 @@ export default function PaineisPage() {
             </p>
           </div>
 
-          <Button
-            onClick={() => setCreateOpen(true)}
-            className="bg-teal-600 text-white hover:bg-teal-700"
-          >
-            <Plus size={16} />
-            Novo dashboard
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="hidden text-xs text-slate-500 sm:inline">
+              {projectFilter === "all"
+                ? "Todos os projetos"
+                : projectFilterLabel(projectFilter, projects ?? [])}
+            </span>
+            <ProjectFilter
+              value={projectFilter}
+              onChange={handleFilterChange}
+              projects={projects ?? []}
+              loading={projects === null}
+            />
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="bg-teal-600 text-white hover:bg-teal-700"
+            >
+              <Plus size={16} />
+              Novo dashboard
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* Loading */}
-      {dashboards === null && !loadError && (
+      {loading && !loadError && (
         <section className="mt-8">
           <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12">
             <Loader2 size={20} className="animate-spin text-slate-400" />
@@ -142,7 +214,7 @@ export default function PaineisPage() {
       )}
 
       {/* Load error */}
-      {dashboards === null && loadError && (
+      {loading && loadError && (
         <section className="mt-8">
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
             <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-800">
@@ -167,11 +239,16 @@ export default function PaineisPage() {
               <Inbox size={24} className="text-slate-400" />
             </div>
             <h2 className="mt-4 text-sm font-semibold text-slate-900">
-              Nenhum dashboard criado
+              {projectFilter === "all"
+                ? "Nenhum dashboard criado"
+                : "Nenhum painel neste escopo"}
             </h2>
             <p className="mt-1 max-w-sm text-sm text-slate-500">
-              Crie seu primeiro dashboard para organizar gráficos e análises em
-              um painel personalizado.
+              {projectFilter === "all"
+                ? "Crie seu primeiro dashboard para organizar gráficos e análises em um painel personalizado."
+                : projectFilter === "none"
+                  ? "Nenhum painel sem projeto. Escolha outro projeto no filtro acima."
+                  : "Nenhum painel neste projeto. Crie um novo — ele já nasce vinculado a ele."}
             </p>
             <Button
               onClick={() => setCreateOpen(true)}
@@ -247,8 +324,9 @@ export default function PaineisPage() {
       <CreateDashboardDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        projectId={scopedProjectId}
         onCreated={(dashboard) => {
-          setDashboards((prev) => [...(prev ?? []), dashboard])
+          patchItems((items) => [...items, dashboard])
           router.push(`/paineis/${dashboard.id}`)
         }}
       />
@@ -269,5 +347,21 @@ export default function PaineisPage() {
         onConfirm={handleDelete}
       />
     </div>
+  )
+}
+
+export default function PaineisPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center p-12">
+            <Loader2 size={20} className="animate-spin text-slate-400" />
+          </div>
+        </div>
+      }
+    >
+      <PaineisContent />
+    </Suspense>
   )
 }

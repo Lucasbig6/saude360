@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
   ArrowLeft,
@@ -20,6 +21,15 @@ import { chartTypeLabel, chartTypeIcon } from "@/lib/types/charts"
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
 import { AddToDashboardDialog } from "@/components/dashboard/add-to-dashboard-dialog"
 import { getAnalyses, deleteAnalysis } from "@/lib/api/analyses"
+import { getProjects } from "@/lib/api/projects"
+import type { Project } from "@/lib/types/project"
+import {
+  ProjectFilter,
+  projectFilterHref,
+  projectFilterLabel,
+  readProjectFilter,
+  type ProjectFilterValue,
+} from "@/components/project/project-filter"
 import { ApiError } from "@/lib/api"
 
 function formatDate(iso: string): string {
@@ -36,41 +46,95 @@ function formatDate(iso: string): string {
   }
 }
 
-export default function AnalisesPage() {
-  const [analyses, setAnalyses] = useState<Analysis[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+function AnalisesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const projectFilter = readProjectFilter(searchParams.get("project"))
+
+  // Chave derivada: "carregando" = ausência de resultado para a chave atual
+  // (escopo de projeto + recarga), evitando setState síncrono no efeito.
+  const [analysesLoad, setAnalysesLoad] = useState<{
+    key: string
+    items: Analysis[]
+    error: string | null
+  } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [projects, setProjects] = useState<Project[] | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Analysis | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [addToDashboardTarget, setAddToDashboardTarget] =
     useState<Analysis | null>(null)
 
+  const loadKey = `${projectFilter}#${reloadKey}`
+
   useEffect(() => {
     let cancelled = false
+    const byProject = projectFilter !== "all" && projectFilter !== "none"
 
-    getAnalyses()
+    getAnalyses(byProject ? projectFilter : undefined)
       .then((list) => {
-        if (!cancelled) setAnalyses(list)
+        if (cancelled) return
+        // "none" não tem equivalente na API -> filtrado aqui.
+        const items =
+          projectFilter === "none"
+            ? list.filter((item) => item.projectId === null)
+            : list
+        setAnalysesLoad({ key: loadKey, items, error: null })
       })
       .catch((err) => {
         if (cancelled) return
-        setLoadError(
-          err instanceof ApiError
-            ? err.detail
-            : "Erro ao carregar as análises."
-        )
+        setAnalysesLoad({
+          key: loadKey,
+          items: [],
+          error:
+            err instanceof ApiError
+              ? err.detail
+              : "Erro ao carregar as análises.",
+        })
       })
 
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [loadKey, projectFilter])
+
+  useEffect(() => {
+    let cancelled = false
+    getProjects()
+      .then((list) => {
+        if (!cancelled) setProjects(list)
+      })
+      .catch(() => {
+        // O filtro continua funcional sem a lista de nomes.
+        if (!cancelled) setProjects([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const currentLoad = analysesLoad?.key === loadKey ? analysesLoad : null
+  const loadError = currentLoad?.error ?? null
+  const analyses = currentLoad ? currentLoad.items : null
+  const loading = currentLoad === null
 
   function handleRetry() {
-    setAnalyses(null)
-    setLoadError(null)
     setReloadKey((key) => key + 1)
+  }
+
+  function handleFilterChange(value: ProjectFilterValue) {
+    router.replace(projectFilterHref("/analises", value, searchParams), {
+      scroll: false,
+    })
+  }
+
+  function patchItems(updater: (items: Analysis[]) => Analysis[]) {
+    setAnalysesLoad((prev) =>
+      prev && prev.key === loadKey
+        ? { ...prev, items: updater(prev.items) }
+        : prev
+    )
   }
 
   const chartItems = (analyses ?? []).filter((a) => a.chartType !== "table")
@@ -83,16 +147,12 @@ export default function AnalisesPage() {
 
     try {
       await deleteAnalysis(deleteTarget.id)
-      setAnalyses((prev) =>
-        (prev ?? []).filter((a) => a.id !== deleteTarget.id)
-      )
+      patchItems((items) => items.filter((a) => a.id !== deleteTarget.id))
       setDeleteTarget(null)
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         // já não existe: o estado desejado está alcançado
-        setAnalyses((prev) =>
-          (prev ?? []).filter((a) => a.id !== deleteTarget.id)
-        )
+        patchItems((items) => items.filter((a) => a.id !== deleteTarget.id))
         setDeleteTarget(null)
       } else {
         setDeleteError(
@@ -230,16 +290,33 @@ export default function AnalisesPage() {
           Voltar ao Explorer
         </Link>
 
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-          Minhas Análises
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Consultas salvas e gráficos reutilizáveis no Explorer.
-        </p>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Minhas Análises
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Consultas salvas e gráficos reutilizáveis no Explorer.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs text-slate-500 sm:inline">
+              {projectFilter === "all"
+                ? "Todos os projetos"
+                : projectFilterLabel(projectFilter, projects ?? [])}
+            </span>
+            <ProjectFilter
+              value={projectFilter}
+              onChange={handleFilterChange}
+              projects={projects ?? []}
+              loading={projects === null}
+            />
+          </div>
+        </div>
       </section>
 
       {/* Loading */}
-      {analyses === null && !loadError && (
+      {loading && !loadError && (
         <section className="mt-8">
           <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12">
             <Loader2 size={20} className="animate-spin text-slate-400" />
@@ -248,7 +325,7 @@ export default function AnalisesPage() {
       )}
 
       {/* Load error */}
-      {analyses === null && loadError && (
+      {loading && loadError && (
         <section className="mt-8">
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
             <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-800">
@@ -273,11 +350,16 @@ export default function AnalisesPage() {
               <Inbox size={24} className="text-slate-400" />
             </div>
             <h2 className="mt-4 text-sm font-semibold text-slate-900">
-              Nenhum item salvo
+              {projectFilter === "all"
+                ? "Nenhum item salvo"
+                : "Nenhum item neste escopo"}
             </h2>
             <p className="mt-1 max-w-sm text-sm text-slate-500">
-              Execute uma query no Explorer e salve uma análise (tabela) ou um
-              gráfico para reutilizar depois.
+              {projectFilter === "all"
+                ? "Execute uma query no Explorer e salve uma análise (tabela) ou um gráfico para reutilizar depois."
+                : projectFilter === "none"
+                  ? "Nenhum item sem projeto. Escolha outro projeto no filtro acima."
+                  : "Nenhuma análise neste projeto. Crie uma no Explorer e vincule ao projeto."}
             </p>
             <Link href="/explorar" className="mt-6">
               <Button className="bg-teal-600 text-white hover:bg-teal-700">
@@ -358,5 +440,21 @@ export default function AnalisesPage() {
         analysis={addToDashboardTarget}
       />
     </div>
+  )
+}
+
+export default function AnalisesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center p-12">
+            <Loader2 size={20} className="animate-spin text-slate-400" />
+          </div>
+        </div>
+      }
+    >
+      <AnalisesContent />
+    </Suspense>
   )
 }

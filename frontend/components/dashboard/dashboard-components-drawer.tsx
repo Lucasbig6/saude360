@@ -1,14 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
   BarChart3,
   Check,
   ChevronRight,
-  Database,
   FileChartColumn,
-  Filter,
   GripVertical,
   Layers,
   LayoutGrid,
@@ -27,6 +25,10 @@ import type { Analysis } from "@/lib/types/analysis"
 import { chartTypeIcon, chartTypeLabel } from "@/lib/types/charts"
 import { getAnalyses } from "@/lib/api/analyses"
 import { ApiError } from "@/lib/api"
+import {
+  AnalysisThumbnail,
+  clearThumbnailCache,
+} from "@/components/dashboard/analysis-thumbnail"
 
 export interface DashboardComponentsDrawerProps {
   open: boolean
@@ -36,6 +38,13 @@ export interface DashboardComponentsDrawerProps {
     position?: { x?: number; y?: number; w?: number; h?: number }
   ) => void
   existingAnalysisIds: string[]
+  /**
+   * Projeto do painel sendo editado: a biblioteca lista só as análises
+   * dele. `null`/ausente = painel sem projeto -> lista todas (com aviso).
+   */
+  projectId?: string | null
+  /** Nome do projeto, exibido no cabeçalho. */
+  projectName?: string | null
   className?: string
 }
 
@@ -46,34 +55,42 @@ export function DashboardComponentsDrawer({
   onClose,
   onSelectAnalysis,
   existingAnalysisIds,
+  projectId = null,
+  projectName = null,
   className,
 }: DashboardComponentsDrawerProps) {
   // Estado carregado por chave derivada (reloadKey): "carregando" é a ausência
   // de resultado para a chave atual — evita setState síncrono no corpo do
   // efeito, conforme a regra react-hooks/set-state-in-effect.
   const [analysesLoad, setAnalysesLoad] = useState<{
-    key: number
+    key: string
     items: Analysis[]
     error: string | null
   } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
+  // Escopo da busca: projeto do painel (ou nenhum = todas as análises).
+  const scopeKey = projectId ?? "*"
+  const loadKey = `${scopeKey}#${reloadKey}`
+
   const [search, setSearch] = useState("")
   const [category, setCategory] = useState<FilterCategory>("all")
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  // Evita disparar o clique (adicionar ao painel) logo após um drag.
+  const suppressClickRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
-    getAnalyses()
+    getAnalyses(projectId ?? undefined)
       .then((list) => {
         if (!cancelled) {
-          setAnalysesLoad({ key: reloadKey, items: list, error: null })
+          setAnalysesLoad({ key: loadKey, items: list, error: null })
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setAnalysesLoad({
-            key: reloadKey,
+            key: loadKey,
             items: [],
             error:
               err instanceof ApiError ? err.detail : "Erro ao carregar gráficos.",
@@ -84,9 +101,9 @@ export function DashboardComponentsDrawer({
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [loadKey, projectId])
 
-  const currentLoad = analysesLoad?.key === reloadKey ? analysesLoad : null
+  const currentLoad = analysesLoad?.key === loadKey ? analysesLoad : null
   const loading = currentLoad === null
   const loadError = currentLoad?.error ?? null
   const analyses = currentLoad?.items ?? null
@@ -125,7 +142,7 @@ export function DashboardComponentsDrawer({
     <aside
       aria-label="Biblioteca de componentes do painel"
       className={cn(
-        "flex flex-col w-full sm:w-[380px] lg:w-[420px] shrink-0 border-l border-slate-200 bg-white shadow-xl z-20 transition-all",
+        "flex flex-col w-full sm:w-[390px] lg:w-[460px] shrink-0 border-l border-slate-200 bg-white shadow-xl z-20 transition-all",
         className
       )}
     >
@@ -140,7 +157,7 @@ export function DashboardComponentsDrawer({
               Biblioteca de Gráficos
             </h2>
             <p className="text-[11px] text-slate-500 mt-1">
-              Arraste para o canvas ou clique em +
+              Clique em um card ou arraste para o canvas
             </p>
           </div>
         </div>
@@ -149,7 +166,10 @@ export function DashboardComponentsDrawer({
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700"
-            onClick={() => setReloadKey((k) => k + 1)}
+            onClick={() => {
+              clearThumbnailCache()
+              setReloadKey((k) => k + 1)
+            }}
             title="Recarregar gráficos"
           >
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -164,6 +184,34 @@ export function DashboardComponentsDrawer({
             <X size={15} />
           </Button>
         </div>
+      </div>
+
+      {/* Escopo: projeto do painel que está sendo editado */}
+      <div
+        className={cn(
+          "flex items-start gap-2 border-b px-4 py-2 text-[11px] leading-snug",
+          projectId
+            ? "border-slate-100 bg-slate-50 text-slate-600"
+            : "border-amber-100 bg-amber-50 text-amber-900"
+        )}
+      >
+        <Layers size={13} className="mt-0.5 shrink-0" />
+        <p>
+          {projectId ? (
+            <>
+              Somente análises do projeto{" "}
+              <strong className="font-semibold">
+                {projectName ?? "selecionado"}
+              </strong>
+              .
+            </>
+          ) : (
+            <>
+              Painel sem projeto — mostrando todas as análises. Vincule um
+              projeto para restringir esta lista.
+            </>
+          )}
+        </p>
       </div>
 
       {/* Dica visual Metabase/Superset */}
@@ -257,7 +305,10 @@ export function DashboardComponentsDrawer({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setReloadKey((k) => k + 1)}
+              onClick={() => {
+                clearThumbnailCache()
+                setReloadKey((k) => k + 1)
+              }}
               className="mt-2 h-7 text-xs"
             >
               Tentar novamente
@@ -297,6 +348,7 @@ export function DashboardComponentsDrawer({
                 analysisId: analysis.id,
               })}
               onDragStart={(e) => {
+                suppressClickRef.current = true
                 setDraggingId(analysis.id)
                 // Alguns navegadores e o adaptador de drag do GridStack podem
                 // disparar um DragEvent sem DataTransfer. Os data-attributes
@@ -315,36 +367,48 @@ export function DashboardComponentsDrawer({
                 )
                 dataTransfer.setData("text/plain", analysis.id)
               }}
-              onDragEnd={() => setDraggingId(null)}
+              onDragEnd={() => {
+                setDraggingId(null)
+                // Clique não deve disparar logo após um drag (adicionaria o card).
+                window.setTimeout(() => {
+                  suppressClickRef.current = false
+                }, 0)
+              }}
+              onClick={() => {
+                if (suppressClickRef.current) return
+                onSelectAnalysis(analysis)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onSelectAnalysis(analysis)
+                }
+              }}
+              role="button"
+              tabIndex={0}
               className={cn(
-                "grid-stack-item-drag-in group relative flex flex-col rounded-xl border p-3 bg-white transition-all select-none cursor-grab active:cursor-grabbing",
+                "grid-stack-item-drag-in group relative flex flex-col rounded-xl border p-3 bg-white transition-all select-none cursor-pointer",
                 isDragging
                   ? "opacity-50 border-teal-500 scale-95 shadow-inner"
                   : "border-slate-200 hover:border-teal-400 hover:shadow-md",
                 inDashboard && "bg-slate-50/60"
               )}
             >
-              {/* Barra superior do card: ícone, tags e botão de add */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
-                      analysis.chartType === "table"
-                        ? "bg-slate-100 text-slate-600 border-slate-200"
-                        : "bg-teal-50 text-teal-600 border-teal-200/70"
-                    )}
-                  >
-                    <Icon size={14} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-medium tracking-wide uppercase text-slate-400">
-                      {chartTypeLabel[analysis.chartType] ?? "Gráfico"}
-                    </span>
-                    <h3 className="text-xs font-semibold text-slate-900 truncate">
-                      {analysis.name}
-                    </h3>
-                  </div>
+              {/* Miniatura com o gráfico real (dados da análise) */}
+              <div className="pointer-events-none h-28 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                <AnalysisThumbnail analysis={analysis} />
+              </div>
+
+              {/* Tipo, nome e ações */}
+              <div className="mt-2 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    <Icon size={11} className="shrink-0" />
+                    {chartTypeLabel[analysis.chartType] ?? "Gráfico"}
+                  </span>
+                  <h3 className="text-xs font-semibold text-slate-900 truncate">
+                    {analysis.name}
+                  </h3>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
@@ -375,13 +439,13 @@ export function DashboardComponentsDrawer({
 
               {/* Descrição se houver */}
               {analysis.description && (
-                <p className="mt-1.5 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                <p className="mt-1 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
                   {analysis.description}
                 </p>
               )}
 
               {/* Rodapé do card: dimensões recomendadas e grip indicator */}
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+              <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] text-slate-400">
                 <span className="flex items-center gap-1">
                   <span className="font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                     6 × 4

@@ -49,6 +49,8 @@ class ExecuteQueryRequest(BaseModel):
     database_id: int
     sql: str
     db_schema: str | None = None
+    # Opcional: limita o número de linhas retornadas (pré-visualizações).
+    limit: int | None = None
 
 
 @router.post("/execute")
@@ -61,6 +63,7 @@ async def execute_query(
             database_id=request.database_id,
             sql=request.sql,
             schema=request.db_schema,
+            limit=request.limit,
         )
     except ValueError as e:
         return JSONResponse(

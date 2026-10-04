@@ -30,6 +30,7 @@ import type { Analysis } from "@/lib/types/analysis"
 import { legacyToWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
 import { updateDashboard, toDashboardPayload } from "@/lib/api/dashboards"
 import { getAnalysis } from "@/lib/api/analyses"
+import { getProject } from "@/lib/api/projects"
 import { cn, dashboardWidthClass, getDashboardSharePath } from "@/lib/utils"
 import { ApiError } from "@/lib/api"
 import { getDistinctValues } from "@/lib/api/datasets"
@@ -81,6 +82,34 @@ export function DashboardBuilder({
   const dirtyRef = useRef(false)
   const workingRef = useRef(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Nome do projeto do painel (exibido na biblioteca de gráficos).
+  // Padrão de chave derivada: "sem resultado para a chave atual" = carregando.
+  const projectKey = dashboard.projectId ?? "*"
+  const [projectLoad, setProjectLoad] = useState<{
+    key: string
+    name: string | null
+  } | null>(null)
+  useEffect(() => {
+    const projectId = dashboard.projectId
+    if (!projectId) return
+    let cancelled = false
+    getProject(projectId)
+      .then((project) => {
+        if (!cancelled) {
+          setProjectLoad({ key: projectId, name: project?.name ?? null })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setProjectLoad({ key: projectId, name: null })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [dashboard.projectId])
+
+  const projectName =
+    projectLoad?.key === projectKey ? projectLoad.name : null
 
   const pump = useCallback(async () => {
     if (workingRef.current) return
@@ -752,6 +781,8 @@ export function DashboardBuilder({
             onClose={() => setDrawerOpen(false)}
             onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
             existingAnalysisIds={excludeAnalysisIds}
+            projectId={dashboard.projectId}
+            projectName={projectName}
           />
         </div>
       )}

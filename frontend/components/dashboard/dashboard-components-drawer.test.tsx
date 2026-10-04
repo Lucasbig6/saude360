@@ -3,9 +3,15 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
 import * as analysesApi from "@/lib/api/analyses"
+import { executeQuery } from "@/lib/api/queries"
+import { clearThumbnailCache } from "@/components/dashboard/analysis-thumbnail"
 import type { Analysis } from "@/lib/types/analysis"
 
 vi.mock("@/lib/api/analyses")
+vi.mock("@/lib/api/queries")
+vi.mock("@/components/charts/EChartRenderer", () => ({
+  EChartRenderer: () => <div data-testid="echart" />,
+}))
 
 const mockAnalyses: Analysis[] = [
   {
@@ -46,6 +52,11 @@ describe("DashboardComponentsDrawer", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(analysesApi.getAnalyses).mockResolvedValue(mockAnalyses)
+    vi.mocked(executeQuery).mockResolvedValue({
+      status: "success",
+      data: [{ municipio: "Campinas", qtd: 10 }],
+    })
+    clearThumbnailCache()
   })
 
   it("não renderiza nada quando open é false", () => {
@@ -183,6 +194,83 @@ describe("DashboardComponentsDrawer", () => {
     expect(() => fireEvent.dragStart(item!)).not.toThrow()
   })
 
+  it("restringe a busca ao projeto do painel quando projectId é passado", async () => {
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+        projectId="proj-1"
+        projectName="Monitoramento SUS"
+      />
+    )
+
+    expect(analysesApi.getAnalyses).toHaveBeenCalledWith("proj-1")
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Somente análises do projeto/i)
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByText("Monitoramento SUS")).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Painel sem projeto/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it("sem projectId lista todas as análises e avisa que o painel não tem projeto", async () => {
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+        projectId={null}
+      />
+    )
+
+    expect(analysesApi.getAnalyses).toHaveBeenCalledWith(undefined)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Painel sem projeto/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText("Internações por Município")).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Somente análises do projeto/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it("recarrega quando o projeto do painel muda", async () => {
+    const { rerender } = render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+        projectId="proj-1"
+      />
+    )
+
+    await waitFor(() => {
+      expect(analysesApi.getAnalyses).toHaveBeenCalledWith("proj-1")
+    })
+
+    rerender(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+        projectId="proj-2"
+      />
+    )
+
+    await waitFor(() => {
+      expect(analysesApi.getAnalyses).toHaveBeenCalledWith("proj-2")
+    })
+  })
+
   it("dispara onClose ao clicar no botão de fechar", async () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
@@ -200,5 +288,77 @@ describe("DashboardComponentsDrawer", () => {
     await user.click(closeBtn)
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("dispara onSelectAnalysis ao clicar no card inteiro", async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={onSelect}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("Internações por Município")).toBeInTheDocument()
+    })
+
+    const card = screen
+      .getByText("Internações por Município")
+      .closest(".grid-stack-item-drag-in")
+
+    await user.click(card!)
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(mockAnalyses[0])
+  })
+
+  it("renderiza as miniaturas buscando uma amostra das linhas", async () => {
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("echart").length).toBeGreaterThan(0)
+    })
+
+    expect(executeQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        database_id: 1,
+        sql: "SELECT * FROM internacoes",
+        limit: 100,
+      })
+    )
+  })
+
+  it("mostra fallback quando a consulta da miniatura falha", async () => {
+    vi.mocked(executeQuery).mockResolvedValue({
+      status: "error",
+      data: [],
+      message: "falhou",
+    })
+
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Sem pré-visualização").length).toBeGreaterThan(0)
+    })
+    expect(screen.queryAllByTestId("echart")).toHaveLength(0)
   })
 })

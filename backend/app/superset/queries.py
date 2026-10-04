@@ -5,29 +5,14 @@ from typing import Any
 from app.superset.client import superset_client
 
 
-def validar_sql(sql: str) -> None:
-    """Validar que SQL é uma consulta de leitura (SELECT/WITH).
+def _remover_comentarios(sql: str) -> str:
+    """Remove comentários de linha (--) e de bloco (/* ... */) do SQL.
 
-    Considera espaços iniciais e comentários (-- e /* */).
-    Não diferencia maiúsculas/minúsculas.
-    Levanta ValueError se a consulta for modificadora ou inválida.
-
-    Regras:
-    - SQL vazio ou somente comentários → ValueError
-    - Comentário de bloco /* ... */ não fechado → ValueError
-    - Primeira instrução depois de remover comentários deve ser SELECT ou WITH
-    - Não faz busca textual de palavras-chave (DELETE, DROP, etc. podem
-      aparecer em strings ou comentários de consultas válidas).
+    Levanta ValueError para comentário de bloco não fechado ou SQL que
+    ficou vazio após a remoção.
     """
-    s = sql.strip()
-
-    if not s:
-        raise ValueError(
-            "Apenas consultas de leitura (SELECT/WITH) são permitidas."
-        )
-
     # --- Remover comentários de linha -- no início de cada linha ---
-    lines = s.split("\n")
+    lines = sql.split("\n")
     filtered: list[str] = []
     for line in lines:
         stripped = line.strip()
@@ -77,6 +62,32 @@ def validar_sql(sql: str) -> None:
             "Apenas consultas de leitura (SELECT/WITH) são permitidas."
         )
 
+    return s
+
+
+def validar_sql(sql: str) -> None:
+    """Validar que SQL é uma consulta de leitura (SELECT/WITH).
+
+    Considera espaços iniciais e comentários (-- e /* */).
+    Não diferencia maiúsculas/minúsculas.
+    Levanta ValueError se a consulta for modificadora ou inválida.
+
+    Regras:
+    - SQL vazio ou somente comentários → ValueError
+    - Comentário de bloco /* ... */ não fechado → ValueError
+    - Primeira instrução depois de remover comentários deve ser SELECT ou WITH
+    - Não faz busca textual de palavras-chave (DELETE, DROP, etc. podem
+      aparecer em strings ou comentários de consultas válidas).
+    """
+    s = sql.strip()
+
+    if not s:
+        raise ValueError(
+            "Apenas consultas de leitura (SELECT/WITH) são permitidas."
+        )
+
+    s = _remover_comentarios(s)
+
     # Pegar primeira palavra (ignorando espaços restantes)
     primeiro = s.split()[0].upper()
     if primeiro not in ("SELECT", "WITH"):
@@ -85,12 +96,27 @@ def validar_sql(sql: str) -> None:
         )
 
 
+def aplicar_limit(sql: str, limit: int) -> str:
+    """Envolve a consulta em um subselect com LIMIT.
+
+    Usado para pré-visualizações (miniaturas de gráfico) onde interessa
+    apenas uma amostra das linhas, sem transferir o resultset completo.
+    Comentários e `;` finais são removidos antes do wrap para não
+    invalidar a sintaxe do subselect.
+    """
+    inner = _remover_comentarios(sql).rstrip(";").strip()
+    return f"SELECT * FROM (\n{inner}\n) AS _preview LIMIT {int(limit)}"
+
+
 async def execute_query(
     database_id: int,
     sql: str,
     schema: str | None = None,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     validar_sql(sql)  # Nova validação de segurança
+    if limit is not None and limit > 0:
+        sql = aplicar_limit(sql, limit)
     payload: dict[str, Any] = {
         "database_id": database_id,
         "sql": sql,

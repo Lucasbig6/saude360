@@ -6,6 +6,8 @@ export interface ExecuteQueryRequest {
   database_id: number
   sql: string
   db_schema?: string
+  /** Opcional: limita as linhas retornadas (pré-visualizações/miniaturas). */
+  limit?: number
 }
 
 export interface FilterClause {

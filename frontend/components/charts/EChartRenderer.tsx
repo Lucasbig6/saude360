@@ -12,6 +12,8 @@ export interface EChartRendererProps {
   rows: Row[]
   height?: number | string
   className?: string
+  /** Desativa a animação de entrada (útil em miniaturas). Default: true. */
+  animated?: boolean
 }
 
 export function EChartRenderer({
@@ -19,14 +21,15 @@ export function EChartRenderer({
   rows,
   height = "100%",
   className,
+  animated = true,
 }: EChartRendererProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<ChartInstance | null>(null)
 
-  const option = useMemo(
-    () => toEChartsOption(config, prepareData(rows, config)),
-    [config, rows],
-  )
+  const option = useMemo(() => {
+    const base = toEChartsOption(config, prepareData(rows, config))
+    return animated ? base : { ...base, animation: false }
+  }, [config, rows, animated])
 
   useEffect(() => {
     if (config.type === "map") return

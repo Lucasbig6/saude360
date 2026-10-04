@@ -66,7 +66,9 @@ export function AddToDashboardDialog({
       setLoadError(null)
       setDashboards(null)
       try {
-        const list = await getDashboards()
+        // Mesmo escopo da análise: só painéis do projeto dela (ou todos,
+        // quando a análise não tem projeto).
+        const list = await getDashboards(analysis?.projectId ?? undefined)
         if (!cancelled) setDashboards(list)
       } catch (err) {
         if (!cancelled) {
@@ -85,7 +87,7 @@ export function AddToDashboardDialog({
     return () => {
       cancelled = true
     }
-  }, [open, reloadKey])
+  }, [open, reloadKey, analysis?.projectId])
 
   const alreadyIn = useMemo(() => {
     if (!analysis) return new Set<string>()
@@ -149,6 +151,8 @@ export function AddToDashboardDialog({
         description: "",
         widgets: [createWidget(analysis)],
         filters: [],
+        // O painel novo nasce no mesmo projeto da análise.
+        ...(analysis.projectId ? { projectId: analysis.projectId } : {}),
       })
       handleOpenChange(false)
       router.push(`/paineis/${dashboard.id}`)
@@ -173,6 +177,13 @@ export function AddToDashboardDialog({
             gráfico &quot;{analysis.name}&quot;.
           </DialogDescription>
         </DialogHeader>
+
+        {!analysis.projectId && (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            Esta análise não tem projeto vinculado — a lista mostra todos os
+            painéis.
+          </p>
+        )}
 
         {feedback && (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
