@@ -176,7 +176,10 @@ export default function AnalisesPage() {
                   </Button>
                 </Link>
                 <Link
-                  href={`/explorar?analysisId=${analysis.id}`}
+                  href={
+                    `/explorar?analysisId=${analysis.id}` +
+                    (analysis.projectId ? `&projectId=${analysis.projectId}` : "")
+                  }
                   className="min-w-[7rem] flex-1"
                 >
                   <Button

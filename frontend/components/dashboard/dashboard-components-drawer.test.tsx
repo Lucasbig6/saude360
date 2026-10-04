@@ -19,6 +19,7 @@ const mockAnalyses: Analysis[] = [
     datasetId: 10,
     dimension: "municipio",
     metric: "qtd",
+    chartConfig: null,
     projectId: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
@@ -34,6 +35,7 @@ const mockAnalyses: Analysis[] = [
     datasetId: 11,
     dimension: null,
     metric: null,
+    chartConfig: null,
     projectId: null,
     createdAt: "2026-01-02T00:00:00Z",
     updatedAt: "2026-01-02T00:00:00Z",
@@ -158,6 +160,27 @@ describe("DashboardComponentsDrawer", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith(mockAnalyses[0])
+  })
+
+  it("tolera início de arraste sem DataTransfer", async () => {
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("Internações por Município")).toBeInTheDocument()
+    })
+
+    const item = screen
+      .getByText("Internações por Município")
+      .closest(".grid-stack-item-drag-in")
+
+    expect(() => fireEvent.dragStart(item!)).not.toThrow()
   })
 
   it("dispara onClose ao clicar no botão de fechar", async () => {

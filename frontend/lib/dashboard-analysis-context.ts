@@ -1,6 +1,6 @@
 import type { Analysis } from "@/lib/types/analysis"
 import type { Dashboard } from "@/lib/types/dashboard"
-import type { ChartType } from "@/lib/types/charts"
+import type { AnalysisChartType } from "@/lib/types/charts"
 import { getAnalyses } from "@/lib/api/analyses"
 
 /**
@@ -27,7 +27,7 @@ import { getAnalyses } from "@/lib/api/analyses"
 export interface DashboardAnalysisContextWidget {
   analysisId: string
   title: string
-  chartType: ChartType
+  chartType: AnalysisChartType
   datasetId: number | null
   databaseId: number
   dbSchema: string | null

@@ -160,6 +160,68 @@ async def test_put_can_clear_description_with_null(client, auth_headers):
     assert response.json()["description"] is None
 
 
+CHART_CONFIG = {
+    "type": "bar",
+    "encoding": {"x": "municipio", "y": "count", "color": "regiao"},
+    "title": "Atendimentos por município",
+    "xAxisLabel": "Município",
+    "yAxisLabel": "Atendimentos",
+    "numberFormat": "compact",
+    "showValues": True,
+    "legendPosition": "right",
+    "colors": ["#0f766e", "#14b8a6"],
+    "stacked": True,
+    "sort": {"field": "count", "direction": "desc"},
+    "limit": 20,
+    "exportable": True,
+}
+
+
+async def test_create_and_get_persists_chart_config(client, auth_headers):
+    created = await client.post(
+        "/api/analyses",
+        json=payload(chartConfig=CHART_CONFIG),
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    assert created.json()["chartConfig"] == CHART_CONFIG
+
+    fetched = await client.get(
+        f"/api/analyses/{created.json()['id']}", headers=auth_headers
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["chartConfig"] == CHART_CONFIG
+
+
+async def test_put_updates_chart_config_and_clears_with_null(client, auth_headers):
+    created = await client.post(
+        "/api/analyses",
+        json=payload(chartConfig=CHART_CONFIG),
+        headers=auth_headers,
+    )
+    analysis_id = created.json()["id"]
+
+    updated = {"title": "Novo título", "showValues": False}
+    response = await client.put(
+        f"/api/analyses/{analysis_id}",
+        json={"chartConfig": {**CHART_CONFIG, **updated}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    chart_config = response.json()["chartConfig"]
+    assert chart_config["title"] == "Novo título"
+    assert chart_config["showValues"] is False
+    assert chart_config["colors"] == ["#0f766e", "#14b8a6"]
+
+    cleared = await client.put(
+        f"/api/analyses/{analysis_id}",
+        json={"chartConfig": None},
+        headers=auth_headers,
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["chartConfig"] is None
+
+
 async def test_put_analysis_not_found_is_404(client, auth_headers):
     response = await client.put(
         f"/api/analyses/{uuid.uuid4()}",

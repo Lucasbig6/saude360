@@ -65,7 +65,7 @@ export function ColumnSelector({
             >
               <span className="truncate">{option.label}</span>
               {option.value === value && (
-                <Check size={15} className="shrink-0 text-teal-600" />
+                <Check size={15} className="shrink-0 text-teal-700" />
               )}
             </DropdownMenuItem>
           ))}

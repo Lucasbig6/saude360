@@ -88,7 +88,14 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0004_dashboard_widgets_v2"
+    assert version == "0005_analysis_chart_config"
+
+
+def test_analysis_has_chart_config_column(db):
+    inspector = inspect(db.get_bind())
+    columns = {c["name"]: str(c["type"]) for c in inspector.get_columns("analyses")}
+    assert "chart_config" in columns
+    assert columns["chart_config"].lower() == "jsonb"
 
 
 def test_dashboard_widgets_has_widget_column(db):

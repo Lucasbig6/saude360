@@ -4,10 +4,13 @@ import { CHART_TYPE_META } from "@/components/charts/chart-types"
 import type { ChartType as ChartWidgetType } from "@/lib/charts/chart-config"
 
 export type ChartType = ChartWidgetType | "table"
+export type AnalysisChartType = ChartType | "kpi"
 
-export const chartTypeLabel: Record<ChartType, string> = {
+export const chartTypeLabel: Record<AnalysisChartType, string> = {
   table: "Tabela",
+  kpi: "KPI",
   bar: CHART_TYPE_META.bar.label,
+  "bar-horizontal": CHART_TYPE_META["bar-horizontal"].label,
   line: CHART_TYPE_META.line.label,
   area: CHART_TYPE_META.area.label,
   pie: CHART_TYPE_META.pie.label,
@@ -18,11 +21,14 @@ export const chartTypeLabel: Record<ChartType, string> = {
   funnel: CHART_TYPE_META.funnel.label,
   heatmap: CHART_TYPE_META.heatmap.label,
   treemap: CHART_TYPE_META.treemap.label,
+  map: CHART_TYPE_META.map.label,
 }
 
-export const chartTypeIcon: Record<ChartType, LucideIcon> = {
+export const chartTypeIcon: Record<AnalysisChartType, LucideIcon> = {
   table: Table2,
+  kpi: CHART_TYPE_META.gauge.icon,
   bar: CHART_TYPE_META.bar.icon,
+  "bar-horizontal": CHART_TYPE_META["bar-horizontal"].icon,
   line: CHART_TYPE_META.line.icon,
   area: CHART_TYPE_META.area.icon,
   pie: CHART_TYPE_META.pie.icon,
@@ -33,4 +39,5 @@ export const chartTypeIcon: Record<ChartType, LucideIcon> = {
   funnel: CHART_TYPE_META.funnel.icon,
   heatmap: CHART_TYPE_META.heatmap.icon,
   treemap: CHART_TYPE_META.treemap.icon,
+  map: CHART_TYPE_META.map.icon,
 }

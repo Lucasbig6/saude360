@@ -13,6 +13,7 @@ from app.schemas.analyses import CamelModel
 CHART_TYPES = frozenset(
     {
         "bar",
+        "bar-horizontal",
         "line",
         "area",
         "pie",
@@ -23,6 +24,7 @@ CHART_TYPES = frozenset(
         "funnel",
         "heatmap",
         "treemap",
+        "map",
     }
 )
 
@@ -89,6 +91,7 @@ class SortIn(WidgetConfigModel):
 class ChartWidgetIn(WidgetConfigModel):
     type: Literal[
         "bar",
+        "bar-horizontal",
         "line",
         "area",
         "pie",
@@ -99,6 +102,7 @@ class ChartWidgetIn(WidgetConfigModel):
         "funnel",
         "heatmap",
         "treemap",
+        "map",
     ]
     encoding: EncodingIn | None = None
     aggregation: AggregationIn | None = None

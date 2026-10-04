@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Tabs segmentadas no mesmo padrão visual do `ExplorationTabs`
- * (`components/explorer/exploration-tabs.tsx`): controle único no trilho
+ * Tabs segmentadas no mesmo padrão visual do toggle de modos do composer
+ * (`components/explorer/explore-composer.tsx`): controle único no trilho
  * `bg-slate-100`, aba ativa em branco com shadow.
  */
 export interface SegmentedTabItem<T extends string> {

@@ -34,6 +34,20 @@ describe("toEChartsOption por tipo de gráfico", () => {
     expect(xAxis.data).toEqual(["Teresina", "Parnaíba"])
   })
 
+  it("bar-horizontal", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar-horizontal"),
+      encoding: { x: "municipio", y: "total" },
+    })
+
+    expect(seriesList(option)[0].type).toBe("bar")
+    expect(option.xAxis).toMatchObject({ type: "value" })
+    expect(option.yAxis).toMatchObject({
+      type: "category",
+      data: ["Teresina", "Parnaíba"],
+    })
+  })
+
   it("line e area", () => {
     const line = optionFor({
       ...defaultChartConfig("line"),
@@ -211,5 +225,163 @@ describe("toEChartsOption opções globais", () => {
     })
 
     expect(option.animation).toBe(false)
+  })
+})
+
+describe("toEChartsOption apresentação", () => {
+  it("aplica rótulos de eixo e formata os ticks do eixo de valor", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      xAxisLabel: "Município",
+      yAxisLabel: "Atendimentos",
+      numberFormat: "currency",
+    })
+
+    expect(option.xAxis).toMatchObject({ name: "Município" })
+    const yAxis = option.yAxis as { name?: string; axisLabel?: { formatter?: unknown } }
+    expect(yAxis.name).toBe("Atendimentos")
+    expect(yAxis.axisLabel?.formatter).toBeTypeOf("function")
+    expect((yAxis.axisLabel?.formatter as (v: unknown) => string)(1500)).toBe(
+      "R$\u00A01.500,00"
+    )
+  })
+
+  it("mantém os rótulos nos eixos visuais em barras horizontais", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar-horizontal"),
+      encoding: { x: "municipio", y: "total" },
+      xAxisLabel: "Eixo X",
+      yAxisLabel: "Eixo Y",
+    })
+
+    // X continua sendo o eixo horizontal (de valores) em qualquer orientação.
+    expect(option.xAxis).toMatchObject({ name: "Eixo X" })
+    expect(option.yAxis).toMatchObject({ name: "Eixo Y" })
+    const yAxis = option.yAxis as { axisLabel?: { formatter?: unknown } }
+    expect(yAxis.axisLabel?.formatter).toBeUndefined()
+  })
+
+  it("mostra data labels quando showValues=true", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      showValues: true,
+    })
+
+    const series = seriesList(option)[0] as {
+      label?: { show?: boolean; formatter?: string }
+    }
+    expect(series.label?.show).toBe(true)
+    expect(series.label?.formatter).toBe("{c}")
+  })
+
+  it("formata data labels de pizza com nome e valor", () => {
+    const option = optionFor({
+      ...defaultChartConfig("pie"),
+      encoding: { x: "municipio", y: "total" },
+      aggregation: { field: "total", function: "sum" },
+      showValues: true,
+    })
+
+    const series = seriesList(option)[0] as { label?: { formatter?: string } }
+    expect(series.label?.formatter).toBe("{b}: {c}")
+  })
+
+  it("empilha apenas quando há mais de uma série", () => {
+    const multi = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total", color: "ano" },
+      aggregation: { field: "total", function: "sum" },
+      stacked: true,
+    })
+    for (const series of seriesList(multi) as Array<Record<string, unknown>>) {
+      expect(series.stack).toBe("total")
+    }
+
+    const single = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      stacked: true,
+    })
+    expect((seriesList(single)[0] as Record<string, unknown>).stack).toBeUndefined()
+  })
+
+  it("suaviza linhas quando smooth=true", () => {
+    const option = optionFor({
+      ...defaultChartConfig("line"),
+      encoding: { x: "municipio", y: "total" },
+      smooth: true,
+    })
+
+    expect((seriesList(option)[0] as Record<string, unknown>).smooth).toBe(true)
+  })
+
+  it("aplica paleta customizada", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      colors: ["#0f766e", "#14b8a6"],
+    })
+
+    expect(option.color).toEqual(["#0f766e", "#14b8a6"])
+  })
+
+  it("posiciona a legenda conforme legendPosition", () => {
+    const base: ChartConfig = {
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total", color: "ano" },
+      aggregation: { field: "total", function: "sum" },
+    }
+
+    expect(optionFor({ ...base, legendPosition: "right" })).toMatchObject({
+      legend: { right: 0, orient: "vertical" },
+    })
+    expect(optionFor({ ...base, legendPosition: "top" })).toMatchObject({
+      legend: { top: 0, left: "center" },
+    })
+    expect(optionFor({ ...base, legendPosition: "left" })).toMatchObject({
+      legend: { left: 0, orient: "vertical" },
+    })
+  })
+
+  it("habilita exportação PNG quando exportable=true", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      title: "Meu gráfico",
+      exportable: true,
+    })
+
+    const toolbox = option.toolbox as {
+      feature?: { saveAsImage?: { name?: string; pixelRatio?: number } }
+    }
+    expect(toolbox.feature?.saveAsImage?.name).toBe("Meu gráfico")
+    expect(toolbox.feature?.saveAsImage?.pixelRatio).toBe(2)
+    expect(option.grid).toMatchObject({ top: 56 })
+  })
+
+  it("não cria toolbox quando exportable não está definido", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+    })
+
+    expect(option.toolbox).toBeUndefined()
+  })
+
+  it("formata o valor do gauge", () => {
+    const option = optionFor({
+      ...defaultChartConfig("gauge"),
+      encoding: { y: "total" },
+      aggregation: { field: "total", function: "sum" },
+      numberFormat: "percent",
+    })
+
+    const gauge = seriesList(option)[0] as {
+      detail?: { formatter?: unknown }
+    }
+    expect(gauge.detail?.formatter).toBeTypeOf("function")
+    expect((gauge.detail?.formatter as (v: unknown) => string)(0.42)).toBe("42%")
   })
 })

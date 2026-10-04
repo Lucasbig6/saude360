@@ -72,6 +72,21 @@ export function SaveAnalysisDialog({
       .catch(() => setProjectsError(true))
   }, [open])
 
+  // Ressincroniza com as props a cada abertura: `editingAnalysis` (análise
+  // restaurada via ?analysisId=) chega assíncrona depois da montagem, quando o
+  // estado inicial do useState já foi capturado com props antigas. Usa ajuste
+  // no render (padrão "derived state") em vez de efeito, conforme as regras
+  // de hooks do projeto.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(initialName)
+      setDescription(initialDescription)
+      setProjectId(defaultProjectId)
+    }
+  }
+
   function resetFields() {
     setName(initialName)
     setDescription(initialDescription)
@@ -165,7 +180,7 @@ export function SaveAnalysisDialog({
           <Button
             onClick={() => void handleSave()}
             disabled={!name.trim() || saving}
-            className="bg-teal-600 text-white hover:bg-teal-700"
+            className="bg-teal-700 text-white hover:bg-teal-800"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             Salvar
@@ -173,7 +188,7 @@ export function SaveAnalysisDialog({
         </DialogFooter>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <AlertCircle size={16} />
             {error}
           </div>

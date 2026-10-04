@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -28,6 +28,10 @@ class AnalysisCreate(CamelModel):
     chart_type: Annotated[str | None, Field(max_length=100)] = None
     dimension: Annotated[str | None, Field(max_length=255)] = None
     metric: Annotated[str | None, Field(max_length=255)] = None
+    # Apresentação do gráfico (título, rótulos, cores...). O frontend valida
+    # a estrutura (normalizeChartConfig); aqui guardamos o dict como está.
+    # ``null`` = sem apresentação salva (ex.: visualização em tabela).
+    chart_config: dict[str, Any] | None = None
     project_id: uuid.UUID | None = None
 
 
@@ -43,9 +47,10 @@ class AnalysisUpdate(CamelModel):
     database_id: int | None = None
     db_schema: Annotated[str | None, Field(max_length=255)] = None
     dataset_id: int | None = None
-    chart_type: Annotated[str | None, Field(max_length=100)] = None
-    dimension: Annotated[str | None, Field(max_length=255)] = None
-    metric: Annotated[str | None, Field(max_length=255)] = None
+    chart_type: Annotated[str | None, Field(max_length=100)] | None = None
+    dimension: Annotated[str | None, Field(max_length=255)] | None = None
+    metric: Annotated[str | None, Field(max_length=255)] | None = None
+    chart_config: dict[str, Any] | None = None
     project_id: uuid.UUID | None = None
 
 
@@ -60,6 +65,7 @@ class AnalysisResponse(CamelModel):
     chart_type: str | None = None
     dimension: str | None = None
     metric: str | None = None
+    chart_config: dict[str, Any] | None = None
     project_id: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
     created_at: datetime

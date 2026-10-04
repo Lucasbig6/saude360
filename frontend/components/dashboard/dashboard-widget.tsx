@@ -40,7 +40,7 @@ import {
   legacyToWidgetConfig,
   type StaticWidgetType,
 } from "@/lib/types/widgets"
-import { getAnalysis } from "@/lib/api/analyses"
+import { assertChartType, getAnalysis } from "@/lib/api/analyses"
 import { executeQuery, executeQueryFiltered, executePublicQuery } from "@/lib/api/queries"
 import type { FilterClause } from "@/lib/api/queries"
 import { ApiError } from "@/lib/api"
@@ -221,6 +221,7 @@ export function DashboardWidgetView({
           chartType: assertChartType(ad.chartType),
           dimension: ad.dimension ?? null,
           metric: ad.metric ?? null,
+          chartConfig: null,
           projectId: null,
           createdAt: "",
           updatedAt: "",

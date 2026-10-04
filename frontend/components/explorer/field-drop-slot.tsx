@@ -51,8 +51,8 @@ export function FieldDropSlot({
         error
           ? "border-red-300 bg-red-50 text-red-500"
           : dragOver
-            ? "border-teal-400 bg-teal-50 text-teal-600"
-            : "border-slate-200 bg-slate-50/50 text-slate-400 hover:border-slate-300"
+            ? "border-teal-500 bg-teal-50 text-teal-700"
+            : "border-slate-200 bg-slate-50/50 text-slate-500 hover:border-slate-300"
       )}
     >
       {error ? "Tipo incompatível" : label}

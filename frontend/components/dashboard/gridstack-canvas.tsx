@@ -164,75 +164,11 @@ export function GridstackCanvas({
     grid.enableResize(editable)
   }, [editable])
 
-  // Configura o drag-in do GridStack para elementos com a classe .grid-stack-item-drag-in
-  useEffect(() => {
-    if (!editable) return
-    let unmounted = false
-
-    import("gridstack").then(({ GridStack: GS }) => {
-      if (unmounted) return
-      try {
-        GS.setupDragIn(".grid-stack-item-drag-in", {
-          appendTo: "body",
-          helper: "clone",
-        })
-      } catch {
-        // Fallback gracioso caso executado em ambiente restrito
-      }
-    }).catch(() => {})
-
-    return () => {
-      unmounted = true
-    }
-  }, [editable])
-
-  // Trata o drop disparado pelo GridStack quando um item externo é solto no grid
-  const handleGridDropped = useCallback(
-    (_event: unknown, _prevNode: unknown, newNode: {
-      x?: number
-      y?: number
-      w?: number
-      h?: number
-      el?: HTMLElement
-    }) => {
-      if (!newNode) return
-      const grid = handleRef.current?.getGrid()
-      const el = newNode.el
-
-      const analysisId =
-        el?.getAttribute("data-analysis-id") ||
-        (el?.firstElementChild as HTMLElement | null)?.getAttribute("data-analysis-id")
-
-      const x = typeof newNode.x === "number" ? newNode.x : 0
-      const y = typeof newNode.y === "number" ? newNode.y : 0
-      const w = typeof newNode.w === "number" ? newNode.w : 6
-      const h = typeof newNode.h === "number" ? newNode.h : 4
-
-      // Remove o elemento DOM clonado pelo motor para que a árvore React renderize declarativamente
-      if (grid && el) {
-        try {
-          grid.removeWidget(el, true, false)
-        } catch {
-          // nó já removido
-        }
-      }
-
-      if (analysisId && onDropAnalysisRef.current) {
-        onDropAnalysisRef.current({
-          analysisId,
-          x,
-          y,
-          w,
-          h,
-        })
-      }
-    },
-    []
-  )
-
-  // Drag & drop HTML5 nativo como suporte para arrasto e soltura fluidos
+  // Drag & drop HTML5 nativo. Ele evita a competição entre o adaptador de
+  // drag do GridStack e os handlers React da biblioteca lateral.
   const handleHtml5DragOver = useCallback((e: React.DragEvent) => {
     if (!editable) return
+    if (!e.dataTransfer) return
     if (
       e.dataTransfer.types.includes("application/json") ||
       e.dataTransfer.types.includes("text/plain")
@@ -244,8 +180,10 @@ export function GridstackCanvas({
 
   const handleHtml5Drop = useCallback((e: React.DragEvent) => {
     if (!editable || !onDropAnalysisRef.current) return
-    const jsonStr = e.dataTransfer.getData("application/json")
-    const plainId = e.dataTransfer.getData("text/plain")
+    const dataTransfer = e.dataTransfer
+    if (!dataTransfer) return
+    const jsonStr = dataTransfer.getData("application/json")
+    const plainId = dataTransfer.getData("text/plain")
 
     let analysisId: string | null = null
     let w = 6
@@ -307,9 +245,7 @@ export function GridstackCanvas({
         className={className}
         onChange={scheduleEmit}
         onAdded={scheduleEmit}
-        onDropped={handleGridDropped}
       />
     </div>
   )
 }
-

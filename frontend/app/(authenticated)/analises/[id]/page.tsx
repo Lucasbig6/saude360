@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { PreviewChart } from "@/components/explorer/preview-chart"
+import { chartConfigToDisplay } from "@/lib/charts/display-options"
 import type { Analysis } from "@/lib/types/analysis"
 import { chartTypeLabel, chartTypeIcon } from "@/lib/types/charts"
 import { getAnalysis } from "@/lib/api/analyses"
@@ -418,6 +419,8 @@ export default function AnaliseDetailPage({
                       chartType={analysis.chartType}
                       dimension={analysis.dimension}
                       metric={analysis.metric}
+                      colorField={analysis.chartConfig?.encoding?.color ?? null}
+                      display={chartConfigToDisplay(analysis.chartConfig)}
                     />
                   </div>
                 )}

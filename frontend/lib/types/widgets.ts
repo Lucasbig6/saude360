@@ -131,6 +131,13 @@ export function legacyToWidgetConfig(analysis: LegacyAnalysisLike): WidgetConfig
   if (analysis.chartType === "table") {
     return { type: "table" }
   }
+  if (analysis.chartType === "kpi") {
+    return {
+      type: "kpi",
+      field: analysis.metric ?? undefined,
+      function: analysis.metric ? "sum" : "count",
+    }
+  }
   return legacyToChartConfig(analysis) ?? { type: "table" }
 }
 

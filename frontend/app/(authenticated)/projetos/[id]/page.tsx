@@ -254,7 +254,7 @@ export default function ProjetoDetalhePage({
                   </Button>
                 </Link>
                 <Link
-                  href={`/explorar?analysisId=${analysis.id}`}
+                  href={`/explorar?analysisId=${analysis.id}&projectId=${id}`}
                   className="flex-1"
                 >
                   <Button variant="outline" size="sm" className="w-full">

@@ -9,6 +9,7 @@ export type { ChartAdapter } from "./cartesian"
 
 export const chartAdapters: Record<ChartType, ChartAdapter> = {
   bar: (_config, data) => cartesian(data, "bar"),
+  "bar-horizontal": (_config, data) => cartesian(data, "bar-horizontal"),
   line: (_config, data) => cartesian(data, "line"),
   area: (_config, data) => cartesian(data, "area"),
   scatter: (_config, data) => scatter(data),
@@ -19,4 +20,5 @@ export const chartAdapters: Record<ChartType, ChartAdapter> = {
   funnel: (_config, data) => funnel(data),
   heatmap: (_config, data) => heatmap(data),
   treemap: (_config, data) => treemap(data),
+  map: () => ({}),
 }

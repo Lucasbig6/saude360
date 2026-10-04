@@ -7,6 +7,7 @@ import {
   isWidgetType,
   legacyToChartConfig,
   normalizeChartConfig,
+  type ChartConfig,
 } from "@/lib/charts/chart-config"
 
 describe("guardas de tipo", () => {
@@ -109,6 +110,52 @@ describe("normalizeChartConfig", () => {
     expect(() => normalizeChartConfig({ type: "bar", limit: 0 })).toThrow("limit inválido")
     expect(() => normalizeChartConfig({ type: "bar", limit: -3 })).toThrow("limit inválido")
   })
+
+  it("normaliza os campos de apresentação", () => {
+    const config = normalizeChartConfig({
+      type: "bar",
+      xAxisLabel: "Município",
+      yAxisLabel: "Total",
+      numberFormat: "currency",
+      showValues: true,
+      legendPosition: "right",
+      colors: ["#0f766e", "#14b8a6"],
+      stacked: true,
+      smooth: true,
+      exportable: true,
+    })
+
+    expect(config).toMatchObject({
+      xAxisLabel: "Município",
+      yAxisLabel: "Total",
+      numberFormat: "currency",
+      showValues: true,
+      legendPosition: "right",
+      colors: ["#0f766e", "#14b8a6"],
+      stacked: true,
+      smooth: true,
+      exportable: true,
+    })
+  })
+
+  it("descarta apresentação inválida", () => {
+    const config = normalizeChartConfig({
+      type: "bar",
+      numberFormat: "euros",
+      legendPosition: "middle",
+      showValues: "sim",
+      colors: "teal",
+      stacked: 1,
+      xAxisLabel: 42,
+    })
+
+    expect(config.numberFormat).toBeUndefined()
+    expect(config.legendPosition).toBeUndefined()
+    expect(config.showValues).toBeUndefined()
+    expect(config.colors).toBeUndefined()
+    expect(config.stacked).toBeUndefined()
+    expect(config.xAxisLabel).toBeUndefined()
+  })
 })
 
 describe("legacyToChartConfig", () => {
@@ -141,5 +188,51 @@ describe("legacyToChartConfig", () => {
   it("omite encoding quando não há dimensão/métrica", () => {
     const config = legacyToChartConfig({ chartType: "pie", dimension: null, metric: null })
     expect(config).toEqual({ type: "pie", legend: true, tooltip: true })
+  })
+
+  it("prefere a chartConfig completa quando a análise já foi salva com ela", () => {
+    const saved = normalizeChartConfig({
+      type: "line",
+      encoding: { x: "mes", y: "total", color: "regiao" },
+      title: "Série mensal",
+      colors: ["#0f766e"],
+      limit: 12,
+    })
+
+    expect(
+      legacyToChartConfig({
+        chartType: "bar",
+        dimension: "ignorado",
+        metric: "ignorado",
+        chartConfig: saved,
+      }),
+    ).toBe(saved)
+  })
+
+  it("usa o fallback legado quando a chartConfig é nula", () => {
+    const config = legacyToChartConfig({
+      chartType: "bar",
+      dimension: "mes",
+      metric: "total",
+      chartConfig: null,
+    })
+
+    expect(config).toEqual({
+      type: "bar",
+      legend: true,
+      tooltip: true,
+      encoding: { x: "mes", y: "total" },
+    })
+  })
+
+  it("ignora chartConfig de tipo desconhecido e cai no legado", () => {
+    const config = legacyToChartConfig({
+      chartType: "line",
+      dimension: "mes",
+      metric: "total",
+      chartConfig: { type: "sunburst" } as unknown as ChartConfig,
+    })
+
+    expect(config?.type).toBe("line")
   })
 })

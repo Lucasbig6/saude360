@@ -15,6 +15,7 @@ import {
   LegendComponent,
   RadarComponent,
   TitleComponent,
+  ToolboxComponent,
   TooltipComponent,
   VisualMapComponent,
 } from "echarts/components"
@@ -36,6 +37,7 @@ echarts.use([
   TitleComponent,
   RadarComponent,
   VisualMapComponent,
+  ToolboxComponent,
   CanvasRenderer,
 ])
 

@@ -14,3 +14,12 @@ export function generatePreviewSql(tableName: string): string {
   }
   return `SELECT *\nFROM ${quoteIdentifier(tableName)}\nLIMIT 100`
 }
+
+// O backend (validar_sql) só aceita consulta iniciada por SELECT/WITH, então a
+// detecção de intenção espelha essa regra: qualquer outra entrada é tratada
+// como linguagem natural.
+const SQL_INTENT_PATTERN = /^\s*(select|with)\b/i
+
+export function looksLikeSql(text: string): boolean {
+  return SQL_INTENT_PATTERN.test(text)
+}

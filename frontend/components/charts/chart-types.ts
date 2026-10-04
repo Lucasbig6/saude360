@@ -1,4 +1,4 @@
-import { BarChart3, ChartSpline, Filter, Gauge, Grid3x3, Layers, LineChart, PieChart, Radar, ScatterChart } from "lucide-react"
+import { BarChart3, ChartSpline, Filter, Gauge, Grid3x3, Layers, LineChart, Map, PieChart, Radar, ScatterChart } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { CHART_TYPES } from "@/lib/charts/chart-config"
 import type { ChartType } from "@/lib/charts/chart-config"
@@ -15,6 +15,14 @@ export interface ChartTypeMeta {
 export const CHART_TYPE_META: Record<ChartType, ChartTypeMeta> = {
   bar: {
     label: "Barras",
+    icon: BarChart3,
+    requiresCategory: true,
+    supportsAggregation: true,
+    supportsColor: true,
+    supportsSize: false,
+  },
+  "bar-horizontal": {
+    label: "Barras horizontais",
     icon: BarChart3,
     requiresCategory: true,
     supportsAggregation: true,
@@ -99,6 +107,14 @@ export const CHART_TYPE_META: Record<ChartType, ChartTypeMeta> = {
     requiresCategory: true,
     supportsAggregation: true,
     supportsColor: true,
+    supportsSize: false,
+  },
+  map: {
+    label: "Mapa de coordenadas",
+    icon: Map,
+    requiresCategory: false,
+    supportsAggregation: false,
+    supportsColor: false,
     supportsSize: false,
   },
 }

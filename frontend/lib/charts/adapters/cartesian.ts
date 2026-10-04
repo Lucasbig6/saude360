@@ -16,15 +16,20 @@ export function groupTotals(data: PreparedData): number[] {
 
 export function cartesian(
   data: PreparedData,
-  kind: "bar" | "line" | "area",
+  kind: "bar" | "bar-horizontal" | "line" | "area",
 ): EChartsOption {
+  const horizontal = kind === "bar-horizontal"
   return {
     grid: { left: 8, right: 16, top: 32, bottom: 8, containLabel: true },
-    xAxis: { type: "category", data: data.categories },
-    yAxis: { type: "value" },
+    xAxis: horizontal
+      ? { type: "value" }
+      : { type: "category", data: data.categories },
+    yAxis: horizontal
+      ? { type: "category", data: data.categories }
+      : { type: "value" },
     series: data.series.map((item) => ({
       name: item.name,
-      type: kind === "bar" ? "bar" : "line",
+      type: kind === "bar" || horizontal ? "bar" : "line",
       data: item.data,
       ...(kind === "area" ? { areaStyle: { opacity: 0.25 } } : {}),
     })),

@@ -1,5 +1,6 @@
 export type ChartType =
   | "bar"
+  | "bar-horizontal"
   | "line"
   | "area"
   | "pie"
@@ -10,6 +11,7 @@ export type ChartType =
   | "funnel"
   | "heatmap"
   | "treemap"
+  | "map"
 
 export type WidgetType = ChartType | "table" | "kpi" | "text" | "image"
 
@@ -33,6 +35,10 @@ export interface ChartSort {
   direction: "asc" | "desc"
 }
 
+export type ChartNumberFormat = "number" | "currency" | "percent" | "compact"
+
+export type ChartLegendPosition = "top" | "bottom" | "left" | "right"
+
 export interface ChartConfig {
   type: ChartType
   encoding?: ChartEncoding
@@ -42,6 +48,23 @@ export interface ChartConfig {
   legend?: boolean
   tooltip?: boolean
   title?: string
+  /** Rótulo do eixo de dimensão (X nas barras verticais). */
+  xAxisLabel?: string
+  /** Rótulo do eixo de valor (Y nas barras verticais). */
+  yAxisLabel?: string
+  numberFormat?: ChartNumberFormat
+  /** Exibe o valor ao lado de cada barra/ponto/fatia (data labels). */
+  showValues?: boolean
+  /** Posição da legenda quando ela aparece. */
+  legendPosition?: ChartLegendPosition
+  /** Paleta de cores aplicada às séries (vazia = paleta padrão do ECharts). */
+  colors?: string[]
+  /** Barras/áreas empilhadas por categoria. */
+  stacked?: boolean
+  /** Linhas suaves (só line/area). */
+  smooth?: boolean
+  /** Habilita o toolbox com "salvar imagem" no canto do gráfico. */
+  exportable?: boolean
   options?: Record<string, unknown>
 }
 
@@ -49,10 +72,13 @@ export interface LegacyAnalysisLike {
   chartType?: string | null
   dimension?: string | null
   metric?: string | null
+  /** Config completa de apresentação (quando a análise já foi salva com ela). */
+  chartConfig?: ChartConfig | null
 }
 
 export const CHART_TYPES: ChartType[] = [
   "bar",
+  "bar-horizontal",
   "line",
   "area",
   "pie",
@@ -63,6 +89,7 @@ export const CHART_TYPES: ChartType[] = [
   "funnel",
   "heatmap",
   "treemap",
+  "map",
 ]
 
 export const WIDGET_TYPES: WidgetType[] = [
@@ -74,6 +101,18 @@ export const WIDGET_TYPES: WidgetType[] = [
 ]
 
 const AGGREGATION_FUNCTIONS: AggregationFunction[] = ["sum", "avg", "count", "min", "max"]
+
+const NUMBER_FORMATS: ChartNumberFormat[] = ["number", "currency", "percent", "compact"]
+
+const LEGEND_POSITIONS: ChartLegendPosition[] = ["top", "bottom", "left", "right"]
+
+export function isChartNumberFormat(value: unknown): value is ChartNumberFormat {
+  return typeof value === "string" && (NUMBER_FORMATS as string[]).includes(value)
+}
+
+export function isChartLegendPosition(value: unknown): value is ChartLegendPosition {
+  return typeof value === "string" && (LEGEND_POSITIONS as string[]).includes(value)
+}
 
 export function isChartType(value: unknown): value is ChartType {
   return typeof value === "string" && (CHART_TYPES as string[]).includes(value)
@@ -170,6 +209,38 @@ export function normalizeChartConfig(input: unknown): ChartConfig {
   if (typeof raw.title === "string") {
     config.title = raw.title
   }
+  if (typeof raw.xAxisLabel === "string") {
+    config.xAxisLabel = raw.xAxisLabel
+  }
+  if (typeof raw.yAxisLabel === "string") {
+    config.yAxisLabel = raw.yAxisLabel
+  }
+  if (isChartNumberFormat(raw.numberFormat)) {
+    config.numberFormat = raw.numberFormat
+  }
+  if (typeof raw.showValues === "boolean") {
+    config.showValues = raw.showValues
+  }
+  if (isChartLegendPosition(raw.legendPosition)) {
+    config.legendPosition = raw.legendPosition
+  }
+  if (Array.isArray(raw.colors)) {
+    const colors = raw.colors.filter(
+      (color): color is string => typeof color === "string" && color.trim() !== ""
+    )
+    if (colors.length > 0) {
+      config.colors = colors
+    }
+  }
+  if (typeof raw.stacked === "boolean") {
+    config.stacked = raw.stacked
+  }
+  if (typeof raw.smooth === "boolean") {
+    config.smooth = raw.smooth
+  }
+  if (typeof raw.exportable === "boolean") {
+    config.exportable = raw.exportable
+  }
   if (raw.options && typeof raw.options === "object" && !Array.isArray(raw.options)) {
     config.options = { ...(raw.options as Record<string, unknown>) }
   }
@@ -180,6 +251,12 @@ export function normalizeChartConfig(input: unknown): ChartConfig {
 export function legacyToChartConfig(analysis: LegacyAnalysisLike): ChartConfig | null {
   if (analysis.chartType === "table") {
     return null
+  }
+
+  // Análise já salva com a config completa (rótulos, cores, ordenação...):
+  // usa ela diretamente — os campos legados abaixo servem de fallback.
+  if (analysis.chartConfig && isChartType(analysis.chartConfig.type)) {
+    return analysis.chartConfig
   }
 
   const type: ChartType = isChartType(analysis.chartType) ? analysis.chartType : "bar"

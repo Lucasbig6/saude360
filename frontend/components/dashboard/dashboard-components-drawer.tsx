@@ -48,9 +48,14 @@ export function DashboardComponentsDrawer({
   existingAnalysisIds,
   className,
 }: DashboardComponentsDrawerProps) {
-  const [analyses, setAnalyses] = useState<Analysis[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Estado carregado por chave derivada (reloadKey): "carregando" é a ausência
+  // de resultado para a chave atual — evita setState síncrono no corpo do
+  // efeito, conforme a regra react-hooks/set-state-in-effect.
+  const [analysesLoad, setAnalysesLoad] = useState<{
+    key: number
+    items: Analysis[]
+    error: string | null
+  } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   const [search, setSearch] = useState("")
@@ -59,30 +64,32 @@ export function DashboardComponentsDrawer({
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setLoadError(null)
-
     getAnalyses()
       .then((list) => {
         if (!cancelled) {
-          setAnalyses(list)
+          setAnalysesLoad({ key: reloadKey, items: list, error: null })
         }
       })
       .catch((err) => {
         if (!cancelled) {
-          setLoadError(
-            err instanceof ApiError ? err.detail : "Erro ao carregar gráficos."
-          )
+          setAnalysesLoad({
+            key: reloadKey,
+            items: [],
+            error:
+              err instanceof ApiError ? err.detail : "Erro ao carregar gráficos.",
+          })
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
       })
 
     return () => {
       cancelled = true
     }
   }, [reloadKey])
+
+  const currentLoad = analysesLoad?.key === reloadKey ? analysesLoad : null
+  const loading = currentLoad === null
+  const loadError = currentLoad?.error ?? null
+  const analyses = currentLoad?.items ?? null
 
   const filteredAnalyses = useMemo(() => {
     if (!analyses) return []
@@ -291,8 +298,14 @@ export function DashboardComponentsDrawer({
               })}
               onDragStart={(e) => {
                 setDraggingId(analysis.id)
-                e.dataTransfer.effectAllowed = "copy"
-                e.dataTransfer.setData(
+                // Alguns navegadores e o adaptador de drag do GridStack podem
+                // disparar um DragEvent sem DataTransfer. Os data-attributes
+                // acima continuam disponíveis para o GridStack nesse caso.
+                const dataTransfer = e.dataTransfer
+                if (!dataTransfer) return
+
+                dataTransfer.effectAllowed = "copy"
+                dataTransfer.setData(
                   "application/json",
                   JSON.stringify({
                     analysisId: analysis.id,
@@ -300,7 +313,7 @@ export function DashboardComponentsDrawer({
                     h: 4,
                   })
                 )
-                e.dataTransfer.setData("text/plain", analysis.id)
+                dataTransfer.setData("text/plain", analysis.id)
               }}
               onDragEnd={() => setDraggingId(null)}
               className={cn(

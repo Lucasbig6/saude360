@@ -10,6 +10,7 @@ interface SqlEditorProps {
   disabled?: boolean
   datasets?: Array<{ table_name: string }>
   columns?: Array<{ column_name: string }>
+  height?: string
 }
 
 export function SqlEditor({

@@ -28,29 +28,38 @@ function renderPanel(
 }
 
 describe("VisualizationPanel", () => {
-  it("exibe todos os 11 tipos de gráfico", () => {
+  it("exibe todos os tipos de gráfico no seletor", () => {
     renderPanel()
 
     for (const type of CHART_TYPES) {
-      expect(screen.getByText(chartTypeLabel[type])).toBeTruthy()
+      expect(
+        screen.getByRole("option", { name: chartTypeLabel[type] })
+      ).toBeTruthy()
     }
   })
 
   it("chama onChartTypeChange com o tipo escolhido", () => {
     const { onChartTypeChange } = renderPanel()
 
-    fireEvent.click(screen.getByText("Rosca"))
-    expect(onChartTypeChange).toHaveBeenCalledWith("donut")
+    fireEvent.change(screen.getByRole("combobox", { name: "Tipo de gráfico" }), {
+      target: { value: "kpi" },
+    })
+    expect(onChartTypeChange).toHaveBeenCalledWith("kpi")
 
-    fireEvent.click(screen.getByText("Mapa de calor"))
+    fireEvent.change(screen.getByRole("combobox", { name: "Tipo de gráfico" }), {
+      target: { value: "heatmap" },
+    })
     expect(onChartTypeChange).toHaveBeenCalledWith("heatmap")
   })
 
-  it("marca o tipo ativo e permite trocar para qualquer tipo", () => {
+  it("mantém selecionado o tipo atual e permite trocar para qualquer tipo", () => {
     const { onChartTypeChange } = renderPanel({ chartType: "donut" })
+    const selector = screen.getByRole("combobox", { name: "Tipo de gráfico" })
+
+    expect(selector).toHaveProperty("value", "donut")
 
     for (const type of CHART_TYPES) {
-      fireEvent.click(screen.getByText(chartTypeLabel[type]))
+      fireEvent.change(selector, { target: { value: type } })
       expect(onChartTypeChange).toHaveBeenCalledWith(type)
     }
   })

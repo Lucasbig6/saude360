@@ -1,4 +1,5 @@
 import { ApiError, apiDelete, apiGet, apiPost, apiPut } from "../api"
+import { normalizeChartConfig, type ChartConfig } from "@/lib/charts/chart-config"
 import type { Analysis } from "@/lib/types/analysis"
 import { chartTypeIcon } from "@/lib/types/charts"
 
@@ -12,6 +13,7 @@ import { chartTypeIcon } from "@/lib/types/charts"
  *   - chartType            : string|null  -> ChartType (fallback "table" se desconhecido)
  *   - createdBy            : existe só na API, fora do tipo do frontend
  *   - projectId            : string|null (UUID do projeto; null = sem projeto)
+ *   - chartConfig          : object|null  -> ChartConfig|null ({} = sem config)
  */
 export interface ApiAnalysis {
   id: string
@@ -24,6 +26,7 @@ export interface ApiAnalysis {
   chartType: string | null
   dimension: string | null
   metric: string | null
+  chartConfig?: Record<string, unknown> | null
   projectId: string | null
   createdBy: string | null
   createdAt: string
@@ -40,6 +43,8 @@ export interface AnalysisInput {
   chartType?: string | null
   dimension?: string | null
   metric?: string | null
+  /** Apresentação completa do gráfico; `null`/ausente limpa a config. */
+  chartConfig?: ChartConfig | null
   /** ausente: PUT não altera o vínculo; null: remove; string: associa */
   projectId?: string | null
 }
@@ -62,11 +67,25 @@ function assertApiAnalysis(raw: unknown): ApiAnalysis {
   return value
 }
 
-function assertChartType(value: string | null): Analysis["chartType"] {
+export function assertChartType(value: string | null): Analysis["chartType"] {
   if (value && value in chartTypeIcon) {
     return value as Analysis["chartType"]
   }
   return "table"
+}
+
+/**
+ * Lê a config persistida sem quebrar a página se o payload vier inválido:
+ * config corrompida vira `null` e a análise segue utilizável no modo legado.
+ */
+function parseChartConfig(raw: unknown): ChartConfig | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  if (Object.keys(raw).length === 0) return null
+  try {
+    return normalizeChartConfig(raw)
+  } catch {
+    return null
+  }
 }
 
 export function toAnalysis(raw: unknown): Analysis {
@@ -83,6 +102,7 @@ export function toAnalysis(raw: unknown): Analysis {
     chartType: assertChartType(value.chartType),
     dimension: value.dimension ?? null,
     metric: value.metric ?? null,
+    chartConfig: parseChartConfig(value.chartConfig),
     projectId: typeof value.projectId === "string" ? value.projectId : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -100,6 +120,8 @@ function toAnalysisPayload(data: AnalysisInput): Record<string, unknown> {
     chartType: data.chartType ?? null,
     dimension: data.dimension ?? null,
     metric: data.metric ?? null,
+    // undefined -> PUT não altera; null/objeto -> limpa/grava a config.
+    ...(data.chartConfig !== undefined ? { chartConfig: data.chartConfig } : {}),
   }
   // ausente -> PUT não altera o vínculo; null -> remove; string -> associa.
   if (data.projectId !== undefined) {

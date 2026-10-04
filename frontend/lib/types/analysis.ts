@@ -1,4 +1,5 @@
-import type { ChartType } from "@/lib/types/charts"
+import type { ChartConfig } from "@/lib/charts/chart-config"
+import type { AnalysisChartType } from "@/lib/types/charts"
 
 export interface Analysis {
   id: string
@@ -8,9 +9,11 @@ export interface Analysis {
   databaseId: number
   dbSchema: string | null
   datasetId: number | null
-  chartType: ChartType
+  chartType: AnalysisChartType
   dimension: string | null
   metric: string | null
+  /** Apresentação completa do gráfico (título, rótulos, cores...). */
+  chartConfig: ChartConfig | null
   projectId: string | null
   createdAt: string
   updatedAt: string

@@ -216,6 +216,10 @@ export function DashboardBuilder({
       analysis: Analysis,
       position?: { x?: number; y?: number; w?: number; h?: number }
     ) => {
+      if (dashboard.widgets.some((widget) => widget.analysisId === analysis.id)) {
+        return
+      }
+
       // anexa na primeira linha livre quando nenhuma coordenada for especificada
       const appendY = dashboard.widgets.reduce(
         (max, w) => Math.max(max, w.layout.y + w.layout.h),
@@ -260,6 +264,39 @@ export function DashboardBuilder({
       }
     },
     [handleAddAnalysis]
+  )
+
+  const handleEmptyCanvasDragOver = useCallback((event: React.DragEvent) => {
+    if (!event.dataTransfer) return
+    if (
+      event.dataTransfer.types.includes("application/json") ||
+      event.dataTransfer.types.includes("text/plain")
+    ) {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = "copy"
+    }
+  }, [])
+
+  const handleEmptyCanvasDrop = useCallback(
+    (event: React.DragEvent) => {
+      const dataTransfer = event.dataTransfer
+      if (!dataTransfer) return
+
+      let analysisId = dataTransfer.getData("text/plain")
+      const json = dataTransfer.getData("application/json")
+      if (json) {
+        try {
+          analysisId = JSON.parse(json)?.analysisId ?? analysisId
+        } catch {
+          // Mantém o id do formato text/plain como fallback.
+        }
+      }
+
+      if (!analysisId) return
+      event.preventDefault()
+      void handleDropAnalysis({ analysisId, x: 0, y: 0, w: 6, h: 4 })
+    },
+    [handleDropAnalysis]
   )
 
   const handleRemoveWidget = useCallback(
@@ -515,7 +552,7 @@ export function DashboardBuilder({
                   title="Abrir/fechar biblioteca de gráficos para arrastar e soltar"
                 >
                   <LayoutGrid size={14} />
-                  <span className="hidden sm:inline">Biblioteca de gráficos</span>
+                  <span className="hidden sm:inline">Gráficos</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -601,6 +638,8 @@ export function DashboardBuilder({
         >
           {dashboard.widgets.length === 0 ? (
             <div
+              onDragOver={handleEmptyCanvasDragOver}
+              onDrop={handleEmptyCanvasDrop}
               className={cn(
                 "flex flex-col items-center justify-center rounded-xl border p-12 text-center transition-colors",
                 editing

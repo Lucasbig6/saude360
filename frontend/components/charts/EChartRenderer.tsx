@@ -5,6 +5,7 @@ import type { ChartConfig } from "@/lib/charts/chart-config"
 import { toEChartsOption } from "@/lib/charts/echarts-adapter"
 import { echarts, type ChartInstance } from "@/lib/charts/register"
 import { prepareData, type Row } from "@/lib/charts/transform"
+import { MapRenderer } from "@/components/charts/MapRenderer"
 
 export interface EChartRendererProps {
   config: ChartConfig
@@ -28,6 +29,7 @@ export function EChartRenderer({
   )
 
   useEffect(() => {
+    if (config.type === "map") return
     const container = containerRef.current
     if (!container || typeof window === "undefined") {
       return
@@ -47,11 +49,24 @@ export function EChartRenderer({
       chart.dispose()
       chartRef.current = null
     }
-  }, [])
+  }, [config.type])
 
   useEffect(() => {
-    chartRef.current?.setOption(option, true)
-  }, [option])
+    if (config.type !== "map") {
+      chartRef.current?.setOption(option, true)
+    }
+  }, [config.type, option])
+
+  if (config.type === "map") {
+    return (
+      <MapRenderer
+        rows={rows}
+        longitudeField={config.encoding?.x}
+        latitudeField={config.encoding?.y}
+        className={className}
+      />
+    )
+  }
 
   return (
     <div

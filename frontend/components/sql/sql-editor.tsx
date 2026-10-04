@@ -179,7 +179,7 @@ export function SqlEditor({
         )}
         <MonacoEditor
           height={height ?? "300px"}
-          className="h-[300px] sm:h-[400px] lg:h-[500px]"
+          className="w-full"
           language="sql"
           theme="vs"
           value={value}

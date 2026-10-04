@@ -34,7 +34,9 @@ export default function RootLayout({
       translate="no"
       suppressHydrationWarning
     >
-      <head suppressHydrationWarning />
+      <head suppressHydrationWarning>
+        <link rel="stylesheet" href="/leaflet/leaflet.css" />
+      </head>
       <body suppressHydrationWarning>{children}</body>
     </html>
   )

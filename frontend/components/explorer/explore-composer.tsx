@@ -1,0 +1,250 @@
+"use client"
+
+import { KeyboardEvent, useSyncExternalStore } from "react"
+import { ArrowUp, Code2, Loader2, Search, Sparkles } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { looksLikeSql } from "@/lib/explorer/sql"
+import { SqlEditor } from "./sql-editor"
+import { DatasetChip } from "./dataset-chip"
+import type { DatasetColumn, DatasetListItem } from "@/lib/api/datasets"
+
+/**
+ * Modos do composer: "ai" = Perguntar (linguagem natural, alimentado pelo
+ * Agente IA), "sql" = consulta direta. O Agente IA não é uma tab paralela —
+ * é o mecanismo por trás do modo Perguntar.
+ */
+export type ExplorationMode = "sql" | "ai"
+
+interface ExploreComposerProps {
+  /** Compacto quando já há investigação em andamento (resultado/pergunta). */
+  compact: boolean
+  mode: ExplorationMode
+  onModeChange: (mode: ExplorationMode) => void
+
+  /** Modo Perguntar */
+  value: string
+  onChange: (value: string) => void
+  onSubmit: (text: string, mode: ExplorationMode) => void
+
+  /** Modo SQL — o próprio composer hospeda o editor Monaco existente. */
+  sql: string
+  onSqlChange: (sql: string) => void
+  onSqlExecute: () => void
+
+  /** Fonte de dados (chip) */
+  datasets: DatasetListItem[]
+  loadingDatasets: boolean
+  selectedDataset: DatasetListItem | null
+  onSelectDataset: (dataset: DatasetListItem) => void
+  columns: DatasetColumn[]
+
+  executing: boolean
+}
+
+const SUGGESTIONS = [
+  "Como evoluíram os atendimentos de janeiro a junho?",
+  "Atendimentos por município, do maior para o menor",
+  "Total de atendimentos por faixa etária",
+]
+
+const subscribeToHydration = () => () => {}
+const getHydratedSnapshot = () => true
+const getServerHydratedSnapshot = () => false
+
+export function ExploreComposer({
+  compact,
+  mode,
+  onModeChange,
+  value,
+  onChange,
+  onSubmit,
+  sql,
+  onSqlChange,
+  onSqlExecute,
+  datasets,
+  loadingDatasets,
+  selectedDataset,
+  onSelectDataset,
+  columns,
+  executing,
+}: ExploreComposerProps) {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot
+  )
+
+  const canAsk =
+    Boolean(value.trim()) && Boolean(selectedDataset) && !executing
+
+  function handleAskSubmit() {
+    const text = value.trim()
+    if (!text || !canAsk) return
+    // Detecção: entrada parecida com SQL vira consulta mesmo partindo do
+    // modo Perguntar; o toggle continua sendo o controle explícito.
+    const effectiveMode: ExplorationMode =
+      mode === "ai" && looksLikeSql(text) ? "sql" : mode
+    onSubmit(text, effectiveMode)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      handleAskSubmit()
+    }
+  }
+
+  return (
+    <section
+      className={cn(
+        "shrink-0 flex flex-col px-5 py-6 sm:px-8 xl:px-8",
+        compact ? "min-h-0" : "min-h-[22rem]"
+      )}
+    >
+      <div className={cn("w-full", compact ? "" : "mx-auto max-w-3xl xl:pt-8")}>
+        <p className="mb-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <Search size={13} />
+          Investigação
+        </p>
+        <div>
+          <h2
+            className={cn(
+              "font-semibold tracking-tight text-slate-900",
+              compact ? "text-base sm:text-lg" : "text-2xl sm:text-3xl"
+            )}
+          >
+            O que você quer descobrir?
+          </h2>
+          {!compact && (
+            <p className="mt-2 text-sm text-slate-500">
+              Use o contexto à esquerda para orientar esta investigação.
+            </p>
+          )}
+        </div>
+
+        {/* Modos + fonte */}
+        <div
+          className={cn(
+            "mt-5 flex flex-wrap items-center gap-2"
+          )}
+        >
+          <div
+            className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5"
+            role="group"
+            aria-label="Modo de investigação"
+          >
+            <button
+              type="button"
+              aria-pressed={mode === "ai"}
+              onClick={() => onModeChange("ai")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "ai"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Sparkles size={13} />
+              Agente IA
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "sql"}
+              onClick={() => onModeChange("sql")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "sql"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Code2 size={13} />
+              SQL
+            </button>
+          </div>
+
+          <div className="xl:hidden">
+            <DatasetChip
+              datasets={datasets}
+              loading={loadingDatasets}
+              disabled={hydrated && loadingDatasets}
+              selected={selectedDataset}
+              onSelect={onSelectDataset}
+            />
+          </div>
+        </div>
+
+        {/* Entrada */}
+        {mode === "sql" ? (
+          <div className="mt-3">
+            <SqlEditor
+              value={sql}
+              onChange={onSqlChange}
+              onExecute={onSqlExecute}
+              loading={executing}
+              disabled={hydrated && !selectedDataset}
+              datasets={datasets}
+              columns={columns}
+              height={compact ? "240px" : undefined}
+            />
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 transition-colors focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500">
+            <textarea
+              value={value}
+              onChange={(event) => onChange(event.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={compact ? 1 : 2}
+              aria-label="Pergunte algo sobre seus dados"
+              placeholder={
+                selectedDataset
+                  ? "Pergunte ou escreva SQL..."
+                  : "Escolha uma fonte no contexto para começar..."
+              }
+              className="w-full resize-none bg-transparent px-4 pt-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            />
+
+            <div className="flex items-center gap-3 px-3 pb-3">
+              <span className="hidden text-xs text-slate-500 sm:block">
+                Enter para investigar · Shift+Enter quebra linha
+              </span>
+              <button
+                type="button"
+                onClick={handleAskSubmit}
+                disabled={!canAsk}
+                className={cn(
+                  "ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
+                  canAsk
+                    ? "bg-teal-700 text-white hover:bg-teal-800"
+                    : "cursor-not-allowed bg-slate-200 text-slate-400"
+                )}
+              >
+                {executing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ArrowUp size={14} />
+                )}
+                <span className="sr-only">Investigar</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!compact && mode === "ai" && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => onChange(suggestion)}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

@@ -99,6 +99,25 @@ describe("legacyToWidgetConfig", () => {
     })
   })
 
+  it("KPI legado vira widget agregado pelo campo de métrica", () => {
+    expect(
+      legacyToWidgetConfig({ chartType: "kpi", metric: "total" })
+    ).toEqual({ type: "kpi", field: "total", function: "sum" })
+  })
+
+  it("mapa legado preserva os campos de longitude e latitude", () => {
+    expect(
+      legacyToWidgetConfig({
+        chartType: "map",
+        dimension: "longitude",
+        metric: "latitude",
+      })
+    ).toMatchObject({
+      type: "map",
+      encoding: { x: "longitude", y: "latitude" },
+    })
+  })
+
   it("gráfico legado vira ChartConfig com encoding", () => {
     expect(
       legacyToWidgetConfig({

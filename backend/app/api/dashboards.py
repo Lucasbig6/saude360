@@ -155,6 +155,12 @@ def _default_widget(analysis: Analysis) -> dict[str, object]:
     """Config v2 derivada da análise legada (espelha o frontend)."""
     if analysis.chart_type == "table":
         return {"type": "table"}
+    if analysis.chart_type == "kpi":
+        return {
+            "type": "kpi",
+            "field": analysis.metric,
+            "function": "sum" if analysis.metric else "count",
+        }
     chart_type = analysis.chart_type if analysis.chart_type in CHART_TYPES else "bar"
     config: dict[str, object] = {"type": chart_type, "legend": True, "tooltip": True}
     encoding = {

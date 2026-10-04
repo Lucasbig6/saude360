@@ -11,17 +11,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Database, Inbox, Loader2, Save } from "lucide-react"
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Database, Inbox, LayoutDashboard, Loader2, Save } from "lucide-react"
 import {
   VisualizationPanel,
-  type ChartType,
+  type VisualizationType,
   analyzeColumns,
 } from "@/components/explorer/visualization-panel"
 import { SaveAnalysisDialog } from "@/components/explorer/save-analysis-dialog"
 import { PublishDatasetDialog } from "@/components/explorer/publish-dataset-dialog"
 import { createAnalysis, updateAnalysis } from "@/lib/api/analyses"
+import { buildConfig } from "@/components/explorer/preview-chart"
 import type { Analysis } from "@/lib/types/analysis"
+import type { ChartConfig } from "@/lib/charts/chart-config"
+import {
+  DEFAULT_DISPLAY_OPTIONS,
+  chartConfigToDisplay,
+  type ChartDisplayOptions,
+} from "@/lib/charts/display-options"
 import { ApiError } from "@/lib/api"
+import { AddToDashboardDialog } from "@/components/dashboard/add-to-dashboard-dialog"
+import { suggestCoordinateFields } from "@/lib/charts/map-data"
 
 const PAGE_SIZE = 10
 
@@ -40,17 +49,25 @@ interface QueryResultProps {
    * (PUT) em vez de criar duplicata, e pré-preenche nome/descrição/projeto.
    */
   editingAnalysis?: Analysis | null
+  /** Chamado após criar/atualizar — usado para atualizar listas (ex.: rail). */
+  onAnalysisSaved?: (analysis: Analysis) => void
   onDatasetPublished?: (datasetId: number) => void
+  /** Reexecuta a última consulta a partir do estado de erro. */
+  onRetry?: () => void
 }
 
-export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, datasetId, projectId, editingAnalysis, onDatasetPublished }: QueryResultProps) {
+export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, datasetId, projectId, editingAnalysis, onAnalysisSaved, onDatasetPublished, onRetry }: QueryResultProps) {
   const [page, setPage] = useState(0)
   const [prevData, setPrevData] = useState(data)
   const [viewMode, setViewMode] = useState<"table" | "chart">("table")
   const containerRef = useRef<HTMLDivElement>(null)
-  const [chartType, setChartType] = useState<Exclude<ChartType, "table">>("bar")
+  const [chartType, setChartType] = useState<VisualizationType>("bar")
   const [dimension, setDimension] = useState<string | null>(null)
   const [metric, setMetric] = useState<string | null>(null)
+  const [colorField, setColorField] = useState<string | null>(null)
+  const [display, setDisplay] = useState<ChartDisplayOptions>(
+    DEFAULT_DISPLAY_OPTIONS
+  )
 
   if (prevData !== data) {
     setPrevData(data)
@@ -64,9 +81,11 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   const dimensionOptions = useMemo(
     () =>
       columns
-        .filter((c) => c.type === "categorical")
+        .filter((c) =>
+          chartType === "map" ? c.type === "numeric" : c.type === "categorical"
+        )
         .map((c) => ({ value: c.name, label: c.name })),
-    [columns]
+    [chartType, columns]
   )
   const metricOptions = useMemo(
     () =>
@@ -90,12 +109,69 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
     return metricOptions[0]?.value ?? null
   }, [metric, metricOptions])
 
+  // Coluna de série só vale se existir nos dados atuais (evita série órfã
+  // quando a consulta muda).
+  const effectiveColorField = useMemo(
+    () => (colorField && columns.some((c) => c.name === colorField) ? colorField : null),
+    [colorField, columns]
+  )
+
+  function handleChartTypeChange(value: VisualizationType) {
+    setChartType(value)
+    if (value === "map") {
+      const numericFields = columns
+        .filter((column) => column.type === "numeric")
+        .map((column) => column.name)
+      const coordinates = suggestCoordinateFields(numericFields)
+      setDimension(coordinates.longitude)
+      setMetric(coordinates.latitude)
+    } else if (chartType === "map") {
+      setDimension(
+        columns.find((column) => column.type === "categorical")?.name ?? null
+      )
+      setMetric(
+        columns.find((column) => column.type === "numeric")?.name ?? null
+      )
+    }
+  }
+
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [savingAnalysis, setSavingAnalysis] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [addToDashboardOpen, setAddToDashboardOpen] = useState(false)
+  const [savedAnalysis, setSavedAnalysis] = useState<Analysis | null>(
+    editingAnalysis ?? null
+  )
   const isChartMode = viewMode === "chart"
+
+  // Restaura a visualização da análise editada (chartType/dimension/metric):
+  // a prop chega assíncrona depois da montagem, então aplica uma única vez
+  // via ajuste no render (mesmo padrão de `prevData` acima).
+  const [appliedEditing, setAppliedEditing] = useState<Analysis | null>(null)
+  if (editingAnalysis && appliedEditing !== editingAnalysis) {
+    setAppliedEditing(editingAnalysis)
+    setSavedAnalysis(editingAnalysis)
+    if (editingAnalysis.chartType === "table") {
+      setViewMode("table")
+    } else {
+      setChartType(editingAnalysis.chartType)
+      setDimension(editingAnalysis.dimension)
+      setMetric(editingAnalysis.metric)
+      setViewMode("chart")
+      applySavedChartConfig(editingAnalysis.chartConfig)
+    }
+  }
+
+  /**
+   * Restaura a apresentação salva (série/cor, rótulos, cores, ordenação...).
+   * Chamada durante o render pelo bloco acima — mesmo padrão de `prevData`.
+   */
+  function applySavedChartConfig(config: ChartConfig | null) {
+    setColorField(config?.encoding?.color ?? null)
+    setDisplay(chartConfigToDisplay(config))
+  }
 
   function goToPage(p: number) {
     setPage(p)
@@ -110,6 +186,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
     setSavingAnalysis(true)
     setSaveError(null)
 
+    const isChart = viewMode !== "table"
     const payload = {
       name,
       description,
@@ -117,20 +194,31 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
       databaseId: databaseId ?? null,
       dbSchema: dbSchema ?? null,
       datasetId: datasetId ?? null,
-      chartType: viewMode === "table" ? "table" : chartType,
-      dimension: viewMode === "table" ? null : effectiveDimension,
-      metric: viewMode === "table" ? null : effectiveMetric,
+      chartType: isChart ? chartType : "table",
+      dimension: isChart ? effectiveDimension : null,
+      metric: isChart ? effectiveMetric : null,
+      // Apresentação completa (rótulos, cores, ordenação...) — o backend
+      // guarda o dict cru e devolve igual na leitura.
+      chartConfig: isChart
+        ? buildConfig(
+            chartType,
+            effectiveDimension,
+            effectiveMetric,
+            effectiveColorField,
+            display
+          )
+        : null,
       // string -> associa; null -> sem vínculo (create) / remove vínculo (update)
       projectId: selectedProjectId,
     }
 
     try {
       // Edição (?analysisId restaurado) atualiza a mesma análise; sem edição, cria.
-      if (editingAnalysis) {
-        await updateAnalysis(editingAnalysis.id, payload)
-      } else {
-        await createAnalysis(payload)
-      }
+      const saved = editingAnalysis
+        ? await updateAnalysis(editingAnalysis.id, payload)
+        : await createAnalysis(payload)
+      setSavedAnalysis(saved)
+      onAnalysisSaved?.(saved)
       setSaveDialogOpen(false)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -146,10 +234,20 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-12">
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <Loader2 size={20} className="animate-spin" />
+      <div
+        role="status"
+        className="rounded-lg border border-slate-200 bg-white p-4"
+      >
+        <div className="mb-3 flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 size={16} className="animate-spin" />
           Executando consulta...
+        </div>
+        {/* Skeleton da tabela enquanto a query roda. */}
+        <div className="space-y-2" aria-hidden="true">
+          <div className="h-8 animate-pulse rounded bg-slate-200/70" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-9 animate-pulse rounded bg-slate-100" />
+          ))}
         </div>
       </div>
     )
@@ -157,14 +255,25 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6">
         <div className="flex items-start gap-3">
           <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-500" />
           <div>
             <p className="text-sm font-medium text-red-800">
               Erro ao executar consulta
             </p>
-            <p className="mt-1 text-sm text-red-600">{error}</p>
+            <p className="mt-1 text-sm text-red-700">{error}</p>
+            {onRetry && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4 border-red-300 bg-white text-red-800 hover:bg-red-100"
+                onClick={onRetry}
+              >
+                Tentar novamente
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -222,7 +331,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   function renderPageNumbers() {
     return pageNumbers.map((p, i) =>
       p === "..." ? (
-        <span key={`dots-${i}`} className="px-1 text-xs text-slate-400">
+        <span key={`dots-${i}`} className="px-1 text-xs text-slate-500">
           ...
         </span>
       ) : (
@@ -230,6 +339,8 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
           key={p}
           variant={p === page + 1 ? "default" : "outline"}
           size="icon-xs"
+          aria-label={`Página ${p}`}
+          aria-current={p === page + 1 ? "page" : undefined}
           onClick={() => goToPage(p - 1)}
         >
           {p}
@@ -239,7 +350,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   }
 
   return (
-    <div ref={containerRef} className="rounded-lg border border-slate-200 bg-white">
+    <div ref={containerRef} className="bg-white">
       <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-xs text-slate-500">
           {data.length} registro{data.length !== 1 ? "s" : ""}
@@ -285,6 +396,18 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             type="button"
             variant="outline"
             size="sm"
+            onClick={() => setAddToDashboardOpen(true)}
+            disabled={!savedAnalysis}
+            title={savedAnalysis ? "Adicionar ao painel" : "Salve a análise antes de adicioná-la a um painel"}
+            className="shrink-0"
+          >
+            <LayoutDashboard size={14} />
+            Adicionar ao painel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setPublishDialogOpen(true)}
             className="shrink-0"
           >
@@ -306,11 +429,15 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
           data={data}
           onBackToTable={() => setViewMode("table")}
           chartType={chartType}
-          onChartTypeChange={setChartType}
+          onChartTypeChange={handleChartTypeChange}
           dimension={dimension}
           onDimensionChange={setDimension}
           metric={metric}
           onMetricChange={setMetric}
+          colorField={effectiveColorField}
+          onColorFieldChange={setColorField}
+          display={display}
+          onDisplayChange={setDisplay}
         />
       ) : (
         <>
@@ -372,9 +499,12 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
       </div>
 
       {totalPages > 1 && (
-        <div className={cn("flex items-center justify-between border-t border-slate-200 px-4 py-2", "flex-col sm:flex-row gap-2 sm:gap-0")}>
+        <nav
+          aria-label="Paginação dos resultados"
+          className={cn("flex items-center justify-between border-t border-slate-200 px-4 py-2", "flex-col sm:flex-row gap-2 sm:gap-0")}
+        >
           <span className="text-xs text-slate-500">
-            {data.length} registro{data.length !== 1 ? "s" : ""}
+            Exibindo {start + 1}–{Math.min(end, data.length)} de {data.length}
           </span>
 
           {/* Mobile: setas + números */}
@@ -382,6 +512,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             <Button
               variant="outline"
               size="icon-xs"
+              aria-label="Página anterior"
               onClick={() => goToPage(page - 1)}
               disabled={page === 0}
             >
@@ -391,6 +522,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             <Button
               variant="outline"
               size="icon-xs"
+              aria-label="Próxima página"
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages - 1}
             >
@@ -403,6 +535,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             <Button
               variant="outline"
               size="icon-xs"
+              aria-label="Página anterior"
               onClick={() => goToPage(page - 1)}
               disabled={page === 0}
             >
@@ -412,13 +545,14 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             <Button
               variant="outline"
               size="icon-xs"
+              aria-label="Próxima página"
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages - 1}
             >
               <ChevronRight size={14} />
             </Button>
           </div>
-        </div>
+        </nav>
       )}
         </>
       )}
@@ -438,6 +572,9 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             ? "Dê um nome para este gráfico para reutilizá-lo no Dashboard depois."
             : "Dê um nome para esta análise para encontrá-la facilmente depois."
         }
+        defaultProjectId={editingAnalysis?.projectId ?? projectId ?? null}
+        initialName={editingAnalysis?.name ?? ""}
+        initialDescription={editingAnalysis?.description ?? ""}
       />
       <PublishDatasetDialog
         open={publishDialogOpen}
@@ -449,6 +586,11 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
           setPublishDialogOpen(false)
           onDatasetPublished?.(id)
         }}
+      />
+      <AddToDashboardDialog
+        open={addToDashboardOpen}
+        onOpenChange={setAddToDashboardOpen}
+        analysis={savedAnalysis}
       />
     </div>
   )

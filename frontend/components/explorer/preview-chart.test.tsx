@@ -13,6 +13,21 @@ vi.mock("@/components/charts/EChartRenderer", () => ({
 }))
 
 describe("PreviewChart", () => {
+  it("mostra o total da métrica quando a visualização é KPI", () => {
+    render(
+      <PreviewChart
+        data={[{ municipio: "A", total: 10 }, { municipio: "B", total: 20 }]}
+        chartType="kpi"
+        dimension={null}
+        metric="total"
+      />
+    )
+
+    expect(screen.getByText("30")).toBeTruthy()
+    expect(screen.getByText("total · Soma")).toBeTruthy()
+    expect(screen.queryByTestId("echart")).toBeNull()
+  })
+
   it("mostra estado vazio sem dimensão, métrica ou dados válidos", () => {
     render(
       <PreviewChart
@@ -49,6 +64,8 @@ describe("PreviewChart", () => {
       encoding: { x: "municipio", y: "total" },
       legend: true,
       tooltip: true,
+      // Padrão do Explorer: botão de baixar PNG habilitado.
+      exportable: true,
     })
     expect(rendered[0].rows).toEqual([
       { municipio: "A", total: 10 },

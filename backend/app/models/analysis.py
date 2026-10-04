@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
@@ -30,6 +31,12 @@ class Analysis(Base):
     chart_type: Mapped[str | None] = mapped_column(String(100))
     dimension: Mapped[str | None] = mapped_column(String(255))
     metric: Mapped[str | None] = mapped_column(String(255))
+    # Config completa de apresentação do gráfico (título, rótulos de eixo,
+    # cores, ordenação...). Vive ao lado dos campos legados acima, que
+    # continuam populados para retrocompatibilidade.
+    chart_config: Mapped[dict | None] = mapped_column(
+        JSONB, nullable=True, default=None, server_default=text("NULL")
+    )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("projects.id", ondelete="SET NULL"), index=True
     )
