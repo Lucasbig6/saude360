@@ -23,7 +23,7 @@ const ANALISES_LIMIT = 6
 
 function RailLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
       {children}
     </p>
   )
@@ -33,8 +33,8 @@ function railItemActive(active: boolean): string {
   return cn(
     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
     active
-      ? "bg-teal-50 font-medium text-teal-700"
-      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      ? "bg-primary/10 font-medium text-primary"
+      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
   )
 }
 
@@ -53,27 +53,27 @@ export function SourcesRail({
       aria-label="Contexto da investigação"
       className="h-full overflow-y-auto px-5 py-6"
     >
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+      <h2 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
         Contexto
       </h2>
       <section>
         <RailLabel>Fontes</RailLabel>
         <div className="space-y-0.5 pb-2 pt-2">
           {loadingDatasets && (
-            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500">
+            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
               <Loader2 size={12} className="animate-spin" />
               Carregando fontes...
             </div>
           )}
 
           {datasetsError && (
-            <p className="px-2 py-1.5 text-xs text-red-500">{datasetsError}</p>
+            <p className="px-2 py-1.5 text-xs text-destructive">{datasetsError}</p>
           )}
 
           {!loadingDatasets &&
             !datasetsError &&
             datasets.length === 0 && (
-              <p className="px-2 py-1.5 text-xs text-slate-500">
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
                 Nenhuma fonte disponível.
               </p>
             )}
@@ -87,15 +87,15 @@ export function SourcesRail({
                 className={railItemActive(dataset.id === selectedDatasetId)}
                 title={dataset.table_name}
               >
-                <Database size={14} className="shrink-0 text-slate-400" />
+                <Database size={14} className="shrink-0 text-muted-foreground" />
                 <span className="truncate">{datasetDisplayName(dataset)}</span>
               </button>
             ))}
         </div>
         <div className="pb-2 pt-1">
           <Link
-            href="/fontes"
-            className="inline-flex items-center gap-1 text-xs text-teal-700 hover:underline"
+            href={projectId ? `/projetos/${projectId}/fontes` : "/fontes"}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             <Plus size={12} />
             Gerenciar fontes
@@ -107,14 +107,14 @@ export function SourcesRail({
         <RailLabel>Análises</RailLabel>
         <div className="space-y-0.5 pb-2 pt-2">
           {analyses === null && (
-            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500">
+            <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
               <Loader2 size={12} className="animate-spin" />
               Carregando análises...
             </div>
           )}
 
           {analyses !== null && analyses.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-slate-500">
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
               {analysesError ?? "Nenhuma análise salva nesta etapa ainda."}
             </p>
           )}
@@ -125,15 +125,14 @@ export function SourcesRail({
               <Link
                 key={analysis.id}
                 href={
-                  `/explorar?analysisId=${analysis.id}` +
-                  (analysis.projectId ?? projectId
-                    ? `&projectId=${analysis.projectId ?? projectId}`
-                    : "")
+                  analysis.projectId ?? projectId
+                    ? `/projetos/${analysis.projectId ?? projectId}/explorar?analysisId=${analysis.id}`
+                    : `/explorar?analysisId=${analysis.id}`
                 }
                 className={railItemActive(false)}
                 title={analysis.description || analysis.name}
               >
-                <Icon size={14} className="shrink-0 text-slate-400" />
+                <Icon size={14} className="shrink-0 text-muted-foreground" />
                 <span className="truncate">{analysis.name}</span>
               </Link>
             )
@@ -141,8 +140,8 @@ export function SourcesRail({
         </div>
         <div className="pb-2 pt-1">
           <Link
-            href="/analises"
-            className="text-xs text-teal-700 hover:underline"
+            href={projectId ? `/projetos/${projectId}/analises` : "/analises"}
+            className="text-xs text-primary hover:underline"
           >
             Ver todas as análises
           </Link>

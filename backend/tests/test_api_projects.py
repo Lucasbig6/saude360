@@ -57,6 +57,7 @@ async def test_create_project_returns_201_camel_case(client, auth_headers):
     assert data["analysisCount"] == 0
     assert data["chartCount"] == 0
     assert data["dashboardCount"] == 0
+    assert data["sourceCount"] == 0
     assert data["createdBy"] is None
     assert "created_at" not in data
     uuid.UUID(data["id"])

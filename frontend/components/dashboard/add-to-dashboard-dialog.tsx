@@ -24,6 +24,7 @@ import {
   toDashboardPayload,
 } from "@/lib/api/dashboards"
 import { ApiError } from "@/lib/api"
+import { dashboardHref } from "@/lib/routes"
 
 interface AddToDashboardDialogProps {
   open: boolean
@@ -126,7 +127,7 @@ export function AddToDashboardDialog({
     try {
       await updateDashboard(dashboard.id, toDashboardPayload(updated))
       handleOpenChange(false)
-      router.push(`/paineis/${dashboard.id}`)
+      router.push(dashboardHref(dashboard))
     } catch (err) {
       setActionError(
         err instanceof ApiError
@@ -155,7 +156,7 @@ export function AddToDashboardDialog({
         ...(analysis.projectId ? { projectId: analysis.projectId } : {}),
       })
       handleOpenChange(false)
-      router.push(`/paineis/${dashboard.id}`)
+      router.push(dashboardHref(dashboard))
     } catch (err) {
       setActionError(
         err instanceof ApiError ? err.detail : "Erro ao criar o painel."
@@ -179,20 +180,20 @@ export function AddToDashboardDialog({
         </DialogHeader>
 
         {!analysis.projectId && (
-          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             Esta análise não tem projeto vinculado — a lista mostra todos os
             painéis.
           </p>
         )}
 
         {feedback && (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             {feedback}
           </p>
         )}
 
         {actionError && (
-          <p className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+          <p className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertCircle size={14} className="shrink-0" />
             {actionError}
           </p>
@@ -202,21 +203,21 @@ export function AddToDashboardDialog({
           <div className="space-y-2 py-1">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 size={20} className="animate-spin text-slate-400" />
+                <Loader2 size={20} className="animate-spin text-muted-foreground" />
               </div>
             ) : loadError ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-center">
-                <p className="text-xs text-amber-800">{loadError}</p>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-3 text-center">
+                <p className="text-xs text-warning">{loadError}</p>
                 <button
                   type="button"
                   onClick={() => setReloadKey((key) => key + 1)}
-                  className="mt-2 text-xs font-medium text-amber-900 underline"
+                  className="mt-2 text-xs font-medium text-warning underline"
                 >
                   Tentar novamente
                 </button>
               </div>
             ) : !dashboards || dashboards.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Nenhum dashboard criado ainda.
               </p>
             ) : (
@@ -229,9 +230,9 @@ export function AddToDashboardDialog({
                       type="button"
                       disabled={inThis || saving}
                       onClick={() => void addWidgetToDashboard(d)}
-                      className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-teal-200 hover:bg-teal-50/50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         {saving && !inThis ? (
                           <Loader2 size={16} className="animate-spin" />
                         ) : (
@@ -239,10 +240,10 @@ export function AddToDashboardDialog({
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-slate-900">
+                        <p className="truncate text-sm font-medium text-foreground">
                           {d.name}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           {d.widgets.length} widget
                           {d.widgets.length !== 1 ? "s" : ""}
                           {inThis ? " · já contém este gráfico" : ""}
@@ -257,9 +258,9 @@ export function AddToDashboardDialog({
             <button
               type="button"
               onClick={() => setCreateMode(true)}
-              className="flex w-full items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white p-3 text-left text-sm text-slate-600 transition hover:border-teal-300 hover:text-teal-700"
+              className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-card p-3 text-left text-sm text-muted-foreground transition hover:border-primary/40 hover:text-primary"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <Plus size={16} />
               </div>
               Novo dashboard
@@ -306,7 +307,6 @@ export function AddToDashboardDialog({
             <Button
               onClick={() => void handleCreate()}
               disabled={!newName.trim() || saving}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}
               <Plus size={14} />

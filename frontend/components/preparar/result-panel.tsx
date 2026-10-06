@@ -42,7 +42,7 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 size={16} className="animate-spin" />
           Executando consulta...
         </div>
@@ -53,7 +53,7 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
   if (error) {
     return (
       <div className="p-4">
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <span className="break-words">{error}</span>
         </div>
@@ -63,7 +63,7 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center p-8 text-sm text-slate-400">
+      <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
         <Inbox size={16} className="mr-2" />
         Execute uma consulta para ver os resultados.
       </div>
@@ -72,8 +72,8 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-        <span className="text-xs text-slate-500">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="text-xs text-muted-foreground">
           {data.length} registro{data.length !== 1 ? "s" : ""}
         </span>
         {totalPages > 1 && (
@@ -87,7 +87,7 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
             >
               <ChevronLeft size={12} />
             </Button>
-            <span className="text-xs text-slate-500 px-2">
+            <span className="text-xs text-muted-foreground px-2">
               {page + 1} / {totalPages}
             </span>
             <Button
@@ -106,11 +106,11 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
       <div className="max-h-[300px] overflow-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-b border-slate-200">
+            <TableRow className="border-b border-border">
               {columns.map((col) => (
                 <TableHead
                   key={col}
-                  className="whitespace-nowrap bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                  className="whitespace-nowrap bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                 >
                   {col}
                 </TableHead>
@@ -121,14 +121,14 @@ export function ResultPanel({ data, loading, error }: ResultPanelProps) {
             {pageData.map((row, i) => (
               <TableRow
                 key={start + i}
-                className="even:bg-slate-50/50"
+                className="even:bg-muted/50/50"
               >
                 {columns.map((col, ci) => (
                   <TableCell
                     key={col}
                     className={cn(
-                      "whitespace-nowrap px-4 py-2 text-sm text-slate-700 max-w-[250px] truncate",
-                      ci < columns.length - 1 && "border-r border-r-slate-100"
+                      "whitespace-nowrap px-4 py-2 text-sm text-foreground max-w-[250px] truncate",
+                      ci < columns.length - 1 && "border-r border-r-border"
                     )}
                   >
                     {formatValue(row[col])}

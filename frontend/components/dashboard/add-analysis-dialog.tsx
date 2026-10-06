@@ -119,7 +119,7 @@ export function AddAnalysisDialog({
         <div className="relative mt-2">
           <Search
             size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             placeholder="Buscar gráficos e análises..."
@@ -133,18 +133,18 @@ export function AddAnalysisDialog({
         <div className="mt-2 max-h-80 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={20} className="animate-spin text-slate-400" />
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
             </div>
           ) : loadError ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-4 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm text-amber-800">
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-4 text-center">
+              <div className="flex items-center justify-center gap-2 text-sm text-warning">
                 <AlertCircle size={15} />
                 {loadError}
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-3 bg-white"
+                className="mt-3 bg-card"
                 onClick={() => setReloadKey((key) => key + 1)}
               >
                 <RefreshCw size={13} />
@@ -153,13 +153,13 @@ export function AddAnalysisDialog({
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                <FileChartColumn size={18} className="text-slate-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <FileChartColumn size={18} className="text-muted-foreground" />
               </div>
-              <p className="mt-2 text-sm font-medium text-slate-900">
+              <p className="mt-2 text-sm font-medium text-foreground">
                 Nenhuma análise encontrada
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {excludeIds.length > 0
                   ? "Todos os itens já foram adicionados a este painel."
                   : "Crie um gráfico ou análise no Explorer primeiro."}
@@ -175,24 +175,24 @@ export function AddAnalysisDialog({
                     key={analysis.id}
                     type="button"
                     onClick={() => handleSelect(analysis)}
-                    className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-teal-200 hover:bg-teal-50/50 cursor-pointer"
+                    className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left transition hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <Icon size={16} />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {analysis.name}
                       </p>
                       {analysis.description && (
-                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {analysis.description}
                         </p>
                       )}
                     </div>
 
-                    <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       {analysis.chartType === "table"
                         ? "Análise"
                         : chartTypeLabel[analysis.chartType]}

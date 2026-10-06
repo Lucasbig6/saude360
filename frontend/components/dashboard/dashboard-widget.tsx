@@ -308,14 +308,14 @@ export function DashboardWidgetView({
 
   if (analysisState === "error") {
     return (
-      <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
+      <div className="flex h-full flex-col rounded-lg border border-border bg-card overflow-hidden dark:border-border dark:bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5 dark:border-border">
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle
               size={15}
-              className="shrink-0 text-red-500 dark:text-red-400"
+              className="shrink-0 text-destructive dark:text-destructive"
             />
-            <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="truncate text-sm font-semibold text-foreground dark:text-foreground">
               Análise indisponível
             </h3>
           </div>
@@ -323,7 +323,7 @@ export function DashboardWidgetView({
           {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer dark:hover:bg-slate-800"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer dark:hover:bg-muted"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical size={14} />
@@ -339,7 +339,7 @@ export function DashboardWidgetView({
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
-          <p className="text-center text-sm text-red-600 dark:text-red-400">
+          <p className="text-center text-sm text-destructive dark:text-destructive">
             {analysisError ?? "Erro ao carregar a análise."}
           </p>
           <Button
@@ -370,12 +370,12 @@ export function DashboardWidgetView({
     : STATIC_ICONS[config.type]
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card overflow-hidden dark:border-border dark:bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5 dark:border-border">
         <div className="flex items-center gap-2 min-w-0">
-          <Icon size={15} className="shrink-0 text-teal-600 dark:text-teal-400" />
-          <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <Icon size={15} className="shrink-0 text-primary dark:text-primary" />
+          <h3 className="truncate text-sm font-semibold text-foreground dark:text-foreground">
             {title}
           </h3>
         </div>
@@ -388,7 +388,7 @@ export function DashboardWidgetView({
               onClick={() =>
                 fetchQuery(analysis.sql, analysis.databaseId, analysis.dbSchema)
               }
-              className="h-7 w-7 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground dark:hover:text-foreground"
               title="Atualizar dados"
             >
               <RefreshCw size={13} />
@@ -398,7 +398,7 @@ export function DashboardWidgetView({
           {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer dark:hover:bg-slate-800"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer dark:hover:bg-muted"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical size={14} />
@@ -424,7 +424,7 @@ export function DashboardWidgetView({
       <div className="flex-1 overflow-auto p-4">
         {needsData && loading && (
           <div className="flex h-full items-center justify-center">
-            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
               <Loader2 size={16} className="animate-spin" />
               Carregando dados...
             </div>
@@ -433,10 +433,10 @@ export function DashboardWidgetView({
 
         {needsData && error && (
           <div className="flex h-full flex-col items-center justify-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50 dark:bg-red-950">
-              <AlertCircle size={18} className="text-red-500" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 dark:bg-destructive/20">
+              <AlertCircle size={18} className="text-destructive" />
             </div>
-            <p className="text-center text-sm text-red-600 dark:text-red-400">
+            <p className="text-center text-sm text-destructive dark:text-destructive">
               {error}
             </p>
             <Button
@@ -453,7 +453,7 @@ export function DashboardWidgetView({
         )}
 
         {!needsData && config.type === "text" && (
-          <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
+          <p className="whitespace-pre-wrap text-sm text-foreground dark:text-foreground">
             {config.content}
           </p>
         )}
@@ -467,7 +467,7 @@ export function DashboardWidgetView({
               className="mx-auto max-h-full rounded-lg object-contain"
             />
           ) : (
-            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-center text-sm text-muted-foreground dark:text-muted-foreground">
               Imagem sem URL.
             </p>
           )
@@ -475,7 +475,7 @@ export function DashboardWidgetView({
 
         {needsData && !loading && !error && data && data.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
               Nenhum dado retornado.
             </p>
           </div>
@@ -484,14 +484,14 @@ export function DashboardWidgetView({
         {needsData && !loading && !error && data && data.length > 0 && (
           <>
             {config.type === "table" && (
-              <div className="max-h-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="max-h-full overflow-auto rounded-lg border border-border dark:border-border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-b-2 border-b-slate-300 hover:bg-slate-50 dark:border-b-slate-700 dark:hover:bg-slate-800">
+                    <TableRow className="border-b-2 border-b-border hover:bg-muted/50 dark:border-b-border dark:hover:bg-muted">
                       {Object.keys(data[0] ?? {}).map((col) => (
                         <TableHead
                           key={col}
-                          className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                          className="bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-muted dark:text-muted-foreground"
                         >
                           {col}
                         </TableHead>
@@ -502,12 +502,12 @@ export function DashboardWidgetView({
                     {data.slice(0, config.limit ?? 50).map((row, i) => (
                       <TableRow
                         key={i}
-                        className="even:bg-slate-50/50 dark:even:bg-slate-800/50"
+                        className="even:bg-muted/50/50 dark:even:bg-muted/50"
                       >
                         {Object.keys(data[0] ?? {}).map((col) => (
                           <TableCell
                             key={col}
-                            className="px-3 py-2 text-xs text-slate-700 dark:text-slate-200"
+                            className="px-3 py-2 text-xs text-foreground dark:text-foreground"
                           >
                             {row[col] === null || row[col] === undefined
                               ? "—"
@@ -523,7 +523,7 @@ export function DashboardWidgetView({
 
             {config.type === "kpi" && (
               <div className="flex h-full flex-col items-center justify-center gap-1">
-                <span className="text-4xl font-semibold text-teal-600 dark:text-teal-400">
+                <span className="text-2xl font-semibold text-foreground">
                   {formatKpi(kpiValue(data, config))}
                 </span>
               </div>

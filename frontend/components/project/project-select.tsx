@@ -30,7 +30,7 @@ export function ProjectSelect({
       value={value ?? ""}
       onChange={handleChange}
       disabled={disabled || loading}
-      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm transition-colors hover:border-slate-300 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+      className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground transition-colors hover:border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
     >
       <option value="">
         {loading ? "Carregando projetos..." : "Sem projeto"}

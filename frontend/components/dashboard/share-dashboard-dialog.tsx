@@ -59,17 +59,17 @@ export function ShareDashboardDialog({
         </DialogHeader>
 
         <div className="space-y-2 py-1">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <Link2 size={15} className="shrink-0 text-slate-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
+            <Link2 size={15} className="shrink-0 text-muted-foreground" />
             <input
               readOnly
               value={url}
-              className="w-full bg-transparent text-sm text-slate-700 outline-none"
+              className="w-full bg-transparent text-sm text-foreground outline-none"
               aria-label="URL do painel"
               onFocus={(e) => e.currentTarget.select()}
             />
           </div>
-          <p className="text-xs text-slate-500">{path}</p>
+          <p className="text-xs text-muted-foreground">{path}</p>
         </div>
 
         <DialogFooter>
@@ -78,7 +78,6 @@ export function ShareDashboardDialog({
           </Button>
           <Button
             onClick={handleCopy}
-            className="bg-teal-600 text-white hover:bg-teal-700"
           >
             {copied ? (
               <>

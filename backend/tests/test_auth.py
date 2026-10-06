@@ -108,6 +108,26 @@ async def test_me_with_valid_token(client, auth_headers):
     data = response.json()
     assert data["sub"] == "1"
     assert data["type"] == "access"
+    # Sem usuário local para o sub, id é null (sem provisionamento implícito).
+    assert data["id"] is None
+
+
+@pytest.mark.asyncio
+async def test_me_resolves_local_user_id(client):
+    from app.db.session import SessionLocal
+    from app.models import User
+
+    db = SessionLocal()
+    user = User(username="perfil", full_name="Perfil Teste")
+    db.add(user)
+    db.commit()
+    user_id = user.id
+    db.close()
+
+    headers = {"Authorization": f"Bearer {make_token(sub='perfil')}"}
+    response = await client.get("/api/auth/me", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["id"] == str(user_id)
 
 
 @pytest.mark.asyncio

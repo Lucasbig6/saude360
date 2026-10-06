@@ -27,12 +27,12 @@ export function FieldDropSlot({
 }: FieldDropSlotProps) {
   if (value) {
     return (
-      <div className="flex h-10 items-center justify-between gap-2 rounded-lg border border-teal-200 bg-white px-3 text-sm text-slate-900 shadow-sm">
+      <div className="flex h-10 items-center justify-between gap-2 rounded-lg border border-primary/25 bg-card px-3 text-sm text-foreground">
         <span className="truncate font-medium">{value}</span>
         <button
           type="button"
           onClick={onRemove}
-          className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={`Remover ${value}`}
         >
           <X size={14} />
@@ -49,10 +49,10 @@ export function FieldDropSlot({
       className={cn(
         "flex h-10 items-center justify-center rounded-lg border-2 border-dashed px-3 text-sm transition-colors",
         error
-          ? "border-red-300 bg-red-50 text-red-500"
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
           : dragOver
-            ? "border-teal-500 bg-teal-50 text-teal-700"
-            : "border-slate-200 bg-slate-50/50 text-slate-500 hover:border-slate-300"
+            ? "border-primary bg-primary/10 text-primary"
+            : "border-border bg-muted/50/50 text-muted-foreground hover:border-border"
       )}
     >
       {error ? "Tipo incompatível" : label}

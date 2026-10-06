@@ -9,7 +9,7 @@ const LeafletPointMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full min-h-[280px] items-center justify-center text-sm text-slate-500">
+      <div className="flex h-full min-h-[280px] items-center justify-center text-sm text-muted-foreground">
         Carregando mapa...
       </div>
     ),
@@ -35,8 +35,8 @@ export function MapRenderer({
 
   if (points.length === 0) {
     return (
-      <div className={`flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-6 text-center ${className ?? ""}`}>
-        <p className="text-sm text-slate-500">
+      <div className={`flex h-full min-h-[280px] items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 px-6 text-center ${className ?? ""}`}>
+        <p className="text-sm text-muted-foreground">
           Nenhuma linha tem coordenadas válidas de latitude e longitude.
         </p>
       </div>

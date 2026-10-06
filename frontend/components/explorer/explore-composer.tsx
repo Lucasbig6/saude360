@@ -102,21 +102,21 @@ export function ExploreComposer({
       )}
     >
       <div className={cn("w-full", compact ? "" : "mx-auto max-w-3xl xl:pt-8")}>
-        <p className="mb-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <p className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
           <Search size={13} />
           Investigação
         </p>
         <div>
           <h2
             className={cn(
-              "font-semibold tracking-tight text-slate-900",
-              compact ? "text-base sm:text-lg" : "text-2xl sm:text-3xl"
+              "font-semibold tracking-tight text-foreground",
+              compact ? "text-base sm:text-lg" : "text-2xl"
             )}
           >
             O que você quer descobrir?
           </h2>
           {!compact && (
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-muted-foreground">
               Use o contexto à esquerda para orientar esta investigação.
             </p>
           )}
@@ -129,7 +129,7 @@ export function ExploreComposer({
           )}
         >
           <div
-            className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5"
+            className="inline-flex rounded-lg border border-border bg-muted p-0.5"
             role="group"
             aria-label="Modo de investigação"
           >
@@ -140,8 +140,8 @@ export function ExploreComposer({
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "ai"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-card text-foreground ring-1 ring-border"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Sparkles size={13} />
@@ -154,8 +154,8 @@ export function ExploreComposer({
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "sql"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-card text-foreground ring-1 ring-border"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Code2 size={13} />
@@ -189,7 +189,7 @@ export function ExploreComposer({
             />
           </div>
         ) : (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 transition-colors focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500">
+          <div className="mt-3 rounded-lg border border-border bg-muted/50 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
             <textarea
               value={value}
               onChange={(event) => onChange(event.target.value)}
@@ -201,11 +201,11 @@ export function ExploreComposer({
                   ? "Pergunte ou escreva SQL..."
                   : "Escolha uma fonte no contexto para começar..."
               }
-              className="w-full resize-none bg-transparent px-4 pt-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              className="w-full resize-none bg-transparent px-4 pt-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
 
             <div className="flex items-center gap-3 px-3 pb-3">
-              <span className="hidden text-xs text-slate-500 sm:block">
+              <span className="hidden text-xs text-muted-foreground sm:block">
                 Enter para investigar · Shift+Enter quebra linha
               </span>
               <button
@@ -215,8 +215,8 @@ export function ExploreComposer({
                 className={cn(
                   "ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
                   canAsk
-                    ? "bg-teal-700 text-white hover:bg-teal-800"
-                    : "cursor-not-allowed bg-slate-200 text-slate-400"
+                    ? "bg-primary text-primary-foreground"
+                    : "cursor-not-allowed bg-border text-muted-foreground"
                 )}
               >
                 {executing ? (
@@ -237,7 +237,7 @@ export function ExploreComposer({
                 key={suggestion}
                 type="button"
                 onClick={() => onChange(suggestion)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700"
+                className="rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
                 {suggestion}
               </button>

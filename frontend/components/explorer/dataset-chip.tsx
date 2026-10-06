@@ -42,10 +42,10 @@ export function DatasetChip({
         disabled={disabled}
         aria-label="Fonte de dados"
         className={cn(
-          "inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60",
+          "inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60",
           selected
-            ? "border-teal-200 bg-teal-50 text-teal-700 hover:border-teal-300"
-            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            ? "border-primary/25 bg-primary/10 text-primary hover:border-primary/40"
+            : "border-border bg-card text-muted-foreground hover:border-border"
         )}
       >
         {loading ? (
@@ -75,7 +75,7 @@ export function DatasetChip({
               {datasetDisplayName(dataset)}
             </span>
             {dataset.id === selected?.id && (
-              <Check size={15} className="shrink-0 text-teal-700" />
+              <Check size={15} className="shrink-0 text-primary" />
             )}
           </DropdownMenuItem>
         ))}

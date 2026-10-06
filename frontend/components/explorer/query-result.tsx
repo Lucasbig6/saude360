@@ -236,17 +236,17 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
     return (
       <div
         role="status"
-        className="rounded-lg border border-slate-200 bg-white p-4"
+        className="rounded-lg border border-border bg-card p-4"
       >
-        <div className="mb-3 flex items-center gap-2 text-sm text-slate-500">
+        <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 size={16} className="animate-spin" />
           Executando consulta...
         </div>
         {/* Skeleton da tabela enquanto a query roda. */}
         <div className="space-y-2" aria-hidden="true">
-          <div className="h-8 animate-pulse rounded bg-slate-200/70" />
+          <div className="h-8 animate-pulse rounded bg-border/70" />
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded bg-slate-100" />
+            <div key={i} className="h-9 animate-pulse rounded bg-muted" />
           ))}
         </div>
       </div>
@@ -255,20 +255,20 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
 
   if (error) {
     return (
-      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-6">
+      <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-6">
         <div className="flex items-start gap-3">
-          <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-500" />
+          <AlertCircle size={20} className="mt-0.5 shrink-0 text-destructive" />
           <div>
-            <p className="text-sm font-medium text-red-800">
+            <p className="text-sm font-medium text-destructive">
               Erro ao executar consulta
             </p>
-            <p className="mt-1 text-sm text-red-700">{error}</p>
+            <p className="mt-1 text-sm text-destructive">{error}</p>
             {onRetry && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-4 border-red-300 bg-white text-red-800 hover:bg-red-100"
+                className="mt-4 border-destructive/40 bg-card text-destructive hover:bg-destructive/15"
                 onClick={onRetry}
               >
                 Tentar novamente
@@ -282,8 +282,8 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-12">
-        <div className="flex items-center gap-3 text-sm text-slate-500">
+      <div className="flex items-center justify-center rounded-lg border border-border bg-card p-12">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Inbox size={20} />
           Nenhum resultado retornado.
         </div>
@@ -331,7 +331,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   function renderPageNumbers() {
     return pageNumbers.map((p, i) =>
       p === "..." ? (
-        <span key={`dots-${i}`} className="px-1 text-xs text-slate-500">
+        <span key={`dots-${i}`} className="px-1 text-xs text-muted-foreground">
           ...
         </span>
       ) : (
@@ -350,14 +350,14 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
   }
 
   return (
-    <div ref={containerRef} className="bg-white">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-xs text-slate-500">
+    <div ref={containerRef} className="bg-card">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-xs text-muted-foreground">
           {data.length} registro{data.length !== 1 ? "s" : ""}
         </span>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <div
-            className="inline-flex w-full gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 sm:w-auto"
+            className="inline-flex w-full gap-1 rounded-lg border border-border bg-muted p-1 sm:w-auto"
             role="group"
             aria-label="Modo de visualização"
           >
@@ -418,7 +418,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
       </div>
 
       {saveSuccess && (
-        <div className="flex items-center gap-2 border-b border-teal-200 bg-teal-50 px-4 py-2 text-sm text-teal-700">
+        <div className="flex items-center gap-2 border-b border-primary/25 bg-primary/10 px-4 py-2 text-sm text-primary">
           <CheckCircle size={16} />
           {isChartMode ? "Gráfico salvo com sucesso." : "Análise salva com sucesso."}
         </div>
@@ -444,13 +444,13 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
           {/* Mobile Card Layout */}
           <div className="lg:hidden px-4 py-4 space-y-3">
         {pageData.map((row, i) => (
-          <div key={start + i} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={start + i} className="rounded-lg border border-border bg-card p-4">
             {tableColumns.map((col) => (
-              <div key={col} className="flex justify-between py-1.5 border-b border-slate-100 last:border-0">
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <div key={col} className="flex justify-between py-1.5 border-b border-border last:border-0">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {col}
                 </span>
-                <span className="text-sm text-slate-900 font-mono text-right max-w-[60%] truncate">
+                <span className="text-sm text-foreground font-mono text-right max-w-[60%] truncate">
                   {row[col] === null || row[col] === undefined ? "—" : String(row[col])}
                 </span>
               </div>
@@ -464,11 +464,11 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
         <div className="max-h-[500px] overflow-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-b-2 border-b-slate-300 hover:bg-slate-50">
+              <TableRow className="border-b-2 border-b-border hover:bg-muted/50">
                 {tableColumns.map((col) => (
                   <TableHead
                     key={col}
-                    className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                   >
                     {col}
                   </TableHead>
@@ -477,13 +477,13 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
             </TableHeader>
             <TableBody>
               {pageData.map((row, i) => (
-                <TableRow key={start + i} className="even:bg-slate-50/50">
+                <TableRow key={start + i} className="even:bg-muted/50/50">
                   {tableColumns.map((col, colIdx) => (
                     <TableCell
                       key={col}
                       className={cn(
-                        "px-4 py-3 text-sm text-slate-700",
-                        colIdx < tableColumns.length - 1 && "border-r border-r-slate-100"
+                        "px-4 py-3 text-sm text-foreground",
+                        colIdx < tableColumns.length - 1 && "border-r border-r-border"
                       )}
                     >
                       {row[col] === null || row[col] === undefined
@@ -501,9 +501,9 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
       {totalPages > 1 && (
         <nav
           aria-label="Paginação dos resultados"
-          className={cn("flex items-center justify-between border-t border-slate-200 px-4 py-2", "flex-col sm:flex-row gap-2 sm:gap-0")}
+          className={cn("flex items-center justify-between border-t border-border px-4 py-2", "flex-col sm:flex-row gap-2 sm:gap-0")}
         >
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             Exibindo {start + 1}–{Math.min(end, data.length)} de {data.length}
           </span>
 

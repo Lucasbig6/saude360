@@ -9,32 +9,32 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="break-words font-medium text-teal-700 underline underline-offset-2 hover:text-teal-900"
+      className="break-words font-medium text-primary underline underline-offset-2 hover:text-primary"
     >
       {children}
     </a>
   ),
-  strong: ({ children }) => <strong className="font-semibold text-slate-800">{children}</strong>,
+  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
-  h1: ({ children }) => <h1 className="mt-3 mb-1.5 text-base font-semibold text-slate-900">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-3 mb-1.5 text-sm font-semibold text-slate-900">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-2.5 mb-1 text-sm font-semibold text-slate-900">{children}</h3>,
+  h1: ({ children }) => <h1 className="mt-3 mb-1.5 text-base font-semibold text-foreground">{children}</h1>,
+  h2: ({ children }) => <h2 className="mt-3 mb-1.5 text-sm font-semibold text-foreground">{children}</h2>,
+  h3: ({ children }) => <h3 className="mt-2.5 mb-1 text-sm font-semibold text-foreground">{children}</h3>,
   h4: ({ children }) => (
-    <h4 className="mt-2 mb-1 text-xs font-semibold tracking-wide text-slate-700 uppercase">
+    <h4 className="mt-2 mb-1 text-xs font-semibold tracking-wide text-foreground uppercase">
       {children}
     </h4>
   ),
-  h5: ({ children }) => <h5 className="mt-2 mb-1 text-xs font-semibold text-slate-700">{children}</h5>,
+  h5: ({ children }) => <h5 className="mt-2 mb-1 text-xs font-semibold text-foreground">{children}</h5>,
   h6: ({ children }) => (
-    <h6 className="mt-2 mb-1 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+    <h6 className="mt-2 mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
       {children}
     </h6>
   ),
   ul: ({ children }) => (
-    <ul className="my-2 list-outside list-disc space-y-1 pl-5 marker:text-slate-400">{children}</ul>
+    <ul className="my-2 list-outside list-disc space-y-1 pl-5 marker:text-muted-foreground">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-2 list-outside list-decimal space-y-1 pl-5 marker:text-slate-400">
+    <ol className="my-2 list-outside list-decimal space-y-1 pl-5 marker:text-muted-foreground">
       {children}
     </ol>
   ),
@@ -42,34 +42,34 @@ const components: Components = {
     <li className="[&_p]:mb-0 [&_ol]:my-1 [&_ul]:my-1 marker:font-medium">{children}</li>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] break-words text-slate-800">
+    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] break-words text-foreground">
       {children}
     </code>
   ),
   pre: ({ children }) => (
-    <pre className="my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-100 [&_code]:block [&_code]:bg-transparent [&_code]:px-0 [&_code]:py-0 [&_code]:text-inherit [&_code]:whitespace-pre">
+    <pre className="my-2 overflow-x-auto rounded-lg bg-muted p-3 text-xs leading-relaxed text-foreground [&_code]:block [&_code]:bg-transparent [&_code]:px-0 [&_code]:py-0 [&_code]:text-inherit [&_code]:whitespace-pre">
       {children}
     </pre>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="my-2 border-l-2 border-teal-300 pl-3 text-slate-500 italic">
+    <blockquote className="my-2 border-l-2 border-primary/35 pl-3 text-muted-foreground italic">
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="my-3 border-slate-200" />,
+  hr: () => <hr className="my-3 border-border" />,
   table: ({ children }) => (
-    <div className="my-2 overflow-x-auto rounded-md border border-slate-200">
+    <div className="my-2 overflow-x-auto rounded-md border border-border">
       <table className="w-full border-collapse text-xs">{children}</table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-slate-100 text-left">{children}</thead>,
+  thead: ({ children }) => <thead className="bg-muted text-left">{children}</thead>,
   th: ({ children }) => (
-    <th className="border-b border-slate-200 px-2 py-1.5 font-semibold text-slate-700">
+    <th className="border-b border-border px-2 py-1.5 font-semibold text-foreground">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-slate-100 px-2 py-1.5 align-top text-slate-700 last:border-b-0">
+    <td className="border-b border-border px-2 py-1.5 align-top text-foreground last:border-b-0">
       {children}
     </td>
   ),

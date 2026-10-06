@@ -73,6 +73,14 @@ export interface CreateSourceRequest {
   database: string
   username: string
   password: string
+  /** Projeto que passa a ser dono da fonte (opcional). */
+  projectId?: string
+}
+
+export interface SourceProject {
+  id: string
+  name: string
+  description: string | null
 }
 
 export interface UpdateSourceRequest {
@@ -98,8 +106,31 @@ export interface TestConnectionResponse {
   detail?: string
 }
 
-export async function listSources(): Promise<SourcesListResponse> {
-  return apiGet<SourcesListResponse>("/api/sources")
+export async function listSources(
+  projectId?: string
+): Promise<SourcesListResponse> {
+  const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""
+  return apiGet<SourcesListResponse>(`/api/sources${query}`)
+}
+
+export async function getSourceProjects(
+  sourceId: number
+): Promise<SourceProject[]> {
+  return apiGet<SourceProject[]>(`/api/sources/${sourceId}/projects`)
+}
+
+export async function linkSourceToProject(
+  sourceId: number,
+  projectId: string
+): Promise<void> {
+  await apiPost(`/api/sources/${sourceId}/projects`, { projectId })
+}
+
+export async function unlinkSourceFromProject(
+  sourceId: number,
+  projectId: string
+): Promise<void> {
+  await apiDelete(`/api/sources/${sourceId}/projects/${projectId}`)
 }
 
 export async function getSource(id: number): Promise<SourceDetail> {

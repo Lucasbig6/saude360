@@ -19,6 +19,7 @@ export interface ApiProject {
   analysisCount: number
   chartCount: number
   dashboardCount: number
+  sourceCount: number
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -56,6 +57,7 @@ export function toProject(raw: unknown): Project {
     analysisCount: count(value.analysisCount),
     chartCount: count(value.chartCount),
     dashboardCount: count(value.dashboardCount),
+    sourceCount: count(value.sourceCount),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   }

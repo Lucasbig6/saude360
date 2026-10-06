@@ -2,22 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
-import {
-  Activity,
-  BarChart3,
-  ChevronDown,
-  Database,
-  FileChartColumn,
-  Home,
-  Hospital,
-  Menu,
-  Search,
-  Settings,
-  LogOut,
-  User,
-  X,
-} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ChevronDown, LogOut, Settings, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -26,43 +12,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { clearTokens } from "@/lib/auth"
+import { clearTokens, getCurrentUsername } from "@/lib/auth"
+import { BrandMark } from "./sidebar"
 
-const navigation = [
-  { name: "Início", href: "/inicio" },
-  { name: "Projetos", href: "/projetos" },
-  { name: "Painéis", href: "/paineis" },
-  { name: "Explorar", href: "/explorar" },
-  { name: "Fontes", href: "/fontes" },
-  { name: "Análises", href: "/analises" },
-] as const
-
-const mobileNavIcons: Record<string, typeof Home> = {
-  "/inicio": Home,
-  "/projetos": Hospital,
-  "/paineis": BarChart3,
-  "/explorar": Search,
-  "/fontes": Database,
-  "/analises": FileChartColumn,
-}
-
-const user = {
-  name: "Lucas Admin",
-  initials: "LA",
-}
-
-function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/inicio") {
-    return pathname === "/inicio" || pathname === "/"
-  }
-  return pathname.startsWith(href)
+function initialsOf(name: string): string {
+  return name
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join("")
 }
 
 export function Header() {
   const router = useRouter()
-  const pathname = usePathname()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  // lido do JWT no cliente; no servidor renderiza o fallback.
+  const [username] = useState(() => getCurrentUsername())
+
+  const label = username ?? "Usuário"
 
   function handleLogout() {
     clearTokens()
@@ -70,84 +38,66 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
-      {/* Logo | divider | nav */}
-      <div className="flex min-w-0 items-center gap-3 lg:gap-4">
-        <Link
-          href="/inicio"
-          className="flex shrink-0 items-center gap-2.5"
-          onClick={() => setMobileNavOpen(false)}
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-sm">
-            <Activity size={18} strokeWidth={2.5} />
-          </div>
-          <span className="text-base font-semibold text-slate-900 whitespace-nowrap">
-            Saude360
-          </span>
+    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
+      <div className="flex items-center gap-3">
+        <Link href="/inicio" className="flex items-center gap-2.5">
+          <BrandMark />
         </Link>
 
-        {/* Divider logo → navlinks */}
-        <span
-          aria-hidden="true"
-          className="hidden h-10 w-px shrink-0 bg-slate-200 md:block"
-        />
+        <span className="flex h-4 w-px bg-border flex-shrink-0"></span>
 
-        {/* Desktop nav */}
-        <nav
-          aria-label="Navegação principal"
-          className="hidden items-center gap-0.5 md:flex"
-        >
-          {navigation.map((item) => {
-            const active = isNavActive(pathname, item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative rounded-md px-3 py-5 text-sm font-medium transition-colors",
-                  active
-                    ? "text-teal-700"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                )}
-              >
-                {item.name}
-                {active && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-x-2 -bottom-[9px] h-0.5 rounded-full bg-teal-600"
-                  />
-                )}
-              </Link>
-            )
-          })}
+        <nav className="md:items-center md:flex gap-8">
+          <Link
+            href="/projetos"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            Projetos
+          </Link>
+          <Link
+            href="/fontes"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            Fontes
+          </Link>
+          <Link
+            href="/explorar"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            Explorar
+          </Link>
+          <Link
+            href="/analises"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            Análises
+          </Link>
+          <Link
+            href="/paineis"
+            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            Painéis
+          </Link>
         </nav>
-
-        {/* Mobile hamburger */}
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen((v) => !v)}
-          className="ml-1 flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 md:hidden"
-          aria-label={mobileNavOpen ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={mobileNavOpen}
-        >
-          {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
       </div>
 
-      {/* User menu */}
       <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
-        <DropdownMenuTrigger className="flex shrink-0 items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors hover:bg-slate-100 cursor-pointer focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-sm font-semibold text-white shadow-sm">
-            {user.initials}
+        <DropdownMenuTrigger className="flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50">
+          <div
+            suppressHydrationWarning
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+          >
+            {initialsOf(label)}
           </div>
-          <span className="hidden text-sm font-medium text-slate-900 md:block">
-            {user.name}
+          <span
+            suppressHydrationWarning
+            className="hidden text-sm font-medium text-foreground md:block"
+          >
+            {label}
           </span>
           <ChevronDown
             size={14}
             className={cn(
-              "hidden text-slate-400 transition-transform duration-200 md:block",
+              "hidden text-muted-foreground transition-transform duration-200 md:block",
               userMenuOpen && "rotate-180"
             )}
           />
@@ -174,39 +124,6 @@ export function Header() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Mobile nav dropdown */}
-      {mobileNavOpen && (
-        <div
-          className="absolute inset-x-0 top-full border-b border-slate-200 bg-white shadow-lg md:hidden"
-          role="navigation"
-          aria-label="Navegação mobile"
-        >
-          <nav className="flex flex-col gap-0.5 px-3 py-3">
-            {navigation.map((item) => {
-              const Icon = mobileNavIcons[item.href] ?? Home
-              const active = isNavActive(pathname, item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileNavOpen(false)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-                    active
-                      ? "bg-teal-50 text-teal-700"
-                      : "text-slate-700 hover:bg-slate-100"
-                  )}
-                >
-                  <Icon size={17} className="shrink-0" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
-      )}
     </header>
   )
 }

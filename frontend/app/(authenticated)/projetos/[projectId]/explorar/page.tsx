@@ -1,8 +1,8 @@
 "use client"
 
-import { Suspense, useEffect, useRef, useState } from "react"
+import { Suspense, use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, FolderOpen, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { ExploreComposer } from "@/components/explorer/explore-composer"
 import type { ExplorationMode } from "@/components/explorer/explore-composer"
@@ -20,18 +20,14 @@ import { executeQuery } from "@/lib/api/queries"
 import { generatePreviewSql } from "@/lib/explorer/sql"
 import { ApiError } from "@/lib/api"
 import { getAnalysis, getAnalyses } from "@/lib/api/analyses"
-import { getProjects } from "@/lib/api/projects"
 import type { Analysis } from "@/lib/types/analysis"
-import type { Project } from "@/lib/types/project"
 
-function ExplorarContent() {
+function ExplorarContent({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams()
   const analysisId = searchParams.get("analysisId")
   const datasetIdParam = searchParams.get("datasetId")
-  const projectId = searchParams.get("projectId")
 
   const [datasets, setDatasets] = useState<DatasetListItem[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [loadingDatasets, setLoadingDatasets] = useState(true)
   const [datasetsError, setDatasetsError] = useState<string | null>(null)
 
@@ -72,12 +68,6 @@ function ExplorarContent() {
       }
     }
     load()
-  }, [])
-
-  useEffect(() => {
-    getProjects().then(setProjects).catch(() => {
-      // O nome do projeto é informativo; a bancada continua disponível.
-    })
   }, [])
 
   // Análises salvas do projeto (alimenta o rail esquerdo). Chave derivada:
@@ -345,29 +335,21 @@ function ExplorarContent() {
     agentQuestion !== null ||
     restoreAnalysis !== null
 
-  const projectName = projectId
-    ? projects.find((project) => project.id === projectId)?.name ?? "Projeto atual"
-    : "Selecione um projeto"
-
   const hasResultState = result !== null || executing || executeError !== null
   return (
     <ExploreShell
       header={
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Link
-              href={projectId ? `/projetos/${projectId}` : "/inicio"}
+              href={`/projetos/${projectId}`}
               aria-label="Voltar"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <ArrowLeft size={17} />
             </Link>
-            <span className="hidden h-5 w-px bg-slate-200 sm:block" />
-            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">Explorar</h1>
-            <span className="hidden text-sm text-slate-500 sm:inline">Projeto:</span>
-            <span className="max-w-40 truncate text-sm font-medium text-slate-600 sm:max-w-xs">
-              {projectName}
-            </span>
+            <span className="hidden h-5 w-px bg-border sm:block" />
+            <h1 className="text-sm font-semibold text-foreground sm:text-base">Explorar</h1>
           </div>
         </header>
       }
@@ -388,10 +370,10 @@ function ExplorarContent() {
           <section className="mx-5 mt-4 min-h-[18rem] sm:mx-8 xl:mx-8 xl:mt-0 xl:py-5">
             <div className="mb-4 flex shrink-0 items-baseline justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
                   Resultado
                 </p>
-                <h2 className="mt-1 text-base font-semibold text-slate-900">
+                <h2 className="mt-1 text-base font-semibold text-foreground">
                   {restoreAnalysis?.name ?? `Resultado de ${selectedDataset.table_name}`}
                 </h2>
               </div>
@@ -404,7 +386,7 @@ function ExplorarContent() {
               databaseId={selectedDataset.database.id}
               dbSchema={selectedDataset.schema ?? null}
               datasetId={selectedDataset.id}
-              projectId={projectId ?? undefined}
+              projectId={projectId}
               editingAnalysis={restoreAnalysis}
               onAnalysisSaved={handleAnalysisSaved}
               onDatasetPublished={handleDatasetPublished}
@@ -414,44 +396,23 @@ function ExplorarContent() {
         ) : undefined
       }
     >
-      {!projectId ? (
-        <section className="flex min-h-[22rem] flex-col items-center justify-center px-5 py-10 text-center sm:px-8">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
-            <FolderOpen size={21} />
-          </div>
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">
-            Escolha um projeto para começar
-          </h2>
-          <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            As investigações e análises do Explorar pertencem a um projeto. Abra
-            um projeto para consultar dados e salvar seus resultados no contexto certo.
-          </p>
-          <Link
-            href="/projetos"
-            className="mt-5 inline-flex items-center rounded-lg bg-teal-700 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-800"
-          >
-            Ver projetos
-          </Link>
-        </section>
-      ) : (
-        <ExploreComposer
-          compact={started}
-          mode={mode}
-          onModeChange={setMode}
-          value={composerText}
-          onChange={setComposerText}
-          onSubmit={handleComposerSubmit}
-          sql={manualSql}
-          onSqlChange={setManualSql}
-          onSqlExecute={handleSqlExecute}
-          datasets={datasets}
-          loadingDatasets={loadingDatasets}
-          selectedDataset={selectedDataset}
-          onSelectDataset={handleSelectDataset}
-          columns={datasetColumns}
-          executing={executing}
-        />
-      )}
+      <ExploreComposer
+        compact={started}
+        mode={mode}
+        onModeChange={setMode}
+        value={composerText}
+        onChange={setComposerText}
+        onSubmit={handleComposerSubmit}
+        sql={manualSql}
+        onSqlChange={setManualSql}
+        onSqlExecute={handleSqlExecute}
+        datasets={datasets}
+        loadingDatasets={loadingDatasets}
+        selectedDataset={selectedDataset}
+        onSelectDataset={handleSelectDataset}
+        columns={datasetColumns}
+        executing={executing}
+      />
 
       {/* A pergunta fica registrada entre o editor e a saída da investigação. */}
       {mode === "ai" && agentQuestion && (
@@ -464,18 +425,23 @@ function ExplorarContent() {
   )
 }
 
-export default function ExplorarPage() {
+export default function ExplorarPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>
+}) {
+  const { projectId } = use(params)
   return (
     <Suspense
       fallback={
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center p-12">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
           </div>
         </div>
       }
     >
-      <ExplorarContent />
+      <ExplorarContent projectId={projectId} />
     </Suspense>
   )
 }

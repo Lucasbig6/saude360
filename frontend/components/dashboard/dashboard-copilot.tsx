@@ -386,23 +386,23 @@ export function DashboardCopilot({
         data-open={open ? "true" : "false"}
         aria-hidden={!open}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-xl transition-transform duration-200 ease-in-out sm:w-[min(100%,24rem)] lg:w-[22rem] xl:w-[24rem]",
+          "fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-lg transition-transform duration-200 ease-in-out sm:w-[min(100%,24rem)] lg:w-[22rem] xl:w-[24rem]",
           open ? "translate-x-0" : "translate-x-full",
           "pointer-events-none",
           open && "pointer-events-auto"
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3.5">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3.5">
           <div className="flex min-w-0 items-start gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles size={15} strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 Copiloto de Análise
               </h2>
-              <p className="mt-0.5 truncate text-xs text-slate-500">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {dashboard.name}
               </p>
             </div>
@@ -413,7 +413,7 @@ export function DashboardCopilot({
             size="icon-sm"
             onClick={() => onOpenChange(false)}
             aria-label="Fechar copiloto"
-            className="shrink-0 text-slate-500 hover:text-slate-800"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
           >
             <X size={16} />
           </Button>
@@ -426,13 +426,13 @@ export function DashboardCopilot({
           aria-live="polite"
         >
           {loadingSession && messages.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+            <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
               <Loader2 size={14} className="animate-spin" />
               Preparando o copiloto deste painel...
             </div>
           ) : sessionError && messages.length === 0 ? (
             <div className="space-y-3">
-              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
                 <AlertCircle size={15} className="mt-0.5 shrink-0" />
                 <span>{sessionError}</span>
               </div>
@@ -452,14 +452,14 @@ export function DashboardCopilot({
             </div>
           ) : messages.length === 0 ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-teal-100 bg-teal-50/60 px-3.5 py-3">
-                <p className="text-sm leading-relaxed text-slate-700">
+              <div className="rounded-lg border border-primary/15 bg-primary/6 px-3.5 py-3">
+                <p className="text-sm leading-relaxed text-foreground">
                   {ASSISTANT_PREAMBLE}
                 </p>
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Sugestões
                 </p>
                 <ul className="space-y-2">
@@ -469,7 +469,7 @@ export function DashboardCopilot({
                         type="button"
                         onClick={() => handleSuggestion(suggestion)}
                         disabled={busy || loadingSession}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {suggestion}
                       </button>
@@ -478,7 +478,7 @@ export function DashboardCopilot({
                 </ul>
               </div>
 
-              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-500">
+              <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                 As respostas usam os widgets, filtros e consultas reais deste
                 painel.
               </p>
@@ -486,7 +486,7 @@ export function DashboardCopilot({
           ) : (
             <div className="space-y-3">
               {sessionError && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
                   <AlertCircle size={15} className="mt-0.5 shrink-0" />
                   <span>{sessionError}</span>
                 </div>
@@ -501,14 +501,14 @@ export function DashboardCopilot({
                 >
                   <div
                     className={cn(
-                      "max-w-[90%] min-w-0 overflow-x-auto rounded-xl px-3 py-2 text-sm leading-relaxed",
+                      "max-w-[90%] min-w-0 overflow-x-auto rounded-lg px-3 py-2 text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "bg-teal-600 text-white"
-                        : "border border-slate-200 bg-slate-50 text-slate-700"
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-muted/50 text-foreground"
                     )}
                   >
                     {msg.role === "assistant" && (
-                      <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-teal-700">
+                      <span className="mb-1 flex items-center gap-1 text-xs font-medium text-primary">
                         <Sparkles size={11} />
                         Copiloto
                       </span>
@@ -520,7 +520,7 @@ export function DashboardCopilot({
                         <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       )
                     ) : msg.status === "streaming" ? (
-                      <p className="flex items-center gap-1.5 text-slate-400">
+                      <p className="flex items-center gap-1.5 text-muted-foreground">
                         <Loader2 size={12} className="animate-spin" />
                         Pensando...
                       </p>
@@ -528,7 +528,7 @@ export function DashboardCopilot({
 
                     {msg.status === "error" && (
                       <div className="mt-2 space-y-2">
-                        <p className="flex items-start gap-1.5 text-xs text-red-600">
+                        <p className="flex items-start gap-1.5 text-xs text-destructive">
                           <AlertCircle size={13} className="mt-0.5 shrink-0" />
                           <span>{msg.error ?? "Erro ao gerar a resposta."}</span>
                         </p>
@@ -536,7 +536,7 @@ export function DashboardCopilot({
                           <button
                             type="button"
                             onClick={handleRetry}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-900"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary"
                           >
                             <RefreshCw size={12} />
                             Tentar novamente
@@ -552,13 +552,13 @@ export function DashboardCopilot({
                 <div className="flex justify-start">
                   <div
                     role="alert"
-                    className="max-w-[90%] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+                    className="max-w-[90%] rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning"
                   >
                     <p className="flex items-center gap-1.5 font-medium">
                       <AlertCircle size={14} className="shrink-0" />
                       Confirmação necessária
                     </p>
-                    <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                    <p className="mt-1 text-xs leading-relaxed text-warning">
                       O copiloto quer {confirmLabel(pendingConfirmation.name)} e
                       precisa da sua autorização.
                     </p>
@@ -568,7 +568,6 @@ export function DashboardCopilot({
                         size="sm"
                         onClick={() => void confirmPending()}
                         disabled={busy || !session}
-                        className="bg-teal-600 text-white hover:bg-teal-700"
                       >
                         Confirmar
                       </Button>
@@ -588,7 +587,7 @@ export function DashboardCopilot({
 
               {showToolStatus && (
                 <div className="flex justify-start">
-                  <div className="flex max-w-[90%] items-center gap-2 rounded-xl border border-teal-100 bg-teal-50/70 px-3 py-2 text-xs font-medium text-teal-800">
+                  <div className="flex max-w-[90%] items-center gap-2 rounded-lg border border-primary/15 bg-primary/7 px-3 py-2 text-xs font-medium text-primary">
                     <Loader2 size={13} className="shrink-0 animate-spin" />
                     {tool?.label}
                   </div>
@@ -600,7 +599,7 @@ export function DashboardCopilot({
 
         {/* Input */}
         <form
-          className="border-t border-slate-200 px-3 py-3"
+          className="border-t border-border px-3 py-3"
           onSubmit={(e) => {
             e.preventDefault()
             void send(draft)
@@ -612,14 +611,14 @@ export function DashboardCopilot({
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Digite sua pergunta sobre o painel..."
               aria-label="Mensagem para o copiloto"
-              className="h-9 bg-slate-50"
+              className="h-9 bg-muted/50"
               disabled={busy || loadingSession || !session}
             />
             <Button
               type="submit"
               size="icon"
               disabled={!draft.trim() || busy || loadingSession}
-              className="shrink-0 bg-teal-600 text-white hover:bg-teal-700"
+              className="shrink-0"
               aria-label="Enviar mensagem"
             >
               {busy ? (
@@ -629,7 +628,7 @@ export function DashboardCopilot({
               )}
             </Button>
           </div>
-          <p className="mt-1.5 text-[11px] text-slate-400">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             {busy
               ? "Copiloto respondendo..."
               : "Pergunte sobre os números, filtros e tendências deste painel."}

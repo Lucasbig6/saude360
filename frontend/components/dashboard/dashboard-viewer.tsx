@@ -53,7 +53,7 @@ export function DashboardViewer({
     <div
       className={cn(
         "min-h-screen",
-        isDark ? "dark bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+        isDark ? "dark bg-background text-foreground" : "bg-muted/50 text-foreground"
       )}
     >
       <div
@@ -68,13 +68,13 @@ export function DashboardViewer({
           <div className="min-w-0">
             {showBrand && (
               <div className="mb-3 inline-flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-sm">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <Activity size={16} strokeWidth={2.5} />
                 </div>
                 <span
                   className={cn(
                     "text-sm font-semibold tracking-wide",
-                    isDark ? "text-teal-400" : "text-teal-700"
+                    "text-primary"
                   )}
                 >
                    Saude360
@@ -84,8 +84,8 @@ export function DashboardViewer({
 
             <h1
               className={cn(
-                "text-2xl font-semibold tracking-tight sm:text-3xl",
-                isDark ? "text-white" : "text-slate-900"
+                "text-2xl font-semibold text-inherit",
+                "text-foreground"
               )}
             >
               {dashboard.name}
@@ -94,7 +94,7 @@ export function DashboardViewer({
               <p
                 className={cn(
                   "mt-1 max-w-2xl text-sm",
-                  isDark ? "text-slate-400" : "text-slate-500"
+                  "text-muted-foreground"
                 )}
               >
                 {dashboard.description}
@@ -112,8 +112,8 @@ export function DashboardViewer({
                 aria-controls="dashboard-copilot-panel"
                 className={cn(
                   isDark
-                    ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                    : "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100"
+                    ? "border-border bg-card text-foreground hover:bg-muted"
+                    : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
                 )}
                 title="Abrir copiloto de análise"
               >
@@ -128,8 +128,8 @@ export function DashboardViewer({
               onClick={() => setRefreshKey((k) => k + 1)}
               className={cn(
                 isDark
-                  ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-                  : "bg-white"
+                  ? "border-border bg-card text-foreground hover:bg-muted"
+                  : "bg-card"
               )}
               title="Atualizar dados"
             >
@@ -140,7 +140,6 @@ export function DashboardViewer({
             <Button
               size="sm"
               onClick={() => setShareOpen(true)}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               <Share2 size={14} />
               Compartilhar
@@ -153,8 +152,8 @@ export function DashboardViewer({
                   size="sm"
                   className={cn(
                     isDark
-                      ? "text-slate-400 hover:text-white"
-                      : "text-slate-500 hover:text-teal-700"
+                      ? "text-muted-foreground hover:text-primary-foreground"
+                      : "text-muted-foreground hover:text-primary"
                   )}
                 >
                   <Pencil size={13} />
@@ -169,10 +168,10 @@ export function DashboardViewer({
         {dashboard.filters.length > 0 && (
           <section
             className={cn(
-              "mt-6 rounded-xl border px-4 py-3",
+              "mt-6 rounded-lg border px-4 py-3",
               isDark
-                ? "border-slate-800 bg-slate-900"
-                : "border-slate-200 bg-white"
+                ? "border-border bg-card"
+                : "border-border bg-card"
             )}
           >
             <div className="flex flex-wrap gap-3">
@@ -181,7 +180,7 @@ export function DashboardViewer({
                   <span
                     className={cn(
                       "font-medium",
-                      isDark ? "text-slate-400" : "text-slate-500"
+                      "text-muted-foreground"
                     )}
                   >
                     {f.column}
@@ -189,7 +188,7 @@ export function DashboardViewer({
                   <span
                     className={cn(
                       "ml-2",
-                      isDark ? "text-slate-200" : "text-slate-800"
+                      "text-foreground"
                     )}
                   >
                     {Array.isArray(f.defaultValue)
@@ -208,16 +207,16 @@ export function DashboardViewer({
             {dashboard.widgets.length === 0 ? (
               <div
                 className={cn(
-                  "flex flex-col items-center justify-center rounded-xl border border-dashed p-12 text-center",
+                  "flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center",
                   isDark
-                    ? "border-slate-700 bg-slate-900"
-                    : "border-slate-300 bg-white"
+                    ? "border-border bg-card"
+                    : "border-border bg-card"
                 )}
               >
                 <p
                   className={cn(
                     "text-sm",
-                    isDark ? "text-slate-400" : "text-slate-500"
+                    "text-muted-foreground"
                   )}
                 >
                   Este painel ainda não possui gráficos.
@@ -238,12 +237,12 @@ export function DashboardViewer({
           <footer
             className={cn(
               "mt-8 flex justify-end",
-              isDark ? "text-slate-500" : "text-slate-400"
+              "text-muted-foreground"
             )}
           >
             <Link
               href={editHref ?? "/paineis"}
-              className="inline-flex items-center gap-1 text-xs hover:text-teal-600"
+              className="inline-flex items-center gap-1 text-xs hover:text-primary"
             >
               <ExternalLink size={12} />
               Abrir no editor

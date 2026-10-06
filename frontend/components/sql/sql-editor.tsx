@@ -10,8 +10,8 @@ import type { MonacoModel, MonacoPosition, CompletionRange, Monaco } from "./typ
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[300px] sm:h-[400px] lg:h-[500px] w-full items-center justify-center rounded-lg border border-slate-200 bg-white">
-      <Loader2 size={20} className="animate-spin text-slate-400" />
+    <div className="flex h-[300px] sm:h-[400px] lg:h-[500px] w-full items-center justify-center rounded-lg border border-border bg-card">
+      <Loader2 size={20} className="animate-spin text-muted-foreground" />
     </div>
   ),
 })
@@ -171,9 +171,9 @@ export function SqlEditor({
 
   return (
     <div className="space-y-3">
-      <div className="relative overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+      <div className="relative overflow-hidden rounded-lg border border-border">
         {placeholder && !value && (
-          <div className="pointer-events-none absolute top-3 left-3 z-10 font-mono text-sm text-slate-400">
+          <div className="pointer-events-none absolute top-3 left-3 z-10 font-mono text-sm text-muted-foreground">
             {placeholder}
           </div>
         )}
@@ -206,14 +206,14 @@ export function SqlEditor({
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-muted-foreground">
           Ctrl+Enter para executar
         </span>
 
         <Button
           onClick={onExecute}
           disabled={loading || disabled}
-          className="w-full sm:w-auto bg-teal-600 text-white hover:bg-teal-700"
+          className="w-full sm:w-auto"
         >
           {loading ? (
             <>

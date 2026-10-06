@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_created_by, get_current_token
 from app.db.session import get_db
-from app.models import Analysis, Dashboard, Project
+from app.models import Analysis, Dashboard, Project, ProjectSource
 from app.schemas.projects import ProjectCreate, ProjectResponse, ProjectUpdate
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -28,6 +28,7 @@ class _Counts:
     analysis_count: int = 0
     chart_count: int = 0
     dashboard_count: int = 0
+    source_count: int = 0
     last_activity: datetime | None = None
 
     def add_activity(self, value: datetime | None) -> None:
@@ -40,7 +41,7 @@ class _Counts:
 def _counts_by_project(
     db: Session, project_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, _Counts]:
-    """Contagens e última atividade em 3 queries agrupadas (sem N+1).
+    """Contagens e última atividade em 4 queries agrupadas (sem N+1).
 
     - análises = ``chart_type = 'table'``
     - gráficos = ``chart_type IS DISTINCT FROM 'table'`` (inclui NULL, como o
@@ -83,6 +84,14 @@ def _counts_by_project(
         entry.dashboard_count = int(dashboard_count or 0)
         entry.add_activity(last_updated)
 
+    source_rows = db.execute(
+        select(ProjectSource.project_id, func.count())
+        .where(ProjectSource.project_id.in_(list(counts)))
+        .group_by(ProjectSource.project_id)
+    ).all()
+    for project_id, source_count in source_rows:
+        counts[project_id].source_count = int(source_count or 0)
+
     return counts
 
 
@@ -99,6 +108,7 @@ def _to_response(project: Project, counts: _Counts) -> ProjectResponse:
         analysis_count=counts.analysis_count,
         chart_count=counts.chart_count,
         dashboard_count=counts.dashboard_count,
+        source_count=counts.source_count,
         created_by=project.created_by,
         created_at=project.created_at,
         updated_at=updated_at,

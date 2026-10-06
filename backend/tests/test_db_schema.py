@@ -31,6 +31,7 @@ EXPECTED_TABLES = {
     "dashboard_filters",
     "dashboard_widgets",
     "dashboards",
+    "project_sources",
     "projects",
     "roles",
     "sources",
@@ -46,6 +47,7 @@ EXPECTED_ON_DELETE = {
     "fk_user_roles_role_id_roles": "c",
     "fk_analyses_created_by_users": "n",
     "fk_analyses_project_id_projects": "n",
+    "fk_project_sources_project_id_projects": "c",
     "fk_dashboards_created_by_users": "n",
     "fk_dashboards_project_id_projects": "n",
     "fk_projects_created_by_users": "n",
@@ -88,7 +90,7 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0005_analysis_chart_config"
+    assert version == "0006_project_sources"
 
 
 def test_analysis_has_chart_config_column(db):

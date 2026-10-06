@@ -58,6 +58,8 @@ export interface Dashboard {
   filters: DashboardFilter[]
   appearance?: DashboardAppearance
   projectId: string | null
+  /** uuid local de quem criou (null = sem autor registrado). */
+  createdBy: string | null
   createdAt: string
   updatedAt: string
 }

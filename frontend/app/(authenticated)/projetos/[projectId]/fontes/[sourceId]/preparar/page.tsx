@@ -73,7 +73,8 @@ export default function PrepararPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const sourceId = Number(params.id)
+  const projectId = String(params.projectId ?? "")
+  const sourceId = Number(params.sourceId)
 
   const initialTable = parseTableParam(searchParams.get("table"))
 
@@ -248,7 +249,7 @@ export default function PrepararPage() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-slate-400" />
+        <Loader2 size={20} className="animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -256,7 +257,7 @@ export default function PrepararPage() {
   if (error || !source) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle size={16} />
           {error || "Fonte não encontrada."}
         </div>
@@ -269,24 +270,24 @@ export default function PrepararPage() {
   const isFileSource = !typeConfig.needsConnection
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-50">
+    <div className="flex h-screen flex-col overflow-hidden bg-muted/50">
       {/* Top bar */}
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
+      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
         <div className="flex items-center gap-3">
           <Link
-            href={`/fontes/${sourceId}`}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+            href={`/projetos/${projectId}/fontes/${sourceId}`}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
           >
             <ArrowLeft size={14} />
           </Link>
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-50 text-teal-700">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Icon size={14} />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-slate-900">
+            <h1 className="text-sm font-semibold text-foreground">
               {source.database_name}
             </h1>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-xs text-muted-foreground">
               {typeConfig.label} &middot; Preparar
             </p>
           </div>
@@ -296,7 +297,6 @@ export default function PrepararPage() {
           <Button
             size="sm"
             onClick={() => setPublishOpen(true)}
-            className="bg-teal-600 text-white hover:bg-teal-700"
           >
             <Send size={14} />
             Publicar como Dataset
@@ -307,13 +307,13 @@ export default function PrepararPage() {
       {isFileSource ? (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <FileStack size={32} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">
+            <FileStack size={32} className="mx-auto text-muted-foreground" />
+            <p className="mt-3 text-sm text-muted-foreground">
               Preparação de arquivos {typeConfig.label} disponível em breve.
             </p>
             <Link
-              href={`/fontes/${sourceId}`}
-              className="mt-4 inline-block text-sm text-teal-600 hover:underline"
+              href={`/projetos/${projectId}/fontes/${sourceId}`}
+              className="mt-4 inline-block text-sm text-primary hover:underline"
             >
               Voltar à fonte
             </Link>
@@ -352,7 +352,7 @@ export default function PrepararPage() {
             />
 
             {/* Editor area */}
-            <div className="border-b border-slate-200 bg-white px-4 pt-3">
+            <div className="border-b border-border bg-card px-4 pt-3">
               <QueryEditor
                 value={activeQuery.sql}
                 onChange={handleSqlChange}
@@ -364,7 +364,7 @@ export default function PrepararPage() {
             </div>
 
             {/* Results area */}
-            <div className="flex-1 overflow-y-auto bg-white">
+            <div className="flex-1 overflow-y-auto bg-card">
               <ResultPanel
                 data={activeQuery.result}
                 loading={activeQuery.loading}

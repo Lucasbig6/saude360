@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { use, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -13,6 +13,8 @@ import {
   Table,
   Upload,
 } from "lucide-react"
+import { PageHeader } from "@/components/shared/page-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,8 +34,16 @@ const ICONS: Record<string, typeof Database> = {
   FileStack,
 }
 
-export default function NovaFontePage() {
-  const router = useRouter()
+export default function NovaFontePage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>
+}) {
+  const { projectId } = use(params)
+  return <NovaFonteContent projectId={projectId} />
+}
+
+function NovaFonteContent({ projectId }: { projectId: string }) {
   const [selectedType, setSelectedType] = useState<SourceType | null>(null)
 
   return (
@@ -41,21 +51,22 @@ export default function NovaFontePage() {
       {/* Header */}
       <section>
         <Link
-          href="/fontes"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+          href={`/projetos/${projectId}/fontes`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <Database size={14} />
           Fontes de Dados
         </Link>
 
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-          Adicionar fonte
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {selectedType
-            ? `Configure sua fonte de dados ${SOURCE_TYPES.find((t) => t.id === selectedType)?.label ?? ""}.`
-            : "Escolha o tipo de fonte de dados que deseja adicionar."}
-        </p>
+        <PageHeader
+          className="mt-3"
+          title="Adicionar fonte"
+          description={
+            selectedType
+              ? `Configure sua fonte de dados ${SOURCE_TYPES.find((t) => t.id === selectedType)?.label ?? ""}.`
+              : "Escolha o tipo de fonte de dados que deseja adicionar."
+          }
+        />
       </section>
 
       {/* Type selector */}
@@ -70,22 +81,22 @@ export default function NovaFontePage() {
                   type="button"
                   onClick={() => setSelectedType(type.id)}
                   className={cn(
-                    "group flex flex-col items-center rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md cursor-pointer"
+                    "group flex flex-col items-center rounded-lg border border-border bg-card p-6 text-center transition-colors hover:border-primary/40 cursor-pointer"
                   )}
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-slate-600 transition-colors group-hover:bg-teal-50 group-hover:text-teal-700">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                     <Icon size={24} />
                   </div>
-                  <h3 className="mt-3 text-sm font-semibold text-slate-900">
+                  <h3 className="mt-3 text-sm font-semibold text-foreground">
                     {type.label}
                   </h3>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {type.description}
                   </p>
                   {!type.needsConnection && (
-                    <span className="mt-2 inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    <Badge variant="warning" className="mt-2">
                       Em breve
-                    </span>
+                    </Badge>
                   )}
                 </button>
               )
@@ -96,7 +107,10 @@ export default function NovaFontePage() {
 
       {/* Form */}
       {selectedType === "postgresql" && (
-        <PostgresForm onBack={() => setSelectedType(null)} />
+        <PostgresForm
+          projectId={projectId}
+          onBack={() => setSelectedType(null)}
+        />
       )}
 
       {selectedType && selectedType !== "postgresql" && (
@@ -113,7 +127,13 @@ export default function NovaFontePage() {
 /*  PostgreSQL Form                                                    */
 /* ------------------------------------------------------------------ */
 
-function PostgresForm({ onBack }: { onBack: () => void }) {
+function PostgresForm({
+  projectId,
+  onBack,
+}: {
+  projectId: string
+  onBack: () => void
+}) {
   const router = useRouter()
 
   const [databaseName, setDatabaseName] = useState("")
@@ -175,8 +195,9 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
         database: database.trim(),
         username: username.trim(),
         password,
+        projectId,
       })
-      router.push("/fontes")
+      router.push(`/projetos/${projectId}/fontes`)
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -190,17 +211,17 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
 
   return (
     <section className="mt-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Database size={20} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 PostgreSQL
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Conexão com banco de dados PostgreSQL.
               </p>
             </div>
@@ -230,7 +251,7 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
               value={host}
               onChange={(e) => setHost(e.target.value)}
             />
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Use o nome do container Docker. Se o Superset e o banco estão em containers, <code>localhost</code> não funciona.
             </p>
           </div>
@@ -283,8 +304,8 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
           <div
             className={`mt-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm ${
               testResult.success
-                ? "border border-green-200 bg-green-50 text-green-700"
-                : "border border-red-200 bg-red-50 text-red-600"
+                ? "border border-success/30 bg-success/10 text-success"
+                : "border border-destructive/30 bg-destructive/10 text-destructive"
             }`}
           >
             {testResult.success ? (
@@ -298,7 +319,7 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
 
         {/* Error detail from Superset */}
         {testResult && !testResult.success && testResult.detail && (
-          <div className="mt-2 rounded-lg border border-red-100 bg-red-50/50 px-4 py-3 text-xs text-red-500 font-mono whitespace-pre-wrap">
+          <div className="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive font-mono whitespace-pre-wrap">
             {testResult.detail}
           </div>
         )}
@@ -306,7 +327,7 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
         {/* Error */}
         {error && (
           <div className="mt-4 space-y-2">
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <AlertCircle size={16} />
               {error}
             </div>
@@ -315,7 +336,7 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
 
         {/* Warning: test not passed */}
         {testResult && !testResult.success && (
-          <p className="mt-3 text-xs text-amber-600">
+          <p className="mt-3 text-xs text-warning">
             A conexão ainda não foi testada com sucesso. Recomendamos testar antes de salvar.
           </p>
         )}
@@ -338,7 +359,6 @@ function PostgresForm({ onBack }: { onBack: () => void }) {
           <Button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="bg-teal-600 text-white hover:bg-teal-700"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : null}
             Salvar
@@ -365,17 +385,17 @@ function FileSourceForm({
 
   return (
     <section className="mt-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
               <Icon size={20} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 {config?.label ?? type}
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {config?.description ?? ""}
               </p>
             </div>
@@ -397,14 +417,14 @@ function FileSourceForm({
           </div>
 
           {/* Upload area */}
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-              <Upload size={20} className="text-slate-400" />
+          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50/50 p-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Upload size={20} className="text-muted-foreground" />
             </div>
-            <h3 className="mt-3 text-sm font-semibold text-slate-900">
+            <h3 className="mt-3 text-sm font-semibold text-foreground">
               Upload de arquivo
             </h3>
-            <p className="mt-1 max-w-sm text-xs text-slate-500">
+            <p className="mt-1 max-w-sm text-xs text-muted-foreground">
               Arraste e solte ou selecione um arquivo{" "}
               {config?.label ?? type} para importar.
             </p>
@@ -416,7 +436,7 @@ function FileSourceForm({
             >
               Selecionar arquivo
             </Button>
-            <p className="mt-2 text-xs text-amber-600 font-medium">
+            <p className="mt-2 text-xs text-warning font-medium">
               Funcionalidade em breve
             </p>
           </div>
@@ -427,7 +447,7 @@ function FileSourceForm({
           <Button disabled className="opacity-50 cursor-not-allowed">
             Salvar
           </Button>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             O upload de arquivos será disponibilizado em uma próxima versão.
           </p>
         </div>

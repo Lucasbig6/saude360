@@ -37,6 +37,7 @@ class ProjectResponse(CamelModel):
     analysis_count: int = 0
     chart_count: int = 0
     dashboard_count: int = 0
+    source_count: int = 0
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime

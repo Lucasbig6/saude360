@@ -97,9 +97,9 @@ export function analyzeColumns(
 }
 
 const controlClass =
-  "h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus-visible:border-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600/20"
+  "h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
 
-const labelClass = "mb-1.5 block text-xs font-medium text-slate-600"
+const labelClass = "mb-1.5 block text-xs font-medium text-muted-foreground"
 
 export function VisualizationPanel({
   data,
@@ -238,11 +238,11 @@ export function VisualizationPanel({
   ]
 
   return (
-    <Card className="border-slate-200 bg-white">
+    <Card className="border-border bg-card">
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle>Visualização</CardTitle>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Arraste os campos para os slots ou clique para selecionar.
           </p>
         </div>
@@ -261,13 +261,13 @@ export function VisualizationPanel({
       <CardContent className="space-y-5">
         <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
           {/* Fields panel */}
-          <div className="rounded-lg border border-slate-200 bg-white self-start">
-            <div className="border-b border-slate-200 px-3 py-2">
-              <span className="text-xs font-medium text-slate-600">Campos</span>
+          <div className="rounded-lg border border-border bg-card self-start">
+            <div className="border-b border-border px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">Campos</span>
             </div>
             <div className="max-h-[320px] space-y-1.5 overflow-y-auto p-2">
               {columns.length === 0 && (
-                <p className="px-2 py-3 text-xs text-slate-500">
+                <p className="px-2 py-3 text-xs text-muted-foreground">
                   Nenhum campo disponível.
                 </p>
               )}
@@ -292,7 +292,7 @@ export function VisualizationPanel({
           <div className="space-y-4">
             {/* Tabs */}
             <div
-              className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5"
+              className="inline-flex rounded-lg border border-border bg-muted p-0.5"
               role="tablist"
               aria-label="Configuração da visualização"
             >
@@ -305,8 +305,8 @@ export function VisualizationPanel({
                   onClick={() => setTab(item.id)}
                   className={
                     tab === item.id
-                      ? "rounded-md bg-white px-3 py-1.5 text-xs font-medium text-slate-900 shadow-sm"
-                      : "rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-slate-700"
+                      ? "rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground"
+                      : "rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                   }
                 >
                   {item.label}
@@ -394,7 +394,7 @@ export function VisualizationPanel({
                       onRemove={() => onColorFieldChange(null)}
                     />
                     {!hasColorOptions && (
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         Nenhum campo categórico para agrupar.
                       </p>
                     )}
@@ -468,14 +468,14 @@ export function VisualizationPanel({
                 {/* Validation messages */}
                 <div className="space-y-1">
                   {chartType !== "kpi" && !hasDimensionOptions && (
-                    <p className="text-sm text-amber-700">
+                    <p className="text-sm text-warning">
                       {chartType === "map"
                         ? "Nenhum campo numérico disponível para longitude"
                         : "Nenhum campo categórico para dimensão"}
                     </p>
                   )}
                   {!hasMetricOptions && (
-                    <p className="text-sm text-amber-700">
+                    <p className="text-sm text-warning">
                       Nenhum campo numérico para métrica
                     </p>
                   )}
@@ -484,7 +484,7 @@ export function VisualizationPanel({
                     dimension &&
                     metric &&
                     !hasValidMetricData && (
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-muted-foreground">
                         Nenhum dado válido para visualizar
                       </p>
                     )}
@@ -564,10 +564,10 @@ export function VisualizationPanel({
                   </select>
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-foreground">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+                    className="h-4 w-4 rounded border-border accent-primary"
                     checked={options.showValues}
                     onChange={(event) =>
                       patchOptions({ showValues: event.target.checked })
@@ -576,10 +576,10 @@ export function VisualizationPanel({
                   Mostrar valor em cada item
                 </label>
 
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+                <label className="flex items-center gap-2 text-sm text-foreground">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+                    className="h-4 w-4 rounded border-border accent-primary"
                     checked={options.exportable}
                     onChange={(event) =>
                       patchOptions({ exportable: event.target.checked })
@@ -594,10 +594,10 @@ export function VisualizationPanel({
               <div className="space-y-4" role="tabpanel" aria-label="Estilo">
                 {showLegendControls && (
                   <>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+                        className="h-4 w-4 rounded border-border accent-primary"
                         checked={options.legend}
                         onChange={(event) =>
                           patchOptions({ legend: event.target.checked })
@@ -681,10 +681,10 @@ export function VisualizationPanel({
                   chartType === "line" ||
                   chartType === "area") && (
                   <>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+                        className="h-4 w-4 rounded border-border accent-primary"
                         checked={options.stacked}
                         onChange={(event) =>
                           patchOptions({ stacked: event.target.checked })
@@ -693,10 +693,10 @@ export function VisualizationPanel({
                       Empilhar séries
                     </label>
                     {(chartType === "line" || chartType === "area") && (
-                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <label className="flex items-center gap-2 text-sm text-foreground">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+                          className="h-4 w-4 rounded border-border accent-primary"
                           checked={options.smooth}
                           onChange={(event) =>
                             patchOptions({ smooth: event.target.checked })
@@ -713,7 +713,7 @@ export function VisualizationPanel({
         </div>
 
         {/* Chart */}
-        <div className="h-[400px] rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+        <div className="h-[400px] rounded-lg border border-border bg-muted/50/50 p-3">
           <PreviewChart
             data={data}
             chartType={chartType}

@@ -207,14 +207,14 @@ export function AddFilterDialog({
         </DialogHeader>
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </div>
         )}
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
           </div>
         ) : (
           <div className="space-y-4 py-2">
@@ -227,14 +227,14 @@ export function AddFilterDialog({
                       key={ds.id}
                       type="button"
                       onClick={() => handleSelectDataset(ds)}
-                      className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm transition hover:border-teal-200 hover:bg-teal-50/50 cursor-pointer"
+                      className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
                     >
-                      <span className="font-medium text-slate-900">{ds.table_name}</span>
-                      <span className="text-xs text-slate-500">{ds.database?.database_name}</span>
+                      <span className="font-medium text-foreground">{ds.table_name}</span>
+                      <span className="text-xs text-muted-foreground">{ds.database?.database_name}</span>
                     </button>
                   ))}
                   {relevantDatasets.length === 0 && (
-                    <p className="py-4 text-center text-xs text-slate-500">
+                    <p className="py-4 text-center text-xs text-muted-foreground">
                       Nenhum dataset encontrado. Crie uma análise vinculada a um dataset primeiro.
                     </p>
                   )}
@@ -249,21 +249,21 @@ export function AddFilterDialog({
                   <button
                     type="button"
                     onClick={() => setStep("dataset")}
-                    className="text-xs text-teal-600 hover:underline cursor-pointer"
+                    className="text-xs text-primary hover:underline cursor-pointer"
                   >
                     (trocar dataset)
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Dataset: <span className="font-medium">{selectedDataset.table_name}</span>
                 </p>
                 <div className="max-h-48 space-y-1 overflow-y-auto">
                   {loadingColumns ? (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 size={16} className="animate-spin text-slate-400" />
+                      <Loader2 size={16} className="animate-spin text-muted-foreground" />
                     </div>
                   ) : columns.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-slate-500">
+                    <p className="py-4 text-center text-xs text-muted-foreground">
                       Nenhuma coluna filtrável neste dataset.
                     </p>
                   ) : (
@@ -272,10 +272,10 @@ export function AddFilterDialog({
                         key={col.column_name}
                         type="button"
                         onClick={() => handleSelectColumn(col.column_name)}
-                        className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm transition hover:border-teal-200 hover:bg-teal-50/50 cursor-pointer"
+                        className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:bg-primary/5 cursor-pointer"
                       >
-                        <span className="font-mono text-slate-900">{col.column_name}</span>
-                        <span className="text-xs text-slate-500">{col.type}</span>
+                        <span className="font-mono text-foreground">{col.column_name}</span>
+                        <span className="text-xs text-muted-foreground">{col.type}</span>
                       </button>
                     ))
                   )}
@@ -290,12 +290,12 @@ export function AddFilterDialog({
                   <button
                     type="button"
                     onClick={() => setStep("column")}
-                    className="text-xs text-teal-600 hover:underline cursor-pointer"
+                    className="text-xs text-primary hover:underline cursor-pointer"
                   >
                     (trocar coluna)
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Dataset: <span className="font-medium">{selectedDataset.table_name}</span>
                   {" → "}
                   <span className="font-mono">{selectedColumn}</span>
@@ -314,8 +314,8 @@ export function AddFilterDialog({
                         }}
                         className={`rounded-md border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                           operator === op.value
-                            ? "border-teal-300 bg-teal-50 text-teal-700"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                            ? "border-primary/35 bg-primary/10 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:border-border"
                         }`}
                       >
                         {op.label}
@@ -327,17 +327,17 @@ export function AddFilterDialog({
                 <div className="space-y-2">
                   <Label>Valor padrão</Label>
                   {loadingDistinct ? (
-                    <div className="flex items-center gap-2 py-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                       <Loader2 size={14} className="animate-spin" />
                       Carregando valores...
                     </div>
                   ) : operator === "in" ? (
-                    <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    <div className="max-h-36 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                       {distinctValues.length > 0 ? (
                         distinctValues.map((v) => (
                           <label
                             key={v}
-                            className="flex cursor-pointer items-center gap-2 text-xs text-slate-700"
+                            className="flex cursor-pointer items-center gap-2 text-xs text-foreground"
                           >
                             <input
                               type="checkbox"
@@ -351,7 +351,7 @@ export function AddFilterDialog({
                                 }
                                 setDefaultValue(arr)
                               }}
-                              className="rounded border-slate-300"
+                              className="rounded border-border"
                             />
                             <span className="truncate">{v}</span>
                           </label>
@@ -377,7 +377,7 @@ export function AddFilterDialog({
                                     arr.splice(i, 1)
                                     setDefaultValue(arr)
                                   }}
-                                  className="text-xs text-red-500 hover:underline cursor-pointer"
+                                  className="text-xs text-destructive hover:underline cursor-pointer"
                                 >
                                   Remover
                                 </button>
@@ -390,7 +390,7 @@ export function AddFilterDialog({
                               arr.push("")
                               setDefaultValue(arr)
                             }}
-                            className="text-xs text-teal-600 hover:underline cursor-pointer"
+                            className="text-xs text-primary hover:underline cursor-pointer"
                           >
                             + Adicionar valor
                           </button>
@@ -411,7 +411,7 @@ export function AddFilterDialog({
                         }}
                         className="h-8 text-xs"
                       />
-                      <span className="self-center text-xs text-slate-500">até</span>
+                      <span className="self-center text-xs text-muted-foreground">até</span>
                       <Input
                         type="date"
                         value={Array.isArray(defaultValue) ? defaultValue[1] ?? "" : ""}
@@ -438,7 +438,7 @@ export function AddFilterDialog({
                         <select
                           value={typeof defaultValue === "string" ? defaultValue : ""}
                           onChange={(e) => setDefaultValue(e.target.value)}
-                          className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs"
+                          className="h-8 w-full rounded-md border border-border bg-card px-2 text-xs"
                         >
                           <option value="">Nenhum (mostrar todos)</option>
                           {distinctValues.map((v) => (
@@ -467,8 +467,8 @@ export function AddFilterDialog({
                       onClick={() => setScope("dashboard")}
                       className={`rounded-md border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                         scope === "dashboard"
-                          ? "border-teal-300 bg-teal-50 text-teal-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                          ? "border-primary/35 bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-border"
                       }`}
                     >
                       Dashboard
@@ -478,19 +478,19 @@ export function AddFilterDialog({
                       onClick={() => setScope([])}
                       className={`rounded-md border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                         scope !== "dashboard"
-                          ? "border-teal-300 bg-teal-50 text-teal-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                          ? "border-primary/35 bg-primary/10 text-primary"
+                          : "border-border bg-card text-muted-foreground hover:border-border"
                       }`}
                     >
                       Widgets específicos
                     </button>
                   </div>
                   {scope !== "dashboard" && (
-                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                    <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
                       {analysesInDashboard.map((a) => (
                         <label
                           key={a.id}
-                          className="flex cursor-pointer items-center gap-2 text-xs text-slate-700"
+                          className="flex cursor-pointer items-center gap-2 text-xs text-foreground"
                         >
                           <input
                             type="checkbox"
@@ -502,13 +502,13 @@ export function AddFilterDialog({
                                 setScopeWidgetIds(scopeWidgetIds.filter((id) => id !== a.id))
                               }
                             }}
-                            className="rounded border-slate-300"
+                            className="rounded border-border"
                           />
                           <span className="truncate">{a.name}</span>
                         </label>
                       ))}
                       {analysesInDashboard.length === 0 && (
-                        <p className="py-2 text-center text-xs text-slate-500">
+                        <p className="py-2 text-center text-xs text-muted-foreground">
                           Nenhuma análise neste painel.
                         </p>
                       )}
@@ -528,7 +528,6 @@ export function AddFilterDialog({
             <Button
               onClick={handleAdd}
               disabled={!isValid}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               Adicionar filtro
             </Button>

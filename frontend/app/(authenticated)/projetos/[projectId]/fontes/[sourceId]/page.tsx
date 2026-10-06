@@ -20,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Input } from "@/components/ui/input"
 import {
   getSource,
@@ -56,7 +57,8 @@ interface DatasetsResponse {
 export default function FonteDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const sourceId = Number(params.id)
+  const projectId = String(params.projectId ?? "")
+  const sourceId = Number(params.sourceId)
 
   const [source, setSource] = useState<SourceDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -122,7 +124,7 @@ export default function FonteDetailPage() {
     setDeleteError(null)
     try {
       await deleteSource(sourceId)
-      router.push("/fontes")
+      router.push(`/projetos/${projectId}/fontes`)
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -146,7 +148,7 @@ export default function FonteDetailPage() {
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-center p-12">
-          <Loader2 size={20} className="animate-spin text-slate-400" />
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
         </div>
       </div>
     )
@@ -155,7 +157,7 @@ export default function FonteDetailPage() {
   if (error || !source) {
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle size={16} />
           {error || "Fonte não encontrada."}
         </div>
@@ -172,8 +174,8 @@ export default function FonteDetailPage() {
       {/* Header */}
       <section>
         <Link
-          href="/fontes"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+          href={`/projetos/${projectId}/fontes`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={14} />
           Voltar às Fontes
@@ -181,14 +183,14 @@ export default function FonteDetailPage() {
 
         <div className="mt-3 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Icon size={20} />
             </div>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                 {source.database_name}
               </h1>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {typeConfig.label}
               </p>
             </div>
@@ -196,10 +198,9 @@ export default function FonteDetailPage() {
 
           <div className="flex items-center gap-2">
             {!isFileSource && (
-              <Link href={`/fontes/${sourceId}/preparar`}>
+              <Link href={`/projetos/${projectId}/fontes/${sourceId}/preparar`}>
                 <Button
                   size="sm"
-                  className="bg-teal-600 text-white hover:bg-teal-700"
                 >
                   <Code2 size={14} />
                   Preparar
@@ -210,7 +211,7 @@ export default function FonteDetailPage() {
               variant="outline"
               size="sm"
               onClick={() => setDeleteOpen(true)}
-              className="text-slate-500 hover:text-red-600"
+              className="text-muted-foreground hover:text-destructive"
             >
               <Trash2 size={14} />
               Excluir
@@ -222,28 +223,21 @@ export default function FonteDetailPage() {
       {/* File source placeholder */}
       {isFileSource && (
         <section className="mt-8">
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-              <FileStack size={24} className="text-slate-400" />
-            </div>
-            <h2 className="mt-4 text-sm font-semibold text-slate-900">
-              Preparação de dados
-            </h2>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
-              O upload e a preparação de arquivos {typeConfig.label} serão
-              disponibilizados em uma próxima versão.
-            </p>
-          </div>
+          <EmptyState
+            icon={FileStack}
+            title="Preparação de dados"
+            description={`O upload e a preparação de arquivos ${typeConfig.label} serão disponibilizados em uma próxima versão.`}
+          />
         </section>
       )}
 
       {/* Tabelas disponíveis */}
       {!isFileSource && (
         <section className="mt-8">
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-foreground">
             Tabelas disponíveis
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Selecione uma tabela para preparar e publicar como dataset.
           </p>
 
@@ -251,7 +245,7 @@ export default function FonteDetailPage() {
           <div className="mt-4 relative">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               placeholder="Buscar tabela..."
@@ -264,22 +258,22 @@ export default function FonteDetailPage() {
           {/* Schemas */}
           {schemasLoading ? (
             <div className="mt-4 flex items-center justify-center p-8">
-              <Loader2 size={20} className="animate-spin text-slate-400" />
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
             </div>
           ) : schemasError ? (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <AlertCircle size={16} />
               {schemasError}
             </div>
           ) : schemas.length === 0 ? (
-            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                <Inbox size={20} className="text-slate-400" />
+            <div className="mt-4 flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-8 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <Inbox size={20} className="text-muted-foreground" />
               </div>
-              <h3 className="mt-3 text-sm font-semibold text-slate-900">
+              <h3 className="mt-3 text-sm font-semibold text-foreground">
                 Nenhum schema encontrado
               </h3>
-              <p className="mt-1 max-w-sm text-xs text-slate-500">
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
                 Esta fonte de dados não possui schemas acessíveis.
               </p>
             </div>
@@ -296,67 +290,67 @@ export default function FonteDetailPage() {
                 return (
                   <div
                     key={schema}
-                    className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+                    className="rounded-lg border border-border bg-card overflow-hidden"
                   >
                     <button
                       type="button"
                       onClick={() => toggleSchema(schema)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors cursor-pointer"
                     >
                       <FolderOpen
                         size={16}
-                        className="shrink-0 text-teal-600"
+                        className="shrink-0 text-primary"
                       />
-                      <span className="text-sm font-medium text-slate-900">
+                      <span className="text-sm font-medium text-foreground">
                         {schema}
                       </span>
                       {tables && (
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-muted-foreground">
                           {tables.length} tabela{tables.length !== 1 ? "s" : ""}
                         </span>
                       )}
                       <ChevronRight
                         size={14}
-                        className={`ml-auto shrink-0 text-slate-400 transition-transform ${
+                        className={`ml-auto shrink-0 text-muted-foreground transition-transform ${
                           isExpanded ? "rotate-90" : ""
                         }`}
                       />
                     </button>
 
                     {isExpanded && (
-                      <div className="border-t border-slate-100">
+                      <div className="border-t border-border">
                         {isLoading ? (
                           <div className="flex items-center justify-center p-6">
                             <Loader2
                               size={16}
-                              className="animate-spin text-slate-400"
+                              className="animate-spin text-muted-foreground"
                             />
                           </div>
                         ) : filtered && filtered.length === 0 ? (
-                          <div className="px-4 py-6 text-center text-xs text-slate-400">
+                          <div className="px-4 py-6 text-center text-xs text-muted-foreground">
                             {tables && tables.length === 0
                               ? "Nenhuma tabela neste schema."
                               : "Nenhuma tabela corresponde à busca."}
                           </div>
                         ) : (
                           filtered && (
-                            <div className="divide-y divide-slate-50">
+                            <div className="divide-y divide-border">
                               {filtered.map((table) => (
                                 <Link
                                   key={table.name}
-                                   href={`/fontes/${sourceId}/preparar?table=${encodeURIComponent(
+                                   href={`/projetos/${projectId}/fontes/${sourceId}/preparar?table=${encodeURIComponent(
                                      `${schema}__${table.name}`
                                    )}`}
-                                  className="flex items-center gap-3 px-4 py-2.5 pl-10 hover:bg-teal-50/50 transition-colors"
+                                  className="flex items-center gap-3 px-4 py-2.5 pl-10 hover:bg-primary/5 transition-colors"
                                 >
                                   <Table2
                                     size={14}
-                                    className="shrink-0 text-slate-400"
+                                    className="shrink-0 text-muted-foreground"
                                   />
-                                  <span className="text-sm text-slate-700">
+                                  <span className="text-sm text-foreground">
                                     {table.name}
                                   </span>
-                                  <span className="ml-auto text-xs text-slate-400">
+                                  <span className="ml-auto text-xs text-muted-foreground">
                                     {table.type}
                                   </span>
                                 </Link>
@@ -377,31 +371,31 @@ export default function FonteDetailPage() {
       {/* Datasets publicados */}
       {!isFileSource && (
         <section className="mt-8">
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-foreground">
             Datasets publicados
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Conjuntos de dados já publicados a partir desta fonte.
           </p>
 
           {datasetsLoading ? (
             <div className="mt-4 flex items-center justify-center p-8">
-              <Loader2 size={20} className="animate-spin text-slate-400" />
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
             </div>
           ) : datasetsError ? (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               <AlertCircle size={16} />
               {datasetsError}
             </div>
           ) : datasets.length === 0 ? (
-            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                <Inbox size={20} className="text-slate-400" />
+            <div className="mt-4 flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-8 text-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <Inbox size={20} className="text-muted-foreground" />
               </div>
-              <h3 className="mt-3 text-sm font-semibold text-slate-900">
+              <h3 className="mt-3 text-sm font-semibold text-foreground">
                 Nenhum dataset publicado
               </h3>
-              <p className="mt-1 max-w-sm text-xs text-slate-500">
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
                 Selecione uma tabela acima e publique como dataset para
                 disponibilizar no Explorar.
               </p>
@@ -411,18 +405,18 @@ export default function FonteDetailPage() {
               {datasets.map((dataset) => (
                 <Link
                   key={dataset.id}
-                  href={`/explorar?datasetId=${dataset.id}`}
+                  href={`/projetos/${projectId}/explorar?datasetId=${dataset.id}`}
                 >
-                  <div className="group h-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md cursor-pointer">
+                  <div className="group h-full rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50 text-slate-600">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
                         <Table2 size={16} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-slate-900 truncate">
+                        <h3 className="text-sm font-semibold text-foreground truncate">
                           {datasetDisplayName(dataset)}
                         </h3>
-                        <p className="text-xs text-slate-500 truncate">
+                        <p className="text-xs text-muted-foreground truncate">
                           {dataset.table_name}
                           {dataset.schema ? ` · ${dataset.schema}` : ""}
                         </p>

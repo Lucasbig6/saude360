@@ -94,11 +94,11 @@ export function PublishDatasetDialog({
 
         {success ? (
           <div className="space-y-3 py-2">
-            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
               <CheckCircle size={16} />
               {successMessage}
             </div>
-            <p className="text-xs text-slate-500">{successDetail}</p>
+            <p className="text-xs text-muted-foreground">{successDetail}</p>
           </div>
         ) : (
           <>
@@ -129,12 +129,12 @@ export function PublishDatasetDialog({
                 />
               </div>
               {footerInfo && (
-                <p className="text-xs text-slate-400">{footerInfo}</p>
+                <p className="text-xs text-muted-foreground">{footerInfo}</p>
               )}
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 <AlertCircle size={16} />
                 {error}
               </div>
@@ -150,7 +150,6 @@ export function PublishDatasetDialog({
             <Button
               onClick={handlePublish}
               disabled={!name.trim() || publishing}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               {publishing && <Loader2 size={14} className="animate-spin" />}
               Publicar

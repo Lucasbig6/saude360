@@ -123,7 +123,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <section className="border-b border-slate-200/80 last:border-b-0">
+    <section className="border-b border-border/80 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
         <button
           type="button"
@@ -134,15 +134,15 @@ function Section({
           <ChevronDown
             size={15}
             className={cn(
-              "shrink-0 text-slate-400 transition-transform duration-200",
+              "shrink-0 text-muted-foreground transition-transform duration-200",
               open ? "rotate-0" : "-rotate-90"
             )}
           />
-          <h2 className="text-sm font-semibold tracking-tight text-slate-800">
+          <h2 className="text-sm font-semibold tracking-tight text-foreground">
             {title}
           </h2>
           {typeof count === "number" && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
               {count}
             </span>
           )}
@@ -166,11 +166,11 @@ function EmptyInline({
   actionHref: string
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-6 text-center">
-      <p className="text-sm font-medium text-slate-800">{title}</p>
-      <p className="mt-1 text-xs text-slate-500">{description}</p>
+    <div className="rounded-lg border border-dashed border-border bg-muted/50/50 px-4 py-6 text-center">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       <Link href={actionHref} className="mt-3 inline-block">
-        <Button size="sm" variant="outline" className="bg-white">
+        <Button size="sm" variant="outline" className="bg-card">
           {actionLabel}
         </Button>
       </Link>
@@ -196,17 +196,17 @@ function EntryCard({
   createLabel: string
 }) {
   return (
-    <div className="group flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-teal-300 hover:shadow-md">
+    <div className="group flex h-full flex-col rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/40">
       <div className="flex items-start justify-between gap-2">
         <span
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
             iconClassName
           )}
         >
           {icon}
         </span>
-        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-teal-600">
+        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M9 6l6 6-6 6"
@@ -218,22 +218,22 @@ function EntryCard({
           </svg>
         </span>
       </div>
-      <h3 className="mt-4 text-base font-semibold tracking-tight text-slate-900">
+      <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
         {title}
       </h3>
-      <p className="mt-1 text-sm leading-relaxed text-slate-500">
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <Link
           href={href}
-          className="text-xs font-medium text-teal-700 transition-colors hover:text-teal-800"
+          className="text-xs font-medium text-primary transition-colors hover:text-primary"
         >
           Ver todos →
         </Link>
         <Link
           href={createHref}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Plus size={12} />
           {createLabel}
@@ -267,17 +267,17 @@ function ListRow({
       <span
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-          iconClassName ?? "bg-slate-100 text-slate-600"
+          iconClassName ?? "bg-muted text-muted-foreground"
         )}
       >
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-slate-900">
+        <span className="block truncate text-sm font-medium text-foreground">
           {title}
         </span>
         {meta && (
-          <span className="mt-0.5 block truncate text-xs text-slate-500">
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
             {meta}
           </span>
         )}
@@ -285,8 +285,8 @@ function ListRow({
       {badge && (
         <span
           className={cn(
-            "hidden shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium sm:inline-flex",
-            badgeClassName ?? "bg-slate-100 text-slate-600"
+            "hidden shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium sm:inline-flex",
+            badgeClassName ?? "bg-muted text-muted-foreground"
           )}
         >
           {badge}
@@ -300,10 +300,10 @@ function ListRow({
     return (
       <Link
         href={href}
-        className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-slate-50"
+        className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50"
       >
         {content}
-        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-teal-600">
+        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M9 6l6 6-6 6"
@@ -319,7 +319,7 @@ function ListRow({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-slate-50">
+    <div className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50">
       {content}
       {right}
     </div>
@@ -344,7 +344,7 @@ function RecentCard({
   return (
     <Link
       href={href}
-      className="group flex h-full flex-col rounded-lg border border-slate-200/60 bg-slate-50/60 p-3 transition-colors hover:border-teal-300 hover:bg-white"
+      className="group flex h-full flex-col rounded-lg border border-border/60 bg-muted/50/60 p-3 transition-colors hover:border-primary/40 hover:bg-card"
     >
       <div className="flex items-start justify-between gap-2">
         <span
@@ -355,16 +355,16 @@ function RecentCard({
         >
           {icon}
         </span>
-        <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200/70">
+        <span className="rounded-md bg-card/80 px-1.5 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-border/70">
           {badge}
         </span>
       </div>
-      <h3 className="mt-2 line-clamp-2 text-[13px] font-semibold tracking-tight text-slate-900">
+      <h3 className="mt-2 line-clamp-2 text-sm font-semibold tracking-tight text-foreground">
         {title}
       </h3>
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="text-[11px] text-slate-500">{timeLabel}</span>
-        <span className="shrink-0 text-slate-300 transition-colors group-hover:text-teal-600">
+        <span className="text-xs text-muted-foreground">{timeLabel}</span>
+        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M9 6l6 6-6 6"
@@ -557,22 +557,22 @@ export default function Home() {
   return (
     <>
     {/* Hero: intro + busca */}
-    <div className="border-b">
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 bg-[url('/images/hero.png')] bg-cover bg-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-600">
+    <div className="border-b border-border bg-card">
+      <section className="mx-auto max-w-7xl px-6 py-12">
+        <p className="text-xs font-semibold uppercase text-primary">
           Saude360
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px]">
+        <h1 className="mt-1 text-2xl font-semibold text-foreground">
           O que você deseja analisar?
         </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Pesquise dashboards, gráficos, análises ou dados.
         </p>
 
-        <div className="relative mt-4 max-w-2xl">
+        <div className="relative mt-5 max-w-2xl">
           <Search
             size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             type="search"
@@ -580,14 +580,14 @@ export default function Home() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar dashboards, gráficos, análises ou dados..."
             aria-label="Pesquisar na plataforma"
-            className="h-10 rounded-lg border-slate-200 bg-white pl-9 pr-5 text-sm shadow-sm placeholder:text-slate-400 focus-visible:ring-teal-500/40"
+            className="h-10 rounded-lg border-border bg-background pl-9 pr-5 text-sm placeholder:text-muted-foreground focus-visible:ring-ring/60"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Limpar busca"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               Limpar
             </button>
@@ -603,7 +603,7 @@ export default function Home() {
           <EntryCard
             href="/paineis"
             icon={<LayoutDashboard size={20} />}
-            iconClassName="bg-teal-100 text-teal-700"
+            iconClassName="bg-primary/15 text-primary"
             title="Dashboards"
             description="Painéis para acompanhamento de indicadores."
             createHref="/paineis"
@@ -612,7 +612,7 @@ export default function Home() {
           <EntryCard
             href="/analises"
             icon={<BarChart3 size={20} />}
-            iconClassName="bg-purple-100 text-purple-700"
+            iconClassName="bg-chart-4/15 text-chart-4"
             title="Análises e gráficos"
             description="Consultas, tabelas analíticas e visualizações salvas."
             createHref="/explorar"
@@ -621,7 +621,7 @@ export default function Home() {
           <EntryCard
             href="/explorar"
             icon={<Database size={20} />}
-            iconClassName="bg-sky-100 text-sky-700"
+            iconClassName="bg-info/15 text-info"
             title="Conjuntos de dados"
             description="Dados prontos para exploração e análise."
             createHref="/fontes"
@@ -632,25 +632,25 @@ export default function Home() {
 
       {loadingDomain ? (
         <section className="pt-6" aria-label="Carregando painéis e análises">
-          <div className="flex items-center gap-2 py-6 text-sm text-slate-500">
-            <Loader2 size={16} className="animate-spin text-teal-600" />
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 size={16} className="animate-spin text-primary" />
             Carregando painéis e análises...
           </div>
         </section>
       ) : domainError ? (
         <section className="pt-6" aria-label="Erro ao carregar">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-4 text-sm text-warning">
             {domainError}
           </div>
         </section>
       ) : showSearchResults ? (
         <section className="pt-6" aria-label="Resultados da busca">
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 Resultados para “{trimmedQuery}”
               </h2>
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
                 {searchHits.length}
               </span>
             </div>
@@ -666,7 +666,7 @@ export default function Home() {
               />
             </div>
           ) : (
-            <div className="mt-2 divide-y divide-slate-100">
+            <div className="mt-2 divide-y divide-border">
               {searchHits.map((hit) => {
                 const Icon =
                   hit.kind === "dashboard"
@@ -681,12 +681,12 @@ export default function Home() {
 
                 const iconCls =
                   hit.kind === "dataset"
-                    ? "bg-sky-50 text-sky-700"
+                    ? "bg-info/10 text-info"
                     : hit.kind === "chart"
-                      ? "bg-purple-50 text-purple-700"
+                      ? "bg-chart-4/10 text-chart-4"
                       : hit.kind === "dashboard"
-                        ? "bg-teal-50 text-teal-700"
-                        : "bg-slate-100 text-slate-700"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-foreground"
 
                 return (
                   <ListRow
@@ -704,16 +704,16 @@ export default function Home() {
           )}
         </section>
       ) : (
-        <div className="mt-6 border-t border-slate-200 pt-2">
+        <div className="mt-6 border-t border-border pt-2">
           {/* Projetos — resumo da atividade */}
-          <section aria-label="Projetos" className="border-b border-slate-200/80">
+          <section aria-label="Projetos" className="border-b border-border/80">
             <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-              <h2 className="text-sm font-semibold tracking-tight text-slate-800">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
                 Projetos
               </h2>
               <Link
                 href="/projetos"
-                className="text-xs font-medium text-teal-700 transition-colors hover:text-teal-800"
+                className="text-xs font-medium text-primary transition-colors hover:text-primary"
               >
                 Ver todos os projetos →
               </Link>
@@ -721,28 +721,28 @@ export default function Home() {
 
             {projects !== null &&
               (recentProjects.length === 0 ? (
-                <p className="pb-3.5 text-xs text-slate-500">
+                <p className="pb-3.5 text-xs text-muted-foreground">
                   Nenhum projeto ainda.{" "}
                   <Link
                     href="/projetos"
-                    className="font-medium text-teal-700 transition-colors hover:text-teal-800"
+                    className="font-medium text-primary transition-colors hover:text-primary"
                   >
                     Criar um projeto
                   </Link>{" "}
                   para organizar análises, gráficos e painéis.
                 </p>
               ) : (
-                <div className="divide-y divide-slate-100 pb-1">
+                <div className="divide-y divide-border pb-1">
                   {recentProjects.map((project) => (
                     <ListRow
                       key={project.id}
                       href={`/projetos/${project.id}`}
                       icon={<Hospital size={15} />}
-                      iconClassName="bg-teal-50 text-teal-700"
+                      iconClassName="bg-primary/10 text-primary"
                       title={project.name}
                       meta={project.description || undefined}
                       right={
-                        <span className="shrink-0 text-xs text-slate-400">
+                        <span className="shrink-0 text-xs text-muted-foreground">
                           {formatRelative(project.updatedAt)}
                         </span>
                       }

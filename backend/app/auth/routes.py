@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.auth.dependencies import get_current_token, validate_access_token
+from app.auth.dependencies import (
+    get_created_by,
+    get_current_token,
+    validate_access_token,
+)
 from app.superset import auth as superset_auth
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -69,9 +74,19 @@ async def refresh(request: RefreshRequest) -> dict[str, Any]:
 
 
 @router.get("/me")
-async def get_me(token: str = Depends(get_current_token)) -> dict[str, Any]:
+async def get_me(
+    token: str = Depends(get_current_token),
+    user_id: uuid.UUID | None = Depends(get_created_by),
+) -> dict[str, Any]:
+    """Perfil do usuário autenticado.
+
+    ``id`` é o uuid local do usuário (``users.id``) — ``None`` quando ainda
+    não existe registro local para o ``sub`` do token. É o que permite ao
+    frontend separar "meus" itens dos de terceiros.
+    """
     claims = validate_access_token(token)
     return {
+        "id": str(user_id) if user_id is not None else None,
         "sub": claims.get("sub"),
         "type": claims.get("type"),
         "fresh": claims.get("fresh"),

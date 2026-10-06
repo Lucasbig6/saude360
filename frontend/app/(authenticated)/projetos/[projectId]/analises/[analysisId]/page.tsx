@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/shared/empty-state"
 import {
   Table,
   TableBody,
@@ -46,9 +47,9 @@ function formatDate(iso: string): string {
 export default function AnaliseDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ projectId: string; analysisId: string }>
 }) {
-  const { id } = use(params)
+  const { projectId, analysisId } = use(params)
 
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [loadingAnalysis, setLoadingAnalysis] = useState(true)
@@ -60,7 +61,7 @@ export default function AnaliseDetailPage({
     if (loadedRef.current) return
     loadedRef.current = true
 
-    getAnalysis(id)
+    getAnalysis(analysisId)
       .then((value) => {
         setAnalysis(value)
         setLoadingAnalysis(false)
@@ -73,7 +74,7 @@ export default function AnaliseDetailPage({
         )
         setLoadingAnalysis(false)
       })
-  }, [id, loadTick])
+  }, [analysisId, loadTick])
 
   function handleRetryLoad() {
     loadedRef.current = false
@@ -139,15 +140,15 @@ export default function AnaliseDetailPage({
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <Link
-          href="/analises"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+          href={`/projetos/${projectId}/analises`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={14} />
           Minhas Análises
         </Link>
 
-        <div className="mt-8 flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12">
-          <Loader2 size={20} className="animate-spin text-slate-400" />
+        <div className="mt-8 flex items-center justify-center rounded-lg border border-border bg-card p-12">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
         </div>
       </div>
     )
@@ -157,15 +158,15 @@ export default function AnaliseDetailPage({
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <Link
-          href="/analises"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+          href={`/projetos/${projectId}/analises`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={14} />
           Minhas Análises
         </Link>
 
-        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-          <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-800">
+        <div className="mt-8 rounded-lg border border-warning/30 bg-warning/10 px-6 py-8 text-center">
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-warning">
             <AlertCircle size={16} />
             {analysisError}
           </div>
@@ -174,7 +175,7 @@ export default function AnaliseDetailPage({
               <RefreshCw size={13} />
               Tentar novamente
             </Button>
-            <Link href="/analises">
+            <Link href={`/projetos/${projectId}/analises`}>
               <Button variant="outline" size="sm">
                 Minhas Análises
               </Button>
@@ -189,27 +190,24 @@ export default function AnaliseDetailPage({
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <Link
-          href="/analises"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+          href={`/projetos/${projectId}/analises`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft size={14} />
           Minhas Análises
         </Link>
 
-        <div className="mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-            <FileChartColumn size={24} className="text-slate-400" />
-          </div>
-          <h2 className="mt-4 text-sm font-semibold text-slate-900">
-            Análise não encontrada
-          </h2>
-          <p className="mt-1 max-w-sm text-sm text-slate-500">
-            Esta análise pode ter sido excluída ou o link está incorreto.
-          </p>
-          <Link href="/analises" className="mt-6">
-            <Button variant="outline">Voltar para Minhas Análises</Button>
-          </Link>
-        </div>
+        <EmptyState
+          className="mt-8"
+          icon={FileChartColumn}
+          title="Análise não encontrada"
+          description="Esta análise pode ter sido excluída ou o link está incorreto."
+          action={
+            <Link href={`/projetos/${projectId}/analises`}>
+              <Button variant="outline">Voltar para Minhas Análises</Button>
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -220,8 +218,8 @@ export default function AnaliseDetailPage({
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Navigation */}
       <Link
-        href="/analises"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+        href={`/projetos/${projectId}/analises`}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
       >
         <ArrowLeft size={14} />
         Minhas Análises
@@ -230,15 +228,15 @@ export default function AnaliseDetailPage({
       {/* Header */}
       <section className="mt-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Icon size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               {analysis.name}
             </h1>
             {analysis.description && (
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {analysis.description}
               </p>
             )}
@@ -246,24 +244,24 @@ export default function AnaliseDetailPage({
         </div>
       </section>
 
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
       {/* Metadata */}
-      <section className="mt-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Detalhes</h2>
+      <section className="p-6">
+        <h2 className="text-sm font-semibold text-foreground">Detalhes</h2>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-medium text-slate-500">Tipo</p>
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-900">
-                <Icon size={14} className="text-teal-600" />
-                {chartTypeLabel[analysis.chartType]}
-              </p>
-            </div>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Tipo</p>
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-foreground">
+              <Icon size={14} className="text-primary" />
+              {chartTypeLabel[analysis.chartType]}
+            </p>
+          </div>
 
             {analysis.dimension && (
               <div>
-                <p className="text-xs font-medium text-slate-500">Dimensão</p>
-                <p className="mt-1 text-sm font-mono text-slate-900">
+                <p className="text-xs font-medium text-muted-foreground">Dimensão</p>
+                <p className="mt-1 text-sm font-mono text-foreground">
                   {analysis.dimension}
                 </p>
               </div>
@@ -271,43 +269,41 @@ export default function AnaliseDetailPage({
 
             {analysis.metric && (
               <div>
-                <p className="text-xs font-medium text-slate-500">Métrica</p>
-                <p className="mt-1 text-sm font-mono text-slate-900">
+                <p className="text-xs font-medium text-muted-foreground">Métrica</p>
+                <p className="mt-1 text-sm font-mono text-foreground">
                   {analysis.metric}
                 </p>
               </div>
             )}
 
             <div>
-              <p className="text-xs font-medium text-slate-500">Criado em</p>
-              <p className="mt-1 text-sm text-slate-900">
+              <p className="text-xs font-medium text-muted-foreground">Criado em</p>
+              <p className="mt-1 text-sm text-foreground">
                 {formatDate(analysis.createdAt)}
               </p>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs font-medium text-muted-foreground">
                 Atualizado em
               </p>
-              <p className="mt-1 text-sm text-slate-900">
+              <p className="mt-1 text-sm text-foreground">
                 {formatDate(analysis.updatedAt)}
               </p>
             </div>
           </div>
-        </div>
       </section>
 
       {/* SQL */}
-      <section className="mt-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
+            <h2 className="text-sm font-semibold text-foreground">
               Consulta SQL
             </h2>
             <Button variant="outline" size="sm" onClick={handleCopySql}>
               {copied ? (
                 <>
-                  <CheckCircle size={14} className="text-teal-600" />
+                  <CheckCircle size={14} className="text-primary" />
                   Copiado
                 </>
               ) : (
@@ -319,17 +315,15 @@ export default function AnaliseDetailPage({
             </Button>
           </div>
 
-          <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 font-mono text-sm text-slate-700">
+          <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-4 font-mono text-sm text-foreground">
             {analysis.sql}
           </pre>
-        </div>
       </section>
 
       {/* Visualization */}
-      <section className="mt-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
+            <h2 className="text-sm font-semibold text-foreground">
               Visualização
             </h2>
             {analysis.databaseId ? (
@@ -353,8 +347,8 @@ export default function AnaliseDetailPage({
 
           <div className="mt-4">
             {executing && (
-              <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-12">
-                <div className="flex items-center gap-3 text-sm text-slate-500">
+              <div className="flex items-center justify-center rounded-lg border border-border bg-muted/50 p-12">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <Loader2 size={20} className="animate-spin" />
                   Executando consulta...
                 </div>
@@ -362,16 +356,16 @@ export default function AnaliseDetailPage({
             )}
 
             {executeError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-6">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-600">
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-xs font-bold text-destructive">
                     !
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-red-800">
+                    <p className="text-sm font-medium text-destructive">
                       Erro ao executar consulta
                     </p>
-                    <p className="mt-1 text-sm text-red-600">{executeError}</p>
+                    <p className="mt-1 text-sm text-destructive">{executeError}</p>
                   </div>
                 </div>
               </div>
@@ -380,14 +374,14 @@ export default function AnaliseDetailPage({
             {!executing && !executeError && result && (
               <>
                 {analysis.chartType === "table" ? (
-                  <div className="max-h-[500px] overflow-auto rounded-lg border border-slate-200">
+                  <div className="max-h-[500px] overflow-auto rounded-lg border border-border">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-b-2 border-b-slate-300 hover:bg-slate-50">
+                        <TableRow className="border-b-2 border-b-border hover:bg-muted/50">
                           {Object.keys(result[0] ?? {}).map((col) => (
                             <TableHead
                               key={col}
-                              className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                              className="bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                             >
                               {col}
                             </TableHead>
@@ -396,11 +390,11 @@ export default function AnaliseDetailPage({
                       </TableHeader>
                       <TableBody>
                         {result.map((row, i) => (
-                          <TableRow key={i} className="even:bg-slate-50/50">
+                          <TableRow key={i} className="even:bg-muted/50/50">
                             {Object.keys(result[0] ?? {}).map((col) => (
                               <TableCell
                                 key={col}
-                                className="px-4 py-3 text-sm text-slate-700"
+                                className="px-4 py-3 text-sm text-foreground"
                               >
                                 {row[col] === null || row[col] === undefined
                                   ? "\u2014"
@@ -413,7 +407,7 @@ export default function AnaliseDetailPage({
                     </Table>
                   </div>
                 ) : (
-                  <div className="h-[400px] rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                  <div className="h-[400px] rounded-lg border border-border bg-muted/50/50 p-3">
                     <PreviewChart
                       data={result}
                       chartType={analysis.chartType}
@@ -428,15 +422,15 @@ export default function AnaliseDetailPage({
             )}
 
             {!executing && !executeError && !result && !analysis.databaseId && (
-              <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-                <p className="text-sm text-slate-500">
+              <div className="flex items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 p-12 text-center">
+                <p className="text-sm text-muted-foreground">
                   Não foi possível re-executar a consulta automaticamente.
                 </p>
               </div>
             )}
           </div>
-        </div>
       </section>
+      </div>
     </div>
   )
 }

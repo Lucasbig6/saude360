@@ -106,8 +106,8 @@ export function EditDashboardInfoDialog({
                 className={cn(
                   "flex-1 rounded-lg border px-3 py-2 text-sm transition",
                   theme === "light"
-                    ? "border-teal-500 bg-teal-50 text-teal-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:border-border"
                 )}
               >
                 Claro
@@ -118,8 +118,8 @@ export function EditDashboardInfoDialog({
                 className={cn(
                   "flex-1 rounded-lg border px-3 py-2 text-sm transition",
                   theme === "dark"
-                    ? "border-teal-500 bg-teal-50 text-teal-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:border-border"
                 )}
               >
                 Escuro
@@ -127,12 +127,12 @@ export function EditDashboardInfoDialog({
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={showBrand}
               onChange={(e) => setShowBrand(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 accent-teal-600"
+              className="h-4 w-4 rounded border-border accent-primary"
             />
              Exibir marca Saude360
           </label>
@@ -145,7 +145,6 @@ export function EditDashboardInfoDialog({
           <Button
             onClick={handleSave}
             disabled={!name.trim()}
-            className="bg-teal-600 text-white hover:bg-teal-700"
           >
             Salvar
           </Button>

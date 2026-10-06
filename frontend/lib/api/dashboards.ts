@@ -221,6 +221,7 @@ export function toDashboard(raw: unknown): Dashboard {
     filters: toFilters(value.filters),
     appearance: toAppearance(value.appearance),
     projectId: typeof value.projectId === "string" ? value.projectId : null,
+    createdBy: typeof value.createdBy === "string" ? value.createdBy : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   }

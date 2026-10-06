@@ -1,11 +1,9 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { use, useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
-  ArrowLeft,
   BarChart3,
   Inbox,
   Loader2,
@@ -14,22 +12,16 @@ import {
   Search,
   Trash2,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/shared/empty-state"
+import { PageHeader } from "@/components/shared/page-header"
 import { cn } from "@/lib/utils"
 import type { Analysis } from "@/lib/types/analysis"
 import { chartTypeLabel, chartTypeIcon } from "@/lib/types/charts"
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
 import { AddToDashboardDialog } from "@/components/dashboard/add-to-dashboard-dialog"
 import { getAnalyses, deleteAnalysis } from "@/lib/api/analyses"
-import { getProjects } from "@/lib/api/projects"
-import type { Project } from "@/lib/types/project"
-import {
-  ProjectFilter,
-  projectFilterHref,
-  projectFilterLabel,
-  readProjectFilter,
-  type ProjectFilterValue,
-} from "@/components/project/project-filter"
 import { ApiError } from "@/lib/api"
 
 function formatDate(iso: string): string {
@@ -46,11 +38,7 @@ function formatDate(iso: string): string {
   }
 }
 
-function AnalisesContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const projectFilter = readProjectFilter(searchParams.get("project"))
-
+function AnalisesContent({ projectId }: { projectId: string }) {
   // Chave derivada: "carregando" = ausência de resultado para a chave atual
   // (escopo de projeto + recarga), evitando setState síncrono no efeito.
   const [analysesLoad, setAnalysesLoad] = useState<{
@@ -59,27 +47,21 @@ function AnalisesContent() {
     error: string | null
   } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [projects, setProjects] = useState<Project[] | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Analysis | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [addToDashboardTarget, setAddToDashboardTarget] =
     useState<Analysis | null>(null)
 
-  const loadKey = `${projectFilter}#${reloadKey}`
+  const loadKey = `${projectId}#${reloadKey}`
 
   useEffect(() => {
     let cancelled = false
-    const byProject = projectFilter !== "all" && projectFilter !== "none"
 
-    getAnalyses(byProject ? projectFilter : undefined)
+    getAnalyses(projectId)
       .then((list) => {
         if (cancelled) return
-        // "none" não tem equivalente na API -> filtrado aqui.
-        const items =
-          projectFilter === "none"
-            ? list.filter((item) => item.projectId === null)
-            : list
+        const items = list
         setAnalysesLoad({ key: loadKey, items, error: null })
       })
       .catch((err) => {
@@ -97,22 +79,7 @@ function AnalisesContent() {
     return () => {
       cancelled = true
     }
-  }, [loadKey, projectFilter])
-
-  useEffect(() => {
-    let cancelled = false
-    getProjects()
-      .then((list) => {
-        if (!cancelled) setProjects(list)
-      })
-      .catch(() => {
-        // O filtro continua funcional sem a lista de nomes.
-        if (!cancelled) setProjects([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  }, [loadKey, projectId])
 
   const currentLoad = analysesLoad?.key === loadKey ? analysesLoad : null
   const loadError = currentLoad?.error ?? null
@@ -121,12 +88,6 @@ function AnalisesContent() {
 
   function handleRetry() {
     setReloadKey((key) => key + 1)
-  }
-
-  function handleFilterChange(value: ProjectFilterValue) {
-    router.replace(projectFilterHref("/analises", value, searchParams), {
-      scroll: false,
-    })
   }
 
   function patchItems(updater: (items: Analysis[]) => Analysis[]) {
@@ -178,53 +139,52 @@ function AnalisesContent() {
           return (
             <div
               key={analysis.id}
-              className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
+              className="group rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/40"
             >
               <div className="flex items-start justify-between">
                 <div
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-lg",
                     isChart
-                      ? "bg-purple-50 text-purple-700"
-                      : "bg-teal-50 text-teal-700"
+                      ? "bg-chart-4/10 text-chart-4"
+                      : "bg-primary/10 text-primary"
                   )}
                 >
                   <Icon size={18} />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+                  <Badge
+                    className={
                       isChart
-                        ? "bg-purple-50 text-purple-700"
-                        : "bg-teal-50 text-teal-700"
-                    )}
+                        ? "bg-chart-4/10 text-chart-4"
+                        : "bg-primary/10 text-primary"
+                    }
                   >
                     {kindLabel(analysis)}
-                  </span>
-                  <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                  </Badge>
+                  <Badge variant="secondary">
                     {chartTypeLabel[analysis.chartType]}
-                  </span>
+                  </Badge>
                 </div>
               </div>
 
-              <h3 className="mt-3 text-sm font-semibold text-slate-900 line-clamp-1">
+              <h3 className="mt-3 text-sm font-semibold text-foreground line-clamp-1">
                 {analysis.name}
               </h3>
 
               {analysis.description && (
-                <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                   {analysis.description}
                 </p>
               )}
 
-              <p className="mt-3 text-xs text-slate-400">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Atualizado em {formatDate(analysis.updatedAt)}
               </p>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Link
-                  href={`/analises/${analysis.id}`}
+                  href={`/projetos/${projectId}/analises/${analysis.id}`}
                   className="min-w-[7rem] flex-1"
                 >
                   <Button
@@ -236,10 +196,7 @@ function AnalisesContent() {
                   </Button>
                 </Link>
                 <Link
-                  href={
-                    `/explorar?analysisId=${analysis.id}` +
-                    (analysis.projectId ? `&projectId=${analysis.projectId}` : "")
-                  }
+                  href={`/projetos/${projectId}/explorar?analysisId=${analysis.id}`}
                   className="min-w-[7rem] flex-1"
                 >
                   <Button
@@ -266,7 +223,7 @@ function AnalisesContent() {
                   variant="outline"
                   size="icon-sm"
                   onClick={() => setDeleteTarget(analysis)}
-                  className="shrink-0 text-slate-500 hover:text-red-600"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -281,45 +238,16 @@ function AnalisesContent() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <section>
-        <Link
-          href="/explorar"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Voltar ao Explorer
-        </Link>
-
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Minhas Análises
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Consultas salvas e gráficos reutilizáveis no Explorer.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-slate-500 sm:inline">
-              {projectFilter === "all"
-                ? "Todos os projetos"
-                : projectFilterLabel(projectFilter, projects ?? [])}
-            </span>
-            <ProjectFilter
-              value={projectFilter}
-              onChange={handleFilterChange}
-              projects={projects ?? []}
-              loading={projects === null}
-            />
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        title="Análises"
+        description="Consultas salvas e gráficos reutilizáveis do Explorer."
+      />
 
       {/* Loading */}
       {loading && !loadError && (
         <section className="mt-8">
-          <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
+          <div className="flex items-center justify-center rounded-lg border border-border bg-card p-12">
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
           </div>
         </section>
       )}
@@ -327,8 +255,8 @@ function AnalisesContent() {
       {/* Load error */}
       {loading && loadError && (
         <section className="mt-8">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-            <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-800">
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-6 py-8 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm font-medium text-warning">
               <AlertCircle size={16} />
               {loadError}
             </div>
@@ -345,44 +273,34 @@ function AnalisesContent() {
       {/* Empty state */}
       {analyses !== null && analyses.length === 0 ? (
         <section className="mt-8">
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-              <Inbox size={24} className="text-slate-400" />
-            </div>
-            <h2 className="mt-4 text-sm font-semibold text-slate-900">
-              {projectFilter === "all"
-                ? "Nenhum item salvo"
-                : "Nenhum item neste escopo"}
-            </h2>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
-              {projectFilter === "all"
-                ? "Execute uma query no Explorer e salve uma análise (tabela) ou um gráfico para reutilizar depois."
-                : projectFilter === "none"
-                  ? "Nenhum item sem projeto. Escolha outro projeto no filtro acima."
-                  : "Nenhuma análise neste projeto. Crie uma no Explorer e vincule ao projeto."}
-            </p>
-            <Link href="/explorar" className="mt-6">
-              <Button className="bg-teal-600 text-white hover:bg-teal-700">
-                <Search size={16} />
-                Criar análise
-              </Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={Inbox}
+            title="Nenhum item salvo"
+            description="Execute uma query no Explorer e salve uma análise (tabela) ou um gráfico para reutilizar depois."
+            action={
+              <Link href={`/projetos/${projectId}/explorar`}>
+                <Button>
+                  <Search size={16} />
+                  Criar análise
+                </Button>
+              </Link>
+            }
+          />
         </section>
       ) : analyses !== null ? (
         <>
           {/* Análises (tabela) */}
           <section className="mt-6">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 Análises
               </h2>
-              <span className="inline-flex items-center rounded-md bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
+              <Badge className="bg-primary/10 text-primary">
                 {analysisItems.length}
-              </span>
+              </Badge>
             </div>
             {analysisItems.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Nenhuma análise (tabela) salva ainda.
               </p>
             ) : (
@@ -393,15 +311,15 @@ function AnalisesContent() {
           {/* Gráficos */}
           <section className="mt-8">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-foreground">
                 Gráficos
               </h2>
-              <span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+              <Badge className="bg-chart-4/10 text-chart-4">
                 {chartItems.length}
-              </span>
+              </Badge>
             </div>
             {chartItems.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Nenhum gráfico salvo ainda. No Explorer, altere para
                 &quot;Visualizar&quot; e use &quot;Salvar gráfico&quot;.
               </p>
@@ -422,9 +340,7 @@ function AnalisesContent() {
           }
         }}
         title={
-          deleteTarget?.chartType === "table"
-            ? "Excluir análise"
-            : "Excluir gráfico"
+          deleteTarget?.chartType === "table" ? "Excluir análise" : "Excluir gráfico"
         }
         itemName={deleteTarget?.name ?? ""}
         loading={deleting}
@@ -443,18 +359,11 @@ function AnalisesContent() {
   )
 }
 
-export default function AnalisesPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-center p-12">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
-          </div>
-        </div>
-      }
-    >
-      <AnalisesContent />
-    </Suspense>
-  )
+export default function AnalisesPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>
+}) {
+  const { projectId } = use(params)
+  return <AnalisesContent projectId={projectId} />
 }

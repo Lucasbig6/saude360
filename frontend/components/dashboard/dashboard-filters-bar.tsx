@@ -31,7 +31,7 @@ function FilterInlineControl({
 }) {
   if (loadingDistinct) {
     return (
-      <div className="flex items-center gap-1 text-xs text-slate-400">
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
         <Loader2 size={12} className="animate-spin" />
       </div>
     )
@@ -47,7 +47,7 @@ function FilterInlineControl({
           const opts = Array.from(e.target.selectedOptions, (o) => o.value)
           onValueChange(opts)
         }}
-        className="h-7 max-w-[180px] rounded-md border border-slate-200 bg-white px-1.5 text-xs"
+        className="h-7 max-w-[180px] rounded-md border border-border bg-card px-1.5 text-xs"
         size={1}
       >
         {distinctValues.length > 0
@@ -75,7 +75,7 @@ function FilterInlineControl({
           onChange={(e) => onValueChange([e.target.value, arr[1] ?? ""])}
           className="h-7 w-[130px] text-xs"
         />
-        <span className="text-[10px] text-slate-400">até</span>
+        <span className="text-xs text-muted-foreground">até</span>
         <Input
           type="date"
           value={arr[1] ?? ""}
@@ -104,7 +104,7 @@ function FilterInlineControl({
       <select
         value={currentVal}
         onChange={(e) => onValueChange(e.target.value)}
-        className="h-7 max-w-[180px] rounded-md border border-slate-200 bg-white px-1.5 text-xs"
+        className="h-7 max-w-[180px] rounded-md border border-border bg-card px-1.5 text-xs"
       >
         <option value="">Todos</option>
         {distinctValues.map((v) => (
@@ -141,9 +141,9 @@ export function DashboardFiltersBar({
       {filters.map((filter) => (
         <div
           key={filter.id}
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs"
         >
-          <span className="font-medium text-slate-700">{filter.column}</span>
+          <span className="font-medium text-foreground">{filter.column}</span>
           <FilterInlineControl
             filter={filter}
             value={filterValues[filter.id] ?? filter.defaultValue ?? ""}
@@ -155,7 +155,7 @@ export function DashboardFiltersBar({
             <button
               type="button"
               onClick={() => onRemove(filter.id)}
-              className="ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-100 hover:text-red-500 cursor-pointer"
+              className="ml-0.5 rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive cursor-pointer"
             >
               <X size={11} />
             </button>
@@ -168,7 +168,7 @@ export function DashboardFiltersBar({
           variant="outline"
           size="sm"
           onClick={onAdd}
-          className="h-7 rounded-full text-xs"
+          className="h-7 rounded-md text-xs"
         >
           <Plus size={12} />
           Adicionar filtro

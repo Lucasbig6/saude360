@@ -41,9 +41,9 @@ function WidgetPortal() {
   return (
     <div ref={rootRef} className="relative h-full">
       {ctx.editing && (
-        <div className="grid-drag-handle absolute left-0 right-0 top-0 z-20 flex h-6 cursor-grab items-center justify-center rounded-t-xl bg-slate-100/80 hover:bg-slate-200/80 active:cursor-grabbing">
+        <div className="grid-drag-handle absolute left-0 right-0 top-0 z-20 flex h-6 cursor-grab items-center justify-center rounded-t-lg bg-muted/80 hover:bg-border/80 active:cursor-grabbing">
           <div className="flex gap-0.5">
-            <span className="block h-0.5 w-4 rounded-full bg-slate-400" />
+            <span className="block h-0.5 w-4 rounded-full bg-border" />
           </div>
         </div>
       )}

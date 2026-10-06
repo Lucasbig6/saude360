@@ -144,7 +144,7 @@ export function AnalysisThumbnail({ analysis, className }: AnalysisThumbnailProp
   return (
     <div
       className={cn(
-        "relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-50",
+        "relative flex h-full w-full items-center justify-center overflow-hidden bg-muted/50",
         className
       )}
       data-testid="analysis-thumbnail"
@@ -167,7 +167,7 @@ function ThumbnailContent({
   if (state.status === "loading") {
     return (
       <div
-        className="h-full w-full animate-pulse bg-slate-100"
+        className="h-full w-full animate-pulse bg-muted"
         aria-label="Carregando pré-visualização"
       />
     )
@@ -176,8 +176,8 @@ function ThumbnailContent({
   if (state.status === "error" || state.status === "unavailable") {
     return (
       <div className="flex flex-col items-center gap-1 px-3 text-center">
-        <AlertCircle size={14} className="text-slate-300" />
-        <span className="text-[10px] leading-tight text-slate-400">
+        <AlertCircle size={14} className="text-muted-foreground" />
+        <span className="text-xs leading-tight text-muted-foreground">
           {state.status === "error" ? "Sem pré-visualização" : label}
         </span>
       </div>
@@ -187,8 +187,8 @@ function ThumbnailContent({
   if (state.status === "empty") {
     return (
       <div className="flex flex-col items-center gap-1 px-3 text-center">
-        <Icon size={14} className="text-slate-300" />
-        <span className="text-[10px] leading-tight text-slate-400">Sem dados</span>
+        <Icon size={14} className="text-muted-foreground" />
+        <span className="text-xs leading-tight text-muted-foreground">Sem dados</span>
       </div>
     )
   }
@@ -201,7 +201,7 @@ function ThumbnailContent({
 
   if (config.type === "kpi") {
     return (
-      <span className="text-xl font-semibold text-teal-600">
+      <span className="text-xl font-semibold text-primary">
         {formatKpi(kpiValue(state.rows, config))}
       </span>
     )
@@ -210,8 +210,8 @@ function ThumbnailContent({
   if (analysis.chartType === "map") {
     return (
       <div className="flex flex-col items-center gap-1 px-3 text-center">
-        <Icon size={14} className="text-slate-300" />
-        <span className="text-[10px] leading-tight text-slate-400">{label}</span>
+        <Icon size={14} className="text-muted-foreground" />
+        <span className="text-xs leading-tight text-muted-foreground">{label}</span>
       </div>
     )
   }
@@ -252,7 +252,7 @@ function MiniTable({ rows }: { rows: Row[] }) {
             {columns.map((col) => (
               <th
                 key={col}
-                className="truncate border-b border-slate-200 px-1 pb-1 text-left text-[8px] font-semibold uppercase tracking-wide text-slate-400"
+                className="truncate border-b border-border px-1 pb-1 text-left text-[8px] font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 {col}
               </th>
@@ -261,11 +261,11 @@ function MiniTable({ rows }: { rows: Row[] }) {
         </thead>
         <tbody>
           {visibleRows.map((row, i) => (
-            <tr key={i} className="border-b border-slate-100 last:border-0">
+            <tr key={i} className="border-b border-border last:border-0">
               {columns.map((col) => (
                 <td
                   key={col}
-                  className="truncate px-1 py-0.5 text-[9px] text-slate-600"
+                  className="truncate px-1 py-0.5 text-[9px] text-muted-foreground"
                 >
                   {row[col] === null || row[col] === undefined
                     ? "—"

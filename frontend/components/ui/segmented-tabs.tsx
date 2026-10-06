@@ -4,9 +4,8 @@ import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Tabs segmentadas no mesmo padrão visual do toggle de modos do composer
- * (`components/explorer/explore-composer.tsx`): controle único no trilho
- * `bg-slate-100`, aba ativa em branco com shadow.
+ * Tabs segmentadas: controle único no trilho neutro (muted),
+ * aba ativa em surface branca com borda de baixo contraste.
  */
 export interface SegmentedTabItem<T extends string> {
   id: T
@@ -29,7 +28,7 @@ export function SegmentedTabs<T extends string>({
 }: SegmentedTabsProps<T>) {
   return (
     <div
-      className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1"
+      className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted p-1"
       role="tablist"
       aria-label={ariaLabel}
     >
@@ -46,8 +45,8 @@ export function SegmentedTabs<T extends string>({
             className={cn(
               "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
               isActive
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-card text-foreground ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {Icon && <Icon size={16} />}

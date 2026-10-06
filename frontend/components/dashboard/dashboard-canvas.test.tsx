@@ -41,6 +41,7 @@ function dashboardFixture(): Dashboard {
     filters: [],
     appearance: {},
     projectId: null,
+    createdBy: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   }

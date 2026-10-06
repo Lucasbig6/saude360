@@ -5,6 +5,7 @@ export interface Project {
   analysisCount: number
   chartCount: number
   dashboardCount: number
+  sourceCount: number
   createdAt: string
   updatedAt: string
 }

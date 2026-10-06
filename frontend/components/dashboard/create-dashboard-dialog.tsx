@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertCircle, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,14 +13,20 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
+import type { Project } from "@/lib/types/project"
 import { createDashboard } from "@/lib/api/dashboards"
+import { getProjects } from "@/lib/api/projects"
 import { ApiError } from "@/lib/api"
 
 interface CreateDashboardDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Quando presente, o painel nasce vinculado ao projeto (sem seleção manual). */
+  /**
+   * Quando presente, o painel nasce vinculado a este projeto (sem seleção
+   * manual). Ausente, o diálogo pergunta em qual projeto criar.
+   */
   projectId?: string
   onCreated?: (dashboard: Dashboard) => void
 }
@@ -33,8 +39,28 @@ export function CreateDashboardDialog({
 }: CreateDashboardDialogProps) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
+  const [selectedProject, setSelectedProject] = useState("")
+  const [projects, setProjects] = useState<Project[] | null>(null)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const needsProjectPicker = projectId === undefined
+
+  useEffect(() => {
+    if (!open || !needsProjectPicker) return
+    let cancelled = false
+
+    getProjects()
+      .then((list) => {
+        if (!cancelled) setProjects(list)
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, needsProjectPicker])
 
   function handleClose(next: boolean) {
     if (next) {
@@ -44,6 +70,7 @@ export function CreateDashboardDialog({
     onOpenChange(false)
     setName("")
     setDescription("")
+    setSelectedProject("")
     setError(null)
   }
 
@@ -60,8 +87,8 @@ export function CreateDashboardDialog({
         description: description.trim(),
         widgets: [],
         filters: [],
-        // ausente -> cria sem projeto; string -> associa (semântica aprovada)
-        ...(projectId !== undefined ? { projectId } : {}),
+        // fixo pelo contexto -> associa; com seletor -> escolha do usuário
+        projectId: projectId !== undefined ? projectId : selectedProject || null,
       })
       handleClose(false)
       onCreated?.(dashboard)
@@ -86,7 +113,7 @@ export function CreateDashboardDialog({
 
         <div className="space-y-4 py-2">
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               <AlertCircle size={15} className="shrink-0" />
               {error}
             </div>
@@ -117,6 +144,31 @@ export function CreateDashboardDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+
+          {needsProjectPicker && (
+            <div className="space-y-2">
+              <Label htmlFor="dashboard-project">Projeto</Label>
+              <select
+                id="dashboard-project"
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className={cn(
+                  "h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground transition-colors hover:border-border focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                )}
+              >
+                <option value="">
+                  {projects === null
+                    ? "Carregando projetos..."
+                    : "Sem projeto"}
+                </option>
+                {(projects ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -130,7 +182,6 @@ export function CreateDashboardDialog({
           <Button
             onClick={() => void handleCreate()}
             disabled={!name.trim() || creating}
-            className="bg-teal-600 text-white hover:bg-teal-700"
           >
             {creating ? (
               <Loader2 size={14} className="animate-spin" />

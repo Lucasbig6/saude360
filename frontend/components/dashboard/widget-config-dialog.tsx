@@ -113,7 +113,7 @@ export function WidgetConfigDialog({
         </DialogHeader>
 
         {loading && (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 size={16} className="animate-spin" />
             Carregando configuração...
           </div>
@@ -121,7 +121,7 @@ export function WidgetConfigDialog({
 
         {!loading && state.error && (
           <div className="space-y-3">
-            <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>
+            <p className="text-sm text-destructive dark:text-destructive">{state.error}</p>
             <div className="flex justify-end">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                 Fechar

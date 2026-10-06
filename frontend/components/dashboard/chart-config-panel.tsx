@@ -66,7 +66,7 @@ function Field({
 }) {
   return (
     <label className={className ? `flex flex-col gap-1.5 ${className}` : "flex flex-col gap-1.5"}>
-      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+      <span className="text-xs font-medium text-muted-foreground dark:text-muted-foreground">
         {label}
       </span>
       {children}
@@ -309,19 +309,19 @@ function ChartConfigFields({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <label className="flex items-center gap-2 text-sm text-foreground dark:text-muted-foreground">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-teal-600"
+            className="h-4 w-4 accent-primary"
             checked={config.legend ?? true}
             onChange={(e) => patch({ legend: e.target.checked })}
           />
           Exibir legenda
         </label>
-        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+        <label className="flex items-center gap-2 text-sm text-foreground dark:text-muted-foreground">
           <input
             type="checkbox"
-            className="h-4 w-4 accent-teal-600"
+            className="h-4 w-4 accent-primary"
             checked={config.tooltip ?? true}
             onChange={(e) => patch({ tooltip: e.target.checked })}
           />
@@ -518,7 +518,7 @@ export function ChartConfigPanel({
       </div>
 
       {columns.length === 0 && (
-        <p className="text-xs text-slate-400 dark:text-slate-500">
+        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
           Sem colunas disponíveis para os campos deste widget.
         </p>
       )}
@@ -544,7 +544,7 @@ export function ChartConfigPanel({
       ) : null}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive dark:border-destructive/40 dark:bg-destructive/20 dark:text-destructive">
           <AlertCircle size={14} className="shrink-0" />
           <span>{error}</span>
         </div>
@@ -560,7 +560,6 @@ export function ChartConfigPanel({
           size="sm"
           onClick={handleApply}
           disabled={busy}
-          className="bg-teal-600 text-white hover:bg-teal-700"
         >
           Aplicar
         </Button>

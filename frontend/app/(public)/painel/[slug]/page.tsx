@@ -65,23 +65,23 @@ export default function PainelViewerPage({
 
   if (!loaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Carregando painel...</p>
+      <div className="flex min-h-screen items-center justify-center bg-muted/50">
+        <p className="text-sm text-muted-foreground">Carregando painel...</p>
       </div>
     )
   }
 
   if (loadError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-            <AlertCircle size={24} className="text-red-500" />
+      <div className="flex min-h-screen items-center justify-center bg-muted/50 px-4">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertCircle size={24} className="text-destructive" />
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-slate-900">
+          <h1 className="mt-4 text-lg font-semibold text-foreground">
             Não foi possível carregar o painel
           </h1>
-          <p className="mt-2 text-sm text-slate-500">{loadError}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
           <div className="mt-6 flex justify-center">
             <Button variant="outline" onClick={handleRetry}>
               <RefreshCw size={14} />
@@ -95,15 +95,15 @@ export default function PainelViewerPage({
 
   if (!dashboard) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-            <FileChartColumn size={24} className="text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-muted/50 px-4">
+        <div className="w-full max-w-md rounded-lg border border-border bg-card p-10 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <FileChartColumn size={24} className="text-muted-foreground" />
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-slate-900">
+          <h1 className="mt-4 text-lg font-semibold text-foreground">
             Painel não encontrado
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-muted-foreground">
             O link pode estar incorreto ou o painel ainda não foi criado.
           </p>
           <div className="mt-6">

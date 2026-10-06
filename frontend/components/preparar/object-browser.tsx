@@ -94,26 +94,26 @@ export function ObjectBrowser({
   })
 
   return (
-    <div className="flex h-full flex-col border-r border-slate-200 bg-white">
+    <div className="flex h-full flex-col border-r border-border bg-card">
       {/* Header */}
-      <div className="border-b border-slate-200 px-3 py-3">
+      <div className="border-b border-border px-3 py-3">
         <div className="flex items-center gap-2">
-          <Database size={14} className="shrink-0 text-teal-600" />
+          <Database size={14} className="shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-slate-900">
+            <p className="truncate text-xs font-semibold text-foreground">
               {sourceName}
             </p>
-            <p className="text-[10px] text-slate-400 uppercase">{engine}</p>
+            <p className="text-xs text-muted-foreground uppercase">{engine}</p>
           </div>
         </div>
       </div>
 
       {/* Search */}
-      <div className="border-b border-slate-100 px-3 py-2">
+      <div className="border-b border-border px-3 py-2">
         <div className="relative">
           <Search
             size={13}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             placeholder="Buscar objeto..."
@@ -125,7 +125,7 @@ export function ObjectBrowser({
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <X size={12} />
             </button>
@@ -137,12 +137,12 @@ export function ObjectBrowser({
       <div className="flex-1 overflow-y-auto">
         {schemasLoading ? (
           <div className="flex items-center justify-center p-6">
-            <Loader2 size={16} className="animate-spin text-slate-400" />
+            <Loader2 size={16} className="animate-spin text-muted-foreground" />
           </div>
         ) : schemasError ? (
-          <div className="p-3 text-xs text-red-500">{schemasError}</div>
+          <div className="p-3 text-xs text-destructive">{schemasError}</div>
         ) : filteredSchemas.length === 0 ? (
-          <div className="p-3 text-center text-xs text-slate-400">
+          <div className="p-3 text-center text-xs text-muted-foreground">
             {schemas.length === 0
               ? "Nenhum schema encontrado."
               : "Nenhum objeto corresponde à busca."}
@@ -164,18 +164,18 @@ export function ObjectBrowser({
                 <button
                   type="button"
                   onClick={() => onToggleSchema(schema)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 transition-colors cursor-pointer"
                 >
-                  <FolderOpen size={13} className="shrink-0 text-teal-600" />
-                  <span className="font-medium text-slate-800">{schema}</span>
+                  <FolderOpen size={13} className="shrink-0 text-primary" />
+                  <span className="font-medium text-foreground">{schema}</span>
                   {tables && (
-                    <span className="ml-auto text-[10px] text-slate-400">
+                    <span className="ml-auto text-xs text-muted-foreground">
                       {tables.length}
                     </span>
                   )}
                   <ChevronRight
                     size={12}
-                    className={`shrink-0 text-slate-400 transition-transform ${
+                    className={`shrink-0 text-muted-foreground transition-transform ${
                       isExpanded ? "rotate-90" : ""
                     }`}
                   />
@@ -187,11 +187,11 @@ export function ObjectBrowser({
                       <div className="flex items-center justify-center py-3">
                         <Loader2
                           size={12}
-                          className="animate-spin text-slate-400"
+                          className="animate-spin text-muted-foreground"
                         />
                       </div>
                     ) : filteredTables && filteredTables.length === 0 ? (
-                      <div className="px-6 py-2 text-[11px] text-slate-400">
+                      <div className="px-6 py-2 text-xs text-muted-foreground">
                         Nenhuma tabela
                       </div>
                     ) : (
@@ -205,8 +205,8 @@ export function ObjectBrowser({
                             key={table.name}
                             className={`group flex items-center gap-2 pl-8 pr-3 py-1.5 text-sm cursor-pointer transition-colors ${
                               isSelected
-                                ? "bg-teal-50 text-teal-700"
-                                : "text-slate-600 hover:bg-slate-50"
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground hover:bg-muted/50"
                             }`}
                             onClick={() => onSelectTable(schema, table.name)}
                             onDoubleClick={() =>
@@ -216,13 +216,13 @@ export function ObjectBrowser({
                             <Table2
                               size={12}
                               className={`shrink-0 ${
-                                isSelected ? "text-teal-600" : "text-slate-400"
+                                isSelected ? "text-primary" : "text-muted-foreground"
                               }`}
                             />
                             <span className="min-w-0 flex-1 truncate">
                               {table.name}
                             </span>
-                            <span className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                              双击 inserir
                             </span>
                           </div>
@@ -239,16 +239,16 @@ export function ObjectBrowser({
 
       {/* Metadata panel */}
       {(metaLoading || metaTable) && (
-        <div className="border-t border-slate-200 bg-slate-50">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        <div className="border-t border-border bg-muted/50">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Estrutura
             </span>
             {metaTable && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[10px]"
+                className="h-6 px-2 text-xs"
                 onClick={() =>
                   onInsertInEditor(metaTable.schema, metaTable.table)
                 }
@@ -260,25 +260,25 @@ export function ObjectBrowser({
 
           {metaLoading ? (
             <div className="flex items-center justify-center p-4">
-              <Loader2 size={14} className="animate-spin text-slate-400" />
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
             </div>
           ) : metaTable ? (
             <div className="max-h-[200px] overflow-y-auto">
               {metaTable.columns.length === 0 ? (
-                <div className="p-3 text-[11px] text-slate-400 text-center">
+                <div className="p-3 text-xs text-muted-foreground text-center">
                   Nenhuma informação disponível.
                 </div>
               ) : (
-                <table className="w-full text-[11px]">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="px-3 py-1.5 text-left font-medium text-slate-500">
+                    <tr className="border-b border-border">
+                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">
                         Coluna
                       </th>
-                      <th className="px-3 py-1.5 text-left font-medium text-slate-500">
+                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">
                         Tipo
                       </th>
-                      <th className="px-3 py-1.5 text-left font-medium text-slate-500">
+                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">
                         Chave
                       </th>
                     </tr>
@@ -287,21 +287,21 @@ export function ObjectBrowser({
                     {metaTable.columns.map((col) => (
                       <tr
                         key={col.name}
-                        className="border-b border-slate-100 last:border-0"
+                        className="border-b border-border last:border-0"
                       >
-                        <td className="px-3 py-1 font-medium text-slate-700">
+                        <td className="px-3 py-1 font-medium text-foreground">
                           {col.name}
                         </td>
-                        <td className="px-3 py-1 text-slate-500">
+                        <td className="px-3 py-1 text-muted-foreground">
                           {col.type}
                         </td>
                         <td className="px-3 py-1">
                           {col.keys.length > 0 ? (
-                            <span className="inline-flex rounded bg-teal-50 px-1 py-0.5 text-[9px] font-medium text-teal-700">
+                            <span className="inline-flex rounded bg-primary/10 px-1 py-0.5 text-[9px] font-medium text-primary">
                               {col.keys.join(", ")}
                             </span>
                           ) : (
-                            <span className="text-slate-300">-</span>
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </td>
                       </tr>

@@ -15,18 +15,18 @@ interface InvestigationBlockProps {
  */
 export function InvestigationBlock({ question }: InvestigationBlockProps) {
   return (
-    <section className="border-t border-slate-200 pt-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+    <section className="border-t border-border pt-6">
+      <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
         Pergunta
       </p>
-      <h2 className="mt-1 text-lg font-semibold text-slate-900">{question}</h2>
+      <h2 className="mt-1 text-lg font-semibold text-foreground">{question}</h2>
 
       <div
         role="status"
-        className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center"
+        className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-muted/50/60 px-4 py-8 text-center"
       >
-        <Sparkles size={18} className="text-purple-500" />
-        <p className="max-w-md text-sm text-slate-500">
+        <Sparkles size={18} className="text-chart-4" />
+        <p className="max-w-md text-sm text-muted-foreground">
           O Agente IA responderá aqui com o insight principal, o gráfico ou
           tabela, os dados utilizados, o SQL gerado e as ações de salvar a
           análise ou adicioná-la ao painel.

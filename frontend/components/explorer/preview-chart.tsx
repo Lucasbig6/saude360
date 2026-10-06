@@ -116,12 +116,12 @@ export function PreviewChart({
   if (chartType === "kpi") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2">
-        <span className="text-5xl font-semibold tabular-nums text-teal-700">
+        <span className="text-2xl font-semibold tabular-nums text-foreground">
           {kpi === null
             ? "—"
             : new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(kpi)}
         </span>
-        <span className="text-sm text-slate-500">
+        <span className="text-sm text-muted-foreground">
           {metric ?? "Registros"} · {metric ? "Soma" : "Contagem"}
         </span>
       </div>
@@ -130,8 +130,8 @@ export function PreviewChart({
 
   if (chartType === "map" && (!dimension || !metric)) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-6 text-center">
-        <p className="text-sm text-slate-500">
+      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 px-6 text-center">
+        <p className="text-sm text-muted-foreground">
           Selecione as colunas de longitude e latitude.
         </p>
       </div>
@@ -140,8 +140,8 @@ export function PreviewChart({
 
   if (!dimension || !metric || rows.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 px-6 text-center">
-        <p className="text-sm text-slate-500">
+      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border bg-muted/50 px-6 text-center">
+        <p className="text-sm text-muted-foreground">
           Nenhum dado válido para visualizar.
         </p>
       </div>

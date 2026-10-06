@@ -161,7 +161,7 @@ export function SaveAnalysisDialog({
               disabled={saving}
             />
             {projectsError && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Não foi possível carregar os projetos — você pode salvar sem
                 projeto e vincular depois.
               </p>
@@ -180,7 +180,6 @@ export function SaveAnalysisDialog({
           <Button
             onClick={() => void handleSave()}
             disabled={!name.trim() || saving}
-            className="bg-teal-700 text-white hover:bg-teal-800"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             Salvar
@@ -188,7 +187,7 @@ export function SaveAnalysisDialog({
         </DialogFooter>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertCircle size={16} />
             {error}
           </div>

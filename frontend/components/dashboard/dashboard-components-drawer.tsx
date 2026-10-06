@@ -142,21 +142,21 @@ export function DashboardComponentsDrawer({
     <aside
       aria-label="Biblioteca de componentes do painel"
       className={cn(
-        "flex flex-col w-full sm:w-[390px] lg:w-[460px] shrink-0 border-l border-slate-200 bg-white shadow-xl z-20 transition-all",
+        "flex flex-col w-full sm:w-[390px] lg:w-[460px] shrink-0 border-l border-border bg-card shadow-lg z-20 transition-all",
         className
       )}
     >
       {/* Header do Drawer */}
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3.5 bg-slate-50/70">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3.5 bg-muted/50/70">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-teal-600 border border-teal-200/60">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/30">
             <LayoutGrid size={15} />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900 leading-none">
+            <h2 className="text-sm font-semibold text-foreground leading-none">
               Biblioteca de Gráficos
             </h2>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Clique em um card ou arraste para o canvas
             </p>
           </div>
@@ -165,7 +165,7 @@ export function DashboardComponentsDrawer({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
             onClick={() => {
               clearThumbnailCache()
               setReloadKey((k) => k + 1)
@@ -177,7 +177,7 @@ export function DashboardComponentsDrawer({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-slate-400 hover:text-slate-700"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
             onClick={onClose}
             title="Fechar biblioteca"
           >
@@ -189,10 +189,10 @@ export function DashboardComponentsDrawer({
       {/* Escopo: projeto do painel que está sendo editado */}
       <div
         className={cn(
-          "flex items-start gap-2 border-b px-4 py-2 text-[11px] leading-snug",
+          "flex items-start gap-2 border-b px-4 py-2 text-xs leading-snug",
           projectId
-            ? "border-slate-100 bg-slate-50 text-slate-600"
-            : "border-amber-100 bg-amber-50 text-amber-900"
+            ? "border-border bg-muted/50 text-muted-foreground"
+            : "border-warning/20 bg-warning/10 text-warning"
         )}
       >
         <Layers size={13} className="mt-0.5 shrink-0" />
@@ -215,31 +215,31 @@ export function DashboardComponentsDrawer({
       </div>
 
       {/* Dica visual Metabase/Superset */}
-      <div className="px-4 py-2.5 bg-teal-50/50 border-b border-teal-100 flex items-start gap-2">
-        <Sparkles size={14} className="text-teal-600 shrink-0 mt-0.5" />
-        <p className="text-xs text-teal-900 leading-snug">
+      <div className="px-4 py-2.5 bg-primary/5 border-b border-primary/15 flex items-start gap-2">
+        <Sparkles size={14} className="text-primary shrink-0 mt-0.5" />
+        <p className="text-xs text-primary leading-snug">
           <strong>Dica:</strong> Arraste qualquer card diretamente para a posição
           desejada no painel. O grid ajusta automaticamente o encaixe.
         </p>
       </div>
 
       {/* Busca e Filtros */}
-      <div className="p-3 border-b border-slate-100 space-y-2">
+      <div className="p-3 border-b border-border space-y-2">
         <div className="relative">
           <Search
             size={14}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nome ou descrição..."
-            className="h-9 pl-8 pr-7 text-xs bg-slate-50/50 focus:bg-white border-slate-200"
+            className="h-9 pl-8 pr-7 text-xs bg-muted/50/50 focus:bg-card border-border"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X size={13} />
             </button>
@@ -254,8 +254,8 @@ export function DashboardComponentsDrawer({
             className={cn(
               "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
               category === "all"
-                ? "bg-slate-900 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
             )}
           >
             Todos ({analyses ? analyses.length : "…"})
@@ -266,8 +266,8 @@ export function DashboardComponentsDrawer({
             className={cn(
               "px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1",
               category === "charts"
-                ? "bg-teal-700 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
             )}
           >
             <BarChart3 size={12} />
@@ -279,8 +279,8 @@ export function DashboardComponentsDrawer({
             className={cn(
               "px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1",
               category === "tables"
-                ? "bg-teal-700 text-white"
-                : "text-slate-600 hover:bg-slate-100"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
             )}
           >
             <Table2 size={12} />
@@ -292,16 +292,16 @@ export function DashboardComponentsDrawer({
       {/* Conteúdo scrollável com os cards */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5 scrollbar-thin">
         {loading && !analyses && (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <Loader2 size={24} className="animate-spin text-teal-600 mb-2" />
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Loader2 size={24} className="animate-spin text-primary mb-2" />
             <span className="text-xs">Carregando análises salvas...</span>
           </div>
         )}
 
         {loadError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-center">
-            <AlertCircle size={16} className="text-red-500 mx-auto mb-1" />
-            <p className="text-xs text-red-700">{loadError}</p>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-center">
+            <AlertCircle size={16} className="text-destructive mx-auto mb-1" />
+            <p className="text-xs text-destructive">{loadError}</p>
             <Button
               variant="outline"
               size="sm"
@@ -318,11 +318,11 @@ export function DashboardComponentsDrawer({
 
         {!loading && !loadError && filteredAnalyses.length === 0 && (
           <div className="text-center py-10 px-4">
-            <FileChartColumn size={28} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-xs font-medium text-slate-700">
+            <FileChartColumn size={28} className="mx-auto text-muted-foreground mb-2" />
+            <p className="text-xs font-medium text-foreground">
               Nenhuma análise encontrada
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {search
                 ? "Tente buscar por outro termo ou limpe o filtro."
                 : "Crie novas análises na aba 'Explorar' ou 'Análises'."}
@@ -387,26 +387,26 @@ export function DashboardComponentsDrawer({
               role="button"
               tabIndex={0}
               className={cn(
-                "grid-stack-item-drag-in group relative flex flex-col rounded-xl border p-3 bg-white transition-all select-none cursor-pointer",
+                "grid-stack-item-drag-in group relative flex flex-col rounded-lg border p-3 bg-card transition-all select-none cursor-pointer",
                 isDragging
-                  ? "opacity-50 border-teal-500 scale-95 shadow-inner"
-                  : "border-slate-200 hover:border-teal-400 hover:shadow-md",
-                inDashboard && "bg-slate-50/60"
+                  ? "opacity-50 border-primary scale-95 shadow-inner"
+                  : "border-border hover:border-primary/50 ",
+                inDashboard && "bg-muted/50/60"
               )}
             >
               {/* Miniatura com o gráfico real (dados da análise) */}
-              <div className="pointer-events-none h-28 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+              <div className="pointer-events-none h-28 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/50">
                 <AnalysisThumbnail analysis={analysis} />
               </div>
 
               {/* Tipo, nome e ações */}
               <div className="mt-2 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <span className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     <Icon size={11} className="shrink-0" />
                     {chartTypeLabel[analysis.chartType] ?? "Gráfico"}
                   </span>
-                  <h3 className="text-xs font-semibold text-slate-900 truncate">
+                  <h3 className="text-xs font-semibold text-foreground truncate">
                     {analysis.name}
                   </h3>
                 </div>
@@ -415,9 +415,9 @@ export function DashboardComponentsDrawer({
                   {inDashboard && (
                     <span
                       title="Este gráfico já está adicionado ao painel"
-                      className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200"
+                      className="inline-flex items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground border border-border"
                     >
-                      <Check size={10} className="text-teal-600" />
+                      <Check size={10} className="text-primary" />
                       No painel
                     </span>
                   )}
@@ -430,7 +430,7 @@ export function DashboardComponentsDrawer({
                       onSelectAnalysis(analysis)
                     }}
                     title="Adicionar ao final do painel"
-                    className="h-7 w-7 p-0 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
                   >
                     <Plus size={14} />
                   </Button>
@@ -439,20 +439,20 @@ export function DashboardComponentsDrawer({
 
               {/* Descrição se houver */}
               {analysis.description && (
-                <p className="mt-1 text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                   {analysis.description}
                 </p>
               )}
 
               {/* Rodapé do card: dimensões recomendadas e grip indicator */}
-              <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] text-slate-400">
+              <div className="mt-auto flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <span className="font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                  <span className="font-mono font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                     6 × 4
                   </span>
                   <span>tamanho padrão</span>
                 </span>
-                <span className="flex items-center gap-1 group-hover:text-teal-600 transition-colors font-medium">
+                <span className="flex items-center gap-1 group-hover:text-primary transition-colors font-medium">
                   <GripVertical size={12} />
                   Arraste para soltar
                 </span>
@@ -463,13 +463,13 @@ export function DashboardComponentsDrawer({
       </div>
 
       {/* Footer com contagem */}
-      <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 text-[11px] text-slate-500 flex items-center justify-between">
+      <div className="border-t border-border px-4 py-2.5 bg-muted/50 text-xs text-muted-foreground flex items-center justify-between">
         <span>
           Exibindo {filteredAnalyses.length} de {analyses?.length ?? 0}
         </span>
         <button
           onClick={onClose}
-          className="text-teal-600 hover:text-teal-700 font-medium inline-flex items-center gap-0.5"
+          className="text-primary hover:text-primary font-medium inline-flex items-center gap-0.5"
         >
           Ocultar biblioteca
           <ChevronRight size={12} />

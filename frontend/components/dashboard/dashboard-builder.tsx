@@ -467,8 +467,12 @@ export function DashboardBuilder({
     >
       {/* Navigation */}
       <Link
-        href="/paineis"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-teal-600 transition-colors"
+        href={
+          dashboard.projectId
+            ? `/projetos/${dashboard.projectId}/paineis`
+            : "/paineis"
+        }
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
       >
         <ArrowLeft size={14} />
         Painéis
@@ -478,16 +482,16 @@ export function DashboardBuilder({
       <section className="mt-3">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               {dashboard.name}
             </h1>
             {dashboard.description && (
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {dashboard.description}
               </p>
             )}
             {dashboard.slug && (
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 /painel/{dashboard.slug}
               </p>
             )}
@@ -542,8 +546,8 @@ export function DashboardBuilder({
                       onClick={() => handleWidthChange(option.value)}
                     >
                       <span className="flex-1">{option.label}</span>
-                      <span className="text-xs text-slate-400">{option.hint}</span>
-                      {active && <Check size={14} className="text-teal-600" />}
+                      <span className="text-xs text-muted-foreground">{option.hint}</span>
+                      {active && <Check size={14} className="text-primary" />}
                     </DropdownMenuItem>
                   )
                 })}
@@ -575,7 +579,7 @@ export function DashboardBuilder({
                   onClick={() => setDrawerOpen((prev) => !prev)}
                   className={
                     drawerOpen
-                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      ? "bg-primary text-primary-foreground"
                       : ""
                   }
                   title="Abrir/fechar biblioteca de gráficos para arrastar e soltar"
@@ -598,7 +602,6 @@ export function DashboardBuilder({
                     setEditing(false)
                     setDrawerOpen(false)
                   }}
-                  className="bg-teal-600 text-white hover:bg-teal-700"
                 >
                   <Save size={14} />
                   Concluir edição
@@ -611,7 +614,6 @@ export function DashboardBuilder({
                   setEditing(true)
                   setDrawerOpen(true)
                 }}
-                className="bg-teal-600 text-white hover:bg-teal-700"
               >
                 <Pencil size={14} />
                 Editar
@@ -624,10 +626,10 @@ export function DashboardBuilder({
       {/* Save error — sem retry automático: a próxima ação reenvia */}
       {saveError && (
         <section className="mt-4">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertCircle size={16} className="shrink-0" />
             <span className="min-w-0 flex-1">{saveError}</span>
-            <span className="text-xs text-red-500">
+            <span className="text-xs text-destructive">
               Não foi possível persistir. A próxima alteração reenvia o painel.
             </span>
           </div>
@@ -637,10 +639,10 @@ export function DashboardBuilder({
       {/* Filters */}
       {(dashboard.filters.length > 0 || editing) && (
         <section className="mt-4">
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="rounded-lg border border-border bg-card px-4 py-3">
             <div className="flex items-center gap-2">
-              <Filter size={14} className="text-slate-500" />
-              <span className="text-xs font-medium text-slate-500">
+              <Filter size={14} className="text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">
                 Filtros
               </span>
             </div>
@@ -670,28 +672,28 @@ export function DashboardBuilder({
               onDragOver={handleEmptyCanvasDragOver}
               onDrop={handleEmptyCanvasDrop}
               className={cn(
-                "flex flex-col items-center justify-center rounded-xl border p-12 text-center transition-colors",
+                "flex flex-col items-center justify-center rounded-lg border p-12 text-center transition-colors",
                 editing
-                  ? "border-dashed border-teal-300 bg-teal-50/30"
-                  : "border-dashed border-slate-300 bg-white"
+                  ? "border-dashed border-primary/35 bg-primary/3"
+                  : "border-dashed border-border bg-card"
               )}
             >
               <div
                 className={cn(
                   "flex h-12 w-12 items-center justify-center rounded-full",
                   editing
-                    ? "bg-teal-100 text-teal-700"
-                    : "bg-slate-100 text-slate-400"
+                    ? "bg-primary/15 text-primary"
+                    : "bg-muted text-muted-foreground"
                 )}
               >
                 {editing ? <Sparkles size={24} /> : <Plus size={24} />}
               </div>
-              <h2 className="mt-4 text-base font-semibold text-slate-900">
+              <h2 className="mt-4 text-base font-semibold text-foreground">
                 {editing
                   ? "Prancheta pronta para montagem"
                   : "Nenhum widget adicionado"}
               </h2>
-              <p className="mt-1 max-w-md text-sm text-slate-500">
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
                 {editing
                   ? "Arraste qualquer gráfico da biblioteca lateral diretamente para esta área, ou utilize os botões abaixo para montar seu painel."
                   : "Adicione gráficos e análises salvos para visualizar seus dados neste painel."}
@@ -700,7 +702,6 @@ export function DashboardBuilder({
                 {editing && (
                   <Button
                     onClick={() => setDrawerOpen(true)}
-                    className="bg-slate-900 text-white hover:bg-slate-800"
                   >
                     <LayoutGrid size={15} />
                     Abrir biblioteca lateral
@@ -708,7 +709,6 @@ export function DashboardBuilder({
                 )}
                 <Button
                   onClick={() => setAddDialogOpen(true)}
-                  className="bg-teal-600 text-white hover:bg-teal-700"
                 >
                   <Plus size={16} />
                   Adicionar por lista
@@ -775,7 +775,7 @@ export function DashboardBuilder({
 
       {/* Drawer lateral de gráficos prontos para arrastar e soltar estilo Metabase/Superset */}
       {editing && drawerOpen && (
-        <div className="fixed inset-y-0 right-0 top-20 z-40 flex">
+        <div className="fixed inset-y-0 right-0 top-16 z-40 flex">
           <DashboardComponentsDrawer
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}

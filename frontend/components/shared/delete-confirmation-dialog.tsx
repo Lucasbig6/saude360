@@ -62,7 +62,7 @@ export function DeleteConfirmationDialog({
           </Button>
         </DialogFooter>
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 mt-2">
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive mt-2">
             <AlertCircle size={16} />
             {error}
           </div>

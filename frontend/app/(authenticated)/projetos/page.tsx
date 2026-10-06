@@ -13,7 +13,10 @@ import {
   Search,
   Trash2,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/shared/page-header"
+import { EmptyState } from "@/components/shared/empty-state"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -39,7 +42,6 @@ import {
   deleteProject,
 } from "@/lib/api/projects"
 import { ApiError } from "@/lib/api"
-import { cn } from "@/lib/utils"
 
 function formatDate(iso: string): string {
   try {
@@ -73,16 +75,7 @@ function plural(count: number, one: string, many: string): string {
 }
 
 function countBadge(count: number, one: string, many: string, className: string) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        className
-      )}
-    >
-      {plural(count, one, many)}
-    </span>
-  )
+  return <Badge className={className}>{plural(count, one, many)}</Badge>
 }
 
 export default function ProjetosPage() {
@@ -235,32 +228,23 @@ export default function ProjetosPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <section>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Projetos
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Organize análises, gráficos e painéis por tema ou iniciativa de
-              trabalho.
-            </p>
-          </div>
-
-          <Button
-            onClick={() => setCreateOpen(true)}
-            className="shrink-0 bg-teal-600 text-white hover:bg-teal-700"
-          >
+      <PageHeader
+        title="Projetos"
+        description="Organize análises, gráficos e painéis por tema ou iniciativa de trabalho."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
             Novo projeto
           </Button>
-        </div>
+        }
+      />
 
-        {projects !== null && projects.length > 0 && (
-          <div className="relative mt-5 max-w-md">
+      {projects !== null && projects.length > 0 && (
+        <section className="mt-5">
+          <div className="relative max-w-md">
             <Search
               size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               type="search"
@@ -268,17 +252,17 @@ export default function ProjetosPage() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar projeto..."
               aria-label="Buscar projeto"
-              className="h-9 border-slate-200 bg-white pl-9 text-sm shadow-sm placeholder:text-slate-400 focus-visible:ring-teal-500/40"
+              className="h-9 border-border bg-card pl-9 text-sm placeholder:text-muted-foreground focus-visible:ring-ring/60"
             />
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Loading */}
       {projects === null && !loadError && (
         <section className="mt-8">
-          <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white p-12">
-            <Loader2 size={20} className="animate-spin text-slate-400" />
+          <div className="flex items-center justify-center rounded-lg border border-border bg-card p-12">
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
           </div>
         </section>
       )}
@@ -286,8 +270,8 @@ export default function ProjetosPage() {
       {/* Load error */}
       {projects === null && loadError && (
         <section className="mt-8">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-            <div className="flex items-center justify-center gap-2 text-sm font-medium text-amber-800">
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-6 py-8 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm font-medium text-warning">
               <AlertCircle size={16} />
               {loadError}
             </div>
@@ -304,34 +288,26 @@ export default function ProjetosPage() {
       {/* Empty state */}
       {projects !== null && projects.length === 0 ? (
         <section className="mt-8">
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
-              <Hospital size={24} className="text-teal-600" />
-            </div>
-            <h2 className="mt-4 text-sm font-semibold text-slate-900">
-              Nenhum projeto ainda
-            </h2>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
-              Crie um projeto para agrupar análises, gráficos e painéis do mesmo
-              tema em um único espaço de trabalho.
-            </p>
-            <Button
-              onClick={() => setCreateOpen(true)}
-              className="mt-6 bg-teal-600 text-white hover:bg-teal-700"
-            >
-              <Plus size={16} />
-              Novo projeto
-            </Button>
-          </div>
+          <EmptyState
+            icon={Hospital}
+            title="Nenhum projeto ainda"
+            description="Crie um projeto para agrupar análises, gráficos e painéis do mesmo tema em um único espaço de trabalho."
+            action={
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus size={16} />
+                Novo projeto
+              </Button>
+            }
+          />
         </section>
       ) : projects !== null && filtered.length === 0 ? (
         /* Busca sem resultados */
         <section className="mt-8">
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-            <p className="text-sm font-medium text-slate-800">
+          <div className="rounded-lg border border-dashed border-border bg-card px-6 py-10 text-center">
+            <p className="text-sm font-medium text-foreground">
               Nenhum projeto encontrado para “{query.trim()}”
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Tente outro termo.
             </p>
           </div>
@@ -343,17 +319,17 @@ export default function ProjetosPage() {
             {filtered.map((project) => (
               <div
                 key={project.id}
-                className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md"
+                className="group rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-start justify-between">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Hospital size={18} />
                   </span>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       aria-label={`Ações de ${project.name}`}
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 outline-none transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500"
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <MoreVertical size={16} />
                     </DropdownMenuTrigger>
@@ -379,14 +355,14 @@ export default function ProjetosPage() {
 
                 <Link
                   href={`/projetos/${project.id}`}
-                  className="mt-3 block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="mt-3 block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <h3 className="text-sm font-semibold text-slate-900 line-clamp-1 transition-colors group-hover:text-teal-700">
+                  <h3 className="text-sm font-semibold text-foreground line-clamp-1 transition-colors group-hover:text-primary">
                     {project.name}
                   </h3>
 
                   {project.description && (
-                    <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                       {project.description}
                     </p>
                   )}
@@ -396,23 +372,23 @@ export default function ProjetosPage() {
                       project.analysisCount,
                       "análise",
                       "análises",
-                      "bg-teal-50 text-teal-700"
+                      "bg-primary/10 text-primary"
                     )}
                     {countBadge(
                       project.chartCount,
                       "gráfico",
                       "gráficos",
-                      "bg-purple-50 text-purple-700"
+                      "bg-chart-4/10 text-chart-4"
                     )}
                     {countBadge(
                       project.dashboardCount,
                       "painel",
                       "painéis",
-                      "bg-slate-100 text-slate-600"
+                      "bg-muted text-muted-foreground"
                     )}
                   </div>
 
-                  <p className="mt-3 text-xs text-slate-400">
+                  <p className="mt-3 text-xs text-muted-foreground">
                     Atualizado em {formatDate(project.updatedAt)}
                   </p>
                 </Link>
@@ -444,7 +420,7 @@ export default function ProjetosPage() {
 
           <div className="space-y-4 py-2">
             {createError && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 <AlertCircle size={15} className="shrink-0" />
                 {createError}
               </div>
@@ -493,7 +469,6 @@ export default function ProjetosPage() {
             <Button
               onClick={() => void handleCreate()}
               disabled={!createName.trim() || creating}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               {creating ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -523,7 +498,7 @@ export default function ProjetosPage() {
 
           <div className="space-y-4 py-2">
             {editError && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 <AlertCircle size={15} className="shrink-0" />
                 {editError}
               </div>
@@ -562,7 +537,6 @@ export default function ProjetosPage() {
             <Button
               onClick={() => void handleSaveEdit()}
               disabled={!editName.trim() || savingEdit}
-              className="bg-teal-600 text-white hover:bg-teal-700"
             >
               {savingEdit && <Loader2 size={14} className="animate-spin" />}
               Salvar
