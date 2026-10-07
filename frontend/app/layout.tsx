@@ -15,10 +15,13 @@ const jetbrainsMono = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "Saude360 - Plataforma de monitoramento e análise de dados do SUS",
+  title: "SIGDATA | Inteligência em saúde pública",
   description: "Plataforma de monitoramento e análise de dados do SUS",
   other: {
     google: "notranslate",
+  },
+  icons: {
+    icon: "/logo_site.png",
   },
 }
 

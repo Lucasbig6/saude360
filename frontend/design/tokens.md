@@ -1,4 +1,4 @@
-# Saude360 Design Tokens
+# SIGDATA Design Tokens
 
 ## Espaçamento
 
@@ -61,8 +61,14 @@ sensação de profundidade.
 
 ## Cores
 
+Marca:
+navy `#003567` e teal `#0F766E`.
+
 Primary:
-usar o token principal da aplicação.
+navy da marca para ações e estados principais.
+
+Accent:
+teal da marca para foco, navegação e visualizações.
 
 Background:
 neutro.

@@ -9,7 +9,7 @@ from app.superset import queries as superset_queries
 
 
 async def execute_query(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    """Executa um SELECT/WITH no banco da sessão (mesmo caminho do Saude360).
+    """Executa um SELECT/WITH no banco da sessão (mesmo caminho do SIGDATA).
 
     Segurança (não depende do prompt):
     - ``validar_sql`` do Superset: só SELECT/WITH, sem comentários malformados;

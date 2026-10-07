@@ -134,7 +134,7 @@ export function EditDashboardInfoDialog({
               onChange={(e) => setShowBrand(e.target.checked)}
               className="h-4 w-4 rounded border-border accent-primary"
             />
-             Exibir marca Saude360
+             Exibir marca SIGDATA
           </label>
         </div>
 

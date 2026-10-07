@@ -7,9 +7,9 @@ import {
   type ComponentType,
 } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
-  Activity,
   BarChart3,
   Database,
   FileChartColumn,
@@ -148,14 +148,14 @@ export function useNavSections(): NavSection[] {
 
 export function BrandMark() {
   return (
-    <>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Activity size={18} strokeWidth={2.5} />
-      </div>
-      <span className="whitespace-nowrap text-base font-semibold text-foreground">
-        Saude360
-      </span>
-    </>
+    <Image
+      src="/Logo Header.svg"
+      alt="SIGDATA"
+      width={283}
+      height={90}
+      className="h-auto w-[150px] shrink-0"
+      style={{ fill: "var(--brand-navy)" }}
+    />
   )
 }
 

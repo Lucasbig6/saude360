@@ -560,7 +560,7 @@ export default function Home() {
     <div className="border-b border-border bg-card">
       <section className="mx-auto max-w-7xl px-6 py-12">
         <p className="text-xs font-semibold uppercase text-primary">
-          Saude360
+          SIGDATA
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-foreground">
           O que você deseja analisar?
@@ -596,10 +596,10 @@ export default function Home() {
       </section>
     </div>
 
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 cursor-pointer">
       {/* Cards de entrada — atalhos por área */}
-      <section aria-label="Atalhos por área" className="pt-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section aria-label="Atalhos por área" className="pt-6 cursor-pointer">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 cursor-pointer">
           <EntryCard
             href="/paineis"
             icon={<LayoutDashboard size={20} />}

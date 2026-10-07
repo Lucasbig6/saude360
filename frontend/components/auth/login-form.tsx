@@ -57,6 +57,7 @@ export function LoginForm() {
           type="text"
           placeholder="Digite seu usuário"
           value={username}
+          className="h-11"
           onChange={(e) => {
             setUsername(e.target.value)
             if (error) setError(null)
@@ -81,7 +82,7 @@ export function LoginForm() {
             }}
             disabled={loading}
             autoComplete="current-password"
-            className="pr-10"
+            className="h-11 pr-10"
           />
           <button
             type="button"
@@ -102,7 +103,7 @@ export function LoginForm() {
 
       <Button
         type="submit"
-        className="w-full"
+        className="h-11 w-full"
         disabled={loading}
       >
         {loading ? (

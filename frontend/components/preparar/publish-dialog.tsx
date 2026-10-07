@@ -25,7 +25,7 @@ export function PublishDialog({
       open={open}
       onOpenChange={(o) => { if (!o) onClose() }}
       title="Publicar como Dataset"
-      description={`Registre a tabela ${schemaName}.${tableName} como dataset no Saude360. A tabela original no banco externo não será alterada.`}
+      description={`Registre a tabela ${schemaName}.${tableName} como dataset no SIGDATA. A tabela original no banco externo não será alterada.`}
       defaultName={tableName}
       successMessage="Dataset publicado com sucesso!"
       successDetail="O dataset está disponível na lista de datasets da fonte e no Explorar."

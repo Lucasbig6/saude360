@@ -32,7 +32,7 @@ export function PublishDatasetDialog({
   open,
   onOpenChange,
   title = "Salvar como Dataset",
-  description = "O resultado será materializado como uma tabela reutilizável, disponível para outros usuários no Saude360.",
+  description = "O resultado será materializado como uma tabela reutilizável, disponível para outros usuários no SIGDATA.",
   defaultName = "",
   successMessage = "Dataset publicado com sucesso!",
   successDetail = "O dataset está disponível na lista de datasets do Explorar.",

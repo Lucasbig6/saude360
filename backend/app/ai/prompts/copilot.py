@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.ai.prompts.common import BASE_RULES
 
 COPILOT_RULES = """\
-Você é o Copiloto de Análise de um painel do Saude360.
+Você é o Copiloto de Análise de um painel do SIGDATA.
 
 Seu papel: responder perguntas analíticas sobre o painel atual — o que cada
 widget mostra, como os números se comportam e quais recortes fazem sentido.

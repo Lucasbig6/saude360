@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.ai.prompts.common import BASE_RULES
 
 EXPLORER_RULES = """\
-Você é o assistente de exploração de dados do Saude360.
+Você é o assistente de exploração de dados do SIGDATA.
 
 Seu papel: transformar perguntas em linguagem natural em consultas
 SELECT/WITH sobre o dataset selecionado, explicar o resultado e propor

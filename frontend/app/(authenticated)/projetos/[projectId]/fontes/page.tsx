@@ -82,7 +82,7 @@ function FontesContent({ projectId }: { projectId: string }) {
       {/* Header */}
       <PageHeader
         title="Fontes de Dados"
-        description="Conecte e gerencie as fontes utilizadas nas análises do Saude360."
+        description="Conecte e gerencie as fontes utilizadas nas análises do SIGDATA."
         actions={
           <Link href={`/projetos/${projectId}/fontes/nova`}>
             <Button>

@@ -13,7 +13,7 @@ from app.db.session import SessionLocal
 from app.models import Role, User, UserRole
 
 ROLES: tuple[tuple[str, str], ...] = (
-    ("ADMIN", "Acesso total ao Saude360"),
+    ("ADMIN", "Acesso total ao SIGDATA"),
     ("ANALISTA", "Cria e edita análises e painéis"),
     ("USUARIO", "Visualiza análises e painéis"),
 )

@@ -1,4 +1,4 @@
-"""Camada de IA do Saude360.
+"""Camada de IA do SIGDATA.
 
 Fundação de agentes própria, desacoplada (sem LangChain/LangGraph):
 

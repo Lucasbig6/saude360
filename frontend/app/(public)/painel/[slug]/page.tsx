@@ -108,7 +108,7 @@ export default function PainelViewerPage({
           </p>
           <div className="mt-6">
             <Link href="/login">
-              <Button variant="outline">Ir para o Saude360</Button>
+              <Button variant="outline">Ir para o SIGDATA</Button>
             </Link>
           </div>
         </div>

@@ -1,8 +1,8 @@
-# Saude360 — Design Principles
+# SIGDATA — Design Principles
 
 ## Produto
 
-Saude360 é uma plataforma profissional de inteligência
+SIGDATA é uma plataforma profissional de inteligência
 e análise de dados em saúde pública.
 
 A interface deve transmitir:

@@ -1,8 +1,8 @@
-# Saude360 — Component Guidelines
+# SIGDATA — Component Guidelines
 
 ## 0. Contexto de Projeto
 
-O Projeto é o principal contexto de trabalho do Saude360.
+O Projeto é o principal contexto de trabalho do SIGDATA.
 
 Análises, gráficos e painéis pertencem a um Projeto.
 

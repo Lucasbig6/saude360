@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import {
-  Activity,
   ExternalLink,
   Pencil,
   RefreshCw,
@@ -67,18 +67,14 @@ export function DashboardViewer({
         <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             {showBrand && (
-              <div className="mb-3 inline-flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Activity size={16} strokeWidth={2.5} />
-                </div>
-                <span
-                  className={cn(
-                    "text-sm font-semibold tracking-wide",
-                    "text-primary"
-                  )}
-                >
-                   Saude360
-                </span>
+              <div className="mb-3">
+                <Image
+                  src="/Logo principal.svg"
+                  alt="SIGDATA"
+                  width={283}
+                  height={90}
+                  className="h-auto w-[124px]"
+                />
               </div>
             )}
 
