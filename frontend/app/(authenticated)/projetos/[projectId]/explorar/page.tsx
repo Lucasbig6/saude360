@@ -4,12 +4,22 @@ import { Suspense, use, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { ExploreComposer } from "@/components/explorer/explore-composer"
-import type { ExplorationMode } from "@/components/explorer/explore-composer"
 import { ExploreShell } from "@/components/explorer/explore-shell"
-import { InvestigationBlock } from "@/components/explorer/investigation-block"
 import { SourcesRail } from "@/components/explorer/sources-rail"
-import { QueryResult } from "@/components/explorer/query-result"
+import { ContextHeader } from "@/components/explorer/context-header"
+import {
+  ExplorationTabs,
+  type ExplorationTab,
+} from "@/components/explorer/exploration-tabs"
+import {
+  AgentInput,
+  SqlInput,
+  VisualInput,
+} from "@/components/explorer/exploration-input"
+import { HistoryDropdown } from "@/components/explorer/history-dropdown"
+import { InvestigationBlock } from "@/components/explorer/investigation-block"
+import { WorkspaceResult } from "@/components/explorer/workspace-result"
+import { useExplorerAgent } from "@/hooks/use-explorer-agent"
 import {
   listDatasets,
   getDataset,
@@ -21,6 +31,36 @@ import { generatePreviewSql } from "@/lib/explorer/sql"
 import { ApiError } from "@/lib/api"
 import { getAnalysis, getAnalyses } from "@/lib/api/analyses"
 import type { Analysis } from "@/lib/types/analysis"
+import {
+  groupHistoryByDay,
+  presentationFromRows,
+  workspaceFromInvestigation,
+  type HistoryEntry,
+  type PresentationState,
+  type WorkspaceData,
+} from "@/lib/explorer/workspace"
+import { presentationFromAnalysis } from "@/lib/explorer/analysis-payload"
+import {
+  buildPromptWithContext,
+  displayQuestion,
+} from "@/lib/explorer/chat-context"
+
+function agentStatusText(currentTool: string | null): string {
+  switch (currentTool) {
+    case "get_dataset_schema":
+      return "Lendo o schema..."
+    case "get_column_values":
+      return "Buscando valores..."
+    case "execute_query":
+      return "Executando a consulta..."
+    case "create_analysis":
+      return "Salvando a análise..."
+    case null:
+      return "Analisando..."
+    default:
+      return "Processando..."
+  }
+}
 
 function ExplorarContent({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams()
@@ -34,14 +74,36 @@ function ExplorarContent({ projectId }: { projectId: string }) {
   const [selectedDataset, setSelectedDataset] = useState<DatasetListItem | null>(null)
   const [datasetColumns, setDatasetColumns] = useState<DatasetColumn[]>([])
 
-  const [mode, setMode] = useState<ExplorationMode>("ai")
+  // Tabs: Agente IA e SQL investigam; Visual configura a apresentação do
+  // resultado compartilhado. O resultado nunca some ao trocar de aba.
+  const [tab, setTab] = useState<ExplorationTab>("ai")
 
   const [manualSql, setManualSql] = useState("")
   const [composerText, setComposerText] = useState("")
-  const [agentQuestion, setAgentQuestion] = useState<string | null>(null)
   const [analysesVersion, setAnalysesVersion] = useState(0)
 
-  const [result, setResult] = useState<Record<string, unknown>[] | null>(null)
+  const {
+    investigations,
+    ask,
+    retry,
+    abort,
+    abortAll,
+    confirmPending,
+    dismissPending,
+  } = useExplorerAgent()
+
+  // Navegação mobile (<xl): Conversa | Resultado.
+  const [mobileView, setMobileView] = useState<"chat" | "result">("chat")
+
+  // Workspace compartilhado (dados) + apresentação (visual). É o espelho do
+  // resultado atual no painel direito: alimentado pela IA (último resultado),
+  // pelo SQL, pelo histórico ou pelo "Editar visual" de um turno.
+  const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
+  const [presentation, setPresentation] = useState<PresentationState>(() =>
+    presentationFromRows([])
+  )
+  const [history, setHistory] = useState<HistoryEntry[]>([])
+
   const [executing, setExecuting] = useState(false)
   const [executeError, setExecuteError] = useState<string | null>(null)
 
@@ -51,6 +113,10 @@ function ExplorarContent({ projectId }: { projectId: string }) {
   const analysisLoadedRef = useRef(false)
   const restoreAppliedRef = useRef(false)
   const datasetIdLoadedRef = useRef(false)
+  const historyIdsRef = useRef(new Set<string>())
+  const resultRef = useRef<HTMLDivElement>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const workspaceKeyRef = useRef(0)
 
   useEffect(() => {
     async function load() {
@@ -115,6 +181,16 @@ function ExplorarContent({ projectId }: { projectId: string }) {
   const analysesError =
     analysesState?.key === analysesKey ? analysesState.error : null
 
+  function applyWorkspace(data: WorkspaceData) {
+    workspaceKeyRef.current += 1
+    setWorkspace(data)
+    setPresentation(presentationFromRows(data.rows))
+  }
+
+  function datasetDatabase(dataset: DatasetListItem): number | null {
+    return dataset.database?.id ?? null
+  }
+
   async function runPreview(dataset: DatasetListItem) {
     let previewSql: string
     try {
@@ -129,7 +205,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     setManualSql(previewSql)
     setExecuting(true)
     setExecuteError(null)
-    setResult(null)
 
     try {
       const response = await executeQuery({
@@ -141,7 +216,19 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       if (response.status === "error") {
         setExecuteError(response.message || "Erro ao carregar os dados do dataset.")
       } else {
-        setResult(response.data ?? [])
+        const rows = response.data ?? []
+        applyWorkspace({
+          rows,
+          rowCount: rows.length,
+          truncated: false,
+          executionMs: undefined,
+          sql: previewSql,
+          source: "sql",
+          databaseId: datasetDatabase(dataset),
+          dbSchema: dataset.schema ?? null,
+          datasetId: dataset.id,
+          datasetName: dataset.table_name,
+        })
       }
     } catch (err) {
       const msg =
@@ -156,8 +243,11 @@ function ExplorarContent({ projectId }: { projectId: string }) {
 
   async function handleSelectDataset(dataset: DatasetListItem) {
     if (!projectId) return
+    // Troca de fonte invalida streams em andamento (sessão é por pergunta,
+    // ancorada no dataset anterior) e limpa o workspace.
+    abortAll()
     setSelectedDataset(dataset)
-    setResult(null)
+    setWorkspace(null)
     setExecuteError(null)
     setManualSql("")
 
@@ -214,7 +304,8 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       })
   }, [analysisId, projectId])
 
-  // 2) aplica a restauração quando análise e datasets estiverem resolvidos
+  // 2) aplica a restauração quando análise e datasets estiverem resolvidos:
+  // SQL no editor, apresentação restaurada, dataset selecionado.
   useEffect(() => {
     if (!restoreAnalysis || loadingDatasets || restoreAppliedRef.current) {
       return
@@ -226,8 +317,9 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     requestAnimationFrame(() => {
       if (analysis.sql) {
         setManualSql(analysis.sql)
-        setMode("sql")
+        setTab("sql")
       }
+      setPresentation(presentationFromAnalysis(analysis))
       if (datasets.length > 0 && analysis.databaseId) {
         const match = datasets.find((ds) => ds.database.id === analysis.databaseId)
         if (match) {
@@ -250,7 +342,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     lastSqlRef.current = sqlToExecute
     setExecuting(true)
     setExecuteError(null)
-    setResult(null)
 
     try {
       const response = await executeQuery({
@@ -262,7 +353,19 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       if (response.status === "error") {
         setExecuteError(response.message || "Erro ao executar a consulta.")
       } else {
-        setResult(response.data ?? [])
+        const rows = response.data ?? []
+        applyWorkspace({
+          rows,
+          rowCount: rows.length,
+          truncated: false,
+          executionMs: undefined,
+          sql: sqlToExecute,
+          source: "sql",
+          databaseId: datasetDatabase(selectedDataset),
+          dbSchema: selectedDataset.schema ?? null,
+          datasetId: selectedDataset.id,
+          datasetName: selectedDataset.table_name,
+        })
       }
     } catch (err) {
       const msg =
@@ -276,34 +379,165 @@ function ExplorarContent({ projectId }: { projectId: string }) {
   }
 
   function handleSqlExecute() {
-    handleExecuteQuery(manualSql)
+    void handleExecuteQuery(manualSql)
   }
 
-  /**
-   * Entrada do composer (interface única): SQL executa direto; linguagem
-   * natural alimenta o modo Perguntar, cuja investigação aparece abaixo.
-   */
-  function handleComposerSubmit(text: string, effectiveMode: ExplorationMode) {
-    if (effectiveMode === "sql") {
-      setMode("sql")
-      setManualSql(text)
-      setComposerText("")
-      void handleExecuteQuery(text)
-      return
-    }
-
-    setMode("ai")
-    setAgentQuestion(text)
+  /** Nova pergunta com contexto da conversa injetado no prompt. */
+  function handleAsk(text: string) {
+    if (!selectedDataset) return
+    const prompt = buildPromptWithContext(
+      text,
+      investigations.filter((inv) => inv.datasetId === selectedDataset.id)
+    )
     setComposerText("")
-    // Nova investigação: o resultado anterior deixa de ser o contexto.
-    setResult(null)
-    setExecuteError(null)
     setRestoreAnalysis(null)
+    setExecuteError(null)
+    void ask(prompt, selectedDataset)
+  }
+
+  function handleAskSql(text: string) {
+    if (!selectedDataset) return
+    setComposerText("")
+    void handleExecuteQuery(text)
+  }
+
+  function handleTabChange(next: ExplorationTab) {
+    setTab(next)
+    // Aba SQL mostra a consulta do resultado atual (agente ou manual),
+    // editável e executável sobre o mesmo workspace.
+    if (next === "sql" && workspace?.sql) {
+      setManualSql(workspace.sql)
+    }
+  }
+
+  function handleEditVisual() {
+    setTab("visual")
+    // No mobile a configuração do visual fica na coluna Conversa.
+    setMobileView("chat")
+    resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
+  // Investigações anteriores: espelha investigations (discreto, por dia).
+  // setHistory com updater que devolve `prev` quando nada mudou — sem isso
+  // cada token do streaming geraria um loop de renders.
+  useEffect(() => {
+    setHistory((prev) => {
+      let changed = false
+      const synced = prev.map((entry) => {
+        const inv = investigations.find((item) => item.id === entry.id)
+        if (!inv) return entry
+        const hasResult = inv.queryData !== null
+        if (entry.status !== inv.status || entry.hasResult !== hasResult) {
+          changed = true
+          return { ...entry, status: inv.status, hasResult }
+        }
+        return entry
+      })
+      const fresh = investigations.filter(
+        (inv) => !historyIdsRef.current.has(inv.id)
+      )
+      if (fresh.length > 0) {
+        changed = true
+        const now = Date.now()
+        fresh.forEach((inv) => historyIdsRef.current.add(inv.id))
+        synced.push(
+          ...fresh.map((inv) => ({
+            id: inv.id,
+            question: displayQuestion(inv.question),
+            datasetId: inv.datasetId,
+            datasetName: inv.datasetName,
+            at: now,
+            status: inv.status,
+            hasResult: inv.queryData !== null,
+          }))
+        )
+      }
+      return changed ? synced : prev
+    })
+  }, [investigations])
+
+  // Espelha o resultado mais recente do agente no painel Resultado.
+  // Cada nova pergunta atualiza o painel; a conversa preserva a narrativa.
+  // setStates adiados para o próximo frame (mesmo idioma dos efeitos de
+  // restauração desta página).
+  const appliedQueryRef = useRef<unknown>(null)
+  useEffect(() => {
+    const inv = [...investigations].reverse().find((i) => i.queryData)
+    if (!inv || !inv.queryData) return
+    const queryData = inv.queryData
+    const frame = requestAnimationFrame(() => {
+      if (appliedQueryRef.current !== queryData) {
+        appliedQueryRef.current = queryData
+        const dataset =
+          datasets.find((item) => item.id === inv.datasetId) ?? null
+        applyWorkspace(workspaceFromInvestigation(inv, dataset))
+        if (window.matchMedia("(max-width: 1279.5px)").matches) {
+          setMobileView("result")
+        }
+        return
+      }
+      // Insight e salvamento fluem ao vivo sem resetar a apresentação.
+      setWorkspace((prev) =>
+        prev && prev.investigationId === inv.id
+          ? {
+              ...prev,
+              insight: inv.insight || null,
+              savedAnalysis: inv.savedAnalysis,
+            }
+          : prev
+      )
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [investigations, datasets])
+
+  function handleRestoreHistory(entry: HistoryEntry) {
+    const inv = investigations.find((item) => item.id === entry.id)
+    if (!inv?.queryData) return
+    const dataset = datasets.find((item) => item.id === inv.datasetId) ?? null
+    if (dataset && dataset.id !== selectedDataset?.id) {
+      setSelectedDataset(dataset)
+      void getDataset(dataset.id)
+        .then((detail) => {
+          const columns =
+            (detail as unknown as { columns?: DatasetColumn[] }).columns ?? []
+          setDatasetColumns(columns)
+        })
+        .catch(() => setDatasetColumns(dataset.columns ?? []))
+    }
+    // Restaura como resultado corrente (para Visual/SQL) sem apagar a conversa.
+    appliedQueryRef.current = inv.queryData
+    applyWorkspace(workspaceFromInvestigation(inv, dataset))
+    setMobileView("result")
+    requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
   }
 
   function handleAnalysisSaved() {
     setAnalysesVersion((version) => version + 1)
   }
+
+  // Análise salva pelo agente (create_analysis confirmada) atualiza o rail.
+  const savedAnalysesRef = useRef(new Set<string>())
+  useEffect(() => {
+    const newlySaved = investigations.some((inv) =>
+      inv.toolTrace.some(
+        (trace) =>
+          trace.name === "create_analysis" &&
+          trace.status === "ok" &&
+          !savedAnalysesRef.current.has(trace.toolCallId)
+      )
+    )
+    if (!newlySaved) return
+    for (const inv of investigations) {
+      for (const trace of inv.toolTrace) {
+        if (trace.name === "create_analysis" && trace.status === "ok") {
+          savedAnalysesRef.current.add(trace.toolCallId)
+        }
+      }
+    }
+    setAnalysesVersion((version) => version + 1)
+  }, [investigations])
 
   async function handleDatasetPublished(publishedId?: number) {
     try {
@@ -328,16 +562,147 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     }
   }
 
-  // Composer compacto assim que existe investigação em andamento.
-  const started =
-    result !== null ||
-    executing ||
-    agentQuestion !== null ||
-    restoreAnalysis !== null
+  // Rolagem da conversa: acompanha o início de um turno e a conclusão
+  // (sem forçar a cada token para não roubar a leitura).
+  const chatCursorRef = useRef("")
+  const lastInvestigation = investigations[investigations.length - 1]
+  const chatCursor = `${investigations.length}:${lastInvestigation?.status ?? ""}`
+  useEffect(() => {
+    if (chatCursorRef.current === chatCursor) return
+    const prevParts = chatCursorRef.current.split(":")
+    const nextParts = chatCursor.split(":")
+    chatCursorRef.current = chatCursor
+    const isNewTurn = prevParts[0] !== nextParts[0]
+    const finishedStreaming =
+      prevParts[1] === "streaming" && nextParts[1] !== "streaming"
+    if ((isNewTurn || finishedStreaming) && tab === "ai") {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    }
+  }, [chatCursor, tab])
 
-  const hasResultState = result !== null || executing || executeError !== null
+  const agentBusy = investigations.some(
+    (inv) =>
+      inv.status === "streaming" || inv.status === "awaiting_confirmation"
+  )
+
+  const historyGroups = groupHistoryByDay(history)
+
+  // Investigação que alimenta o painel Resultado: a do workspace atual, ou
+  // a que estiver transmitindo (cada nova pergunta atualiza o resultado).
+  const reversedInvestigations = [...investigations].reverse()
+  const streamingInv =
+    reversedInvestigations.find((i) => i.status === "streaming") ?? null
+  const panelInv =
+    (workspace?.investigationId
+      ? (investigations.find((i) => i.id === workspace.investigationId) ??
+        null)
+      : null) ?? streamingInv
+
+  const panelStreaming =
+    panelInv?.status === "streaming" || (executing && tab === "sql")
+  const panelStatusText = panelInv?.status === "streaming"
+    ? agentStatusText(panelInv.currentTool)
+    : executing && tab === "sql"
+      ? "Executando consulta..."
+      : null
+  const panelError =
+    panelInv?.error ?? (workspace?.source === "sql" ? executeError : null)
+
+  function handlePanelRetry() {
+    if (workspace?.source === "sql" || (!panelInv && executeError)) {
+      void handleExecuteQuery(lastSqlRef.current)
+    } else if (panelInv) {
+      void retry(panelInv.id)
+    }
+  }
+
+  function handlePanelAbort() {
+    if (panelInv) abort(panelInv.id)
+  }
+
+  function handlePanelConfirm() {
+    if (panelInv) void confirmPending(panelInv.id)
+  }
+
+  function handlePanelDismiss() {
+    if (panelInv) dismissPending(panelInv.id)
+  }
+
+  const resultPanel = workspace ? (
+    <WorkspaceResult
+      workspace={workspace}
+      presentation={presentation}
+      onPresentationChange={setPresentation}
+      projectId={projectId}
+      streaming={panelStreaming}
+      statusText={panelStatusText}
+      trace={(panelInv?.toolTrace ?? []).map((step) => ({
+        toolCallId: step.toolCallId,
+        name: step.name,
+        status: step.status,
+      }))}
+      error={panelError}
+      onRetry={handlePanelRetry}
+      onAbort={handlePanelAbort}
+      pendingConfirmation={panelInv?.pendingConfirmation ?? null}
+      onConfirm={handlePanelConfirm}
+      onDismissConfirmation={handlePanelDismiss}
+      editingAnalysis={restoreAnalysis}
+      onAnalysisSaved={handleAnalysisSaved}
+      onDatasetPublished={handleDatasetPublished}
+      onEditVisual={handleEditVisual}
+      hideExplanation={workspace.source === "agent" && tab === "ai"}
+    />
+  ) : panelStreaming || executeError ? (
+    <WorkspaceResult
+      workspace={{
+        rows: [],
+        rowCount: 0,
+        truncated: false,
+        sql: null,
+        question: "Investigando...",
+        source: "agent",
+        datasetId: selectedDataset?.id ?? null,
+        datasetName: selectedDataset?.table_name ?? null,
+      }}
+      presentation={presentation}
+      onPresentationChange={setPresentation}
+      projectId={projectId}
+      streaming={panelStreaming}
+      statusText={panelStatusText ?? "Analisando..."}
+      trace={(panelInv?.toolTrace ?? []).map((step) => ({
+        toolCallId: step.toolCallId,
+        name: step.name,
+        status: step.status,
+      }))}
+      error={executeError}
+      onRetry={() => void handleExecuteQuery(lastSqlRef.current)}
+      onAbort={handlePanelAbort}
+      pendingConfirmation={null}
+      onConfirm={() => {}}
+      onDismissConfirmation={() => {}}
+      editingAnalysis={restoreAnalysis}
+      onAnalysisSaved={handleAnalysisSaved}
+      onDatasetPublished={handleDatasetPublished}
+      onEditVisual={handleEditVisual}
+      hideExplanation
+    />
+  ) : (
+    <div className="mx-5 mt-4 sm:mx-8 xl:mx-8 xl:mt-0 xl:py-5">
+      <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+        Resultado
+      </p>
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        Faça uma pergunta à IA ou execute uma consulta SQL para ver aqui o
+        gráfico, a tabela e os insights da investigação atual.
+      </p>
+    </div>
+  )
+
   return (
     <ExploreShell
+      centerClassName={mobileView === "result" ? "hidden xl:block" : undefined}
+      rightClassName={mobileView === "chat" ? "hidden xl:block" : undefined}
       header={
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
@@ -349,7 +714,40 @@ function ExplorarContent({ projectId }: { projectId: string }) {
               <ArrowLeft size={17} />
             </Link>
             <span className="hidden h-5 w-px bg-border sm:block" />
-            <h1 className="text-sm font-semibold text-foreground sm:text-base">Explorar</h1>
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-foreground sm:text-base">
+                Explorar
+              </h1>
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                Ambiente de investigação de dados
+              </p>
+            </div>
+          </div>
+          <div
+            className="inline-flex rounded-lg border border-border bg-muted p-0.5 xl:hidden"
+            role="group"
+            aria-label="Alternar entre conversa e resultado"
+          >
+            {(
+              [
+                { id: "chat", label: "Conversa" },
+                { id: "result", label: "Resultado" },
+              ] as const
+            ).map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                aria-pressed={mobileView === view.id}
+                onClick={() => setMobileView(view.id)}
+                className={
+                  mobileView === view.id
+                    ? "rounded-md bg-card px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border"
+                    : "px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                }
+              >
+                {view.label}
+              </button>
+            ))}
           </div>
         </header>
       }
@@ -366,61 +764,106 @@ function ExplorarContent({ projectId }: { projectId: string }) {
         />
       }
       right={
-        selectedDataset && hasResultState ? (
-          <section className="mx-5 mt-4 min-h-[18rem] sm:mx-8 xl:mx-8 xl:mt-0 xl:py-5">
-            <div className="mb-4 flex shrink-0 items-baseline justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                  Resultado
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-foreground">
-                  {restoreAnalysis?.name ?? `Resultado de ${selectedDataset.table_name}`}
-                </h2>
-              </div>
-            </div>
-            <QueryResult
-              data={result}
-              loading={executing}
-              error={executeError}
-              sql={manualSql}
-              databaseId={selectedDataset.database.id}
-              dbSchema={selectedDataset.schema ?? null}
-              datasetId={selectedDataset.id}
-              projectId={projectId}
-              editingAnalysis={restoreAnalysis}
-              onAnalysisSaved={handleAnalysisSaved}
-              onDatasetPublished={handleDatasetPublished}
-              onRetry={() => void handleExecuteQuery(lastSqlRef.current)}
-            />
-          </section>
-        ) : undefined
+        <div ref={resultRef} className="scroll-mt-4">
+          {resultPanel}
+        </div>
       }
     >
-      <ExploreComposer
-        compact={started}
-        mode={mode}
-        onModeChange={setMode}
-        value={composerText}
-        onChange={setComposerText}
-        onSubmit={handleComposerSubmit}
-        sql={manualSql}
-        onSqlChange={setManualSql}
-        onSqlExecute={handleSqlExecute}
-        datasets={datasets}
-        loadingDatasets={loadingDatasets}
-        selectedDataset={selectedDataset}
-        onSelectDataset={handleSelectDataset}
-        columns={datasetColumns}
-        executing={executing}
+      <ContextHeader
+        datasetName={
+          selectedDataset ? selectedDataset.table_name : null
+        }
+        loading={loadingDatasets}
       />
 
-      {/* A pergunta fica registrada entre o editor e a saída da investigação. */}
-      {mode === "ai" && agentQuestion && (
-        <section className="mx-5 mt-2 sm:mx-8 xl:mx-8">
-          <InvestigationBlock question={agentQuestion} />
-        </section>
-      )}
+      <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-8">
+        {/* Modos de uma mesma ferramenta */}
+        <div className="flex flex-wrap items-center gap-3">
+          <ExplorationTabs
+            active={tab}
+            onChange={handleTabChange}
+            visualDisabled={workspace === null}
+          />
+          <div className="ml-auto min-w-0 max-w-full sm:max-w-64">
+            <HistoryDropdown
+              groups={historyGroups}
+              currentId={lastInvestigation?.id ?? null}
+              onSelect={handleRestoreHistory}
+            />
+          </div>
+        </div>
 
+        {/* Aba Agente IA: conversa com os dados + composer fixo */}
+        {tab === "ai" && (
+          <>
+            {investigations.length === 0 ? (
+              <div className="mx-auto mt-8 w-full max-w-2xl text-center">
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                  Converse com seus dados
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                  Faça perguntas em linguagem natural, explore tendências,
+                  compare indicadores e transforme resultados em análises.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-2 divide-y divide-border">
+                {investigations.map((inv) => (
+                  <InvestigationBlock
+                    key={inv.id}
+                    investigation={inv}
+                    onRetry={() => void retry(inv.id)}
+                    onAbort={() => abort(inv.id)}
+                  />
+                ))}
+              </div>
+            )}
+            <div
+              ref={chatEndRef}
+              aria-hidden="true"
+              className="h-1"
+            />
+            <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-card/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:-mx-8 sm:px-8">
+              <div className="mx-auto w-full max-w-3xl">
+                <AgentInput
+                  value={composerText}
+                  onChange={setComposerText}
+                  onAsk={handleAsk}
+                  onAskSql={handleAskSql}
+                  disabled={!selectedDataset}
+                  busy={agentBusy}
+                  hasDataset={selectedDataset !== null}
+                  columns={datasetColumns}
+                  hideSuggestions={investigations.length > 0}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Entrada das abas SQL/Visual */}
+        <div className="mt-5">
+          {tab === "sql" && (
+            <SqlInput
+              sql={manualSql}
+              onSqlChange={setManualSql}
+              onExecute={handleSqlExecute}
+              executing={executing}
+              disabled={!selectedDataset}
+              hasDataset={selectedDataset !== null}
+              datasets={datasets}
+              columns={datasetColumns}
+            />
+          )}
+          {tab === "visual" && (
+            <VisualInput
+              workspace={workspace}
+              presentation={presentation}
+              onPresentationChange={setPresentation}
+            />
+          )}
+        </div>
+      </div>
     </ExploreShell>
   )
 }

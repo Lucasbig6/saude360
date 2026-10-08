@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { ExploreComposer } from "./explore-composer"
-import type { DatasetListItem } from "@/lib/api/datasets"
+import { ExploreComposer, buildSuggestions } from "./explore-composer"
+import type { DatasetColumn, DatasetListItem } from "@/lib/api/datasets"
 
 vi.mock("./sql-editor", () => ({
   SqlEditor: (props: { onExecute: () => void; disabled?: boolean }) => (
@@ -141,5 +141,25 @@ describe("ExploreComposer", () => {
 
     await user.click(screen.getByRole("button", { name: "SQL" }))
     expect(onModeChange).toHaveBeenCalledWith("sql")
+  })
+})
+
+describe("buildSuggestions", () => {
+  it("volta ao genérico sem colunas", () => {
+    expect(buildSuggestions([])).toHaveLength(3)
+  })
+
+  it("monta sugestões a partir das colunas da fonte", () => {
+    const columns = [
+      { column_name: "municipio", type: "VARCHAR", is_dttm: false, filterable: true, groupby: true },
+      { column_name: "data_atendimento", type: "DATE", is_dttm: true, filterable: true, groupby: false },
+      { column_name: "total", type: "INTEGER", is_dttm: false, filterable: false, groupby: false },
+    ] as DatasetColumn[]
+
+    expect(buildSuggestions(columns)).toEqual([
+      "Como evoluíram total ao longo de data_atendimento?",
+      "total por municipio, do maior para o menor",
+      "Total por municipio",
+    ])
   })
 })

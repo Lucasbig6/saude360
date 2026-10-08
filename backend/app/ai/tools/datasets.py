@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.policies import ToolPolicyError
-from app.ai.tools.registry import ToolContext, ToolSpec
+from app.ai.tools.registry import ToolContext, ToolSpec, nullable
 from app.superset import datasets as superset_datasets
 from app.superset.filters import COLUMN_NAME_PATTERN
 
@@ -89,10 +89,15 @@ def dataset_schema_spec() -> ToolSpec:
         input_schema={
             "type": "object",
             "properties": {
-                "dataset_id": {
-                    "type": "integer",
-                    "description": "ID do dataset (opcional se houver apenas um no escopo).",
-                }
+                "dataset_id": nullable(
+                    {
+                        "type": "integer",
+                        "description": (
+                            "ID do dataset (opcional se houver apenas um "
+                            "no escopo; omita se não souber)."
+                        ),
+                    }
+                )
             },
             "additionalProperties": False,
         },
@@ -111,9 +116,11 @@ def column_values_spec() -> ToolSpec:
         input_schema={
             "type": "object",
             "properties": {
-                "dataset_id": {"type": "integer"},
+                "dataset_id": nullable({"type": "integer"}),
                 "column_name": {"type": "string"},
-                "limit": {"type": "integer", "minimum": 1, "maximum": MAX_COLUMN_VALUES},
+                "limit": nullable(
+                    {"type": "integer", "minimum": 1, "maximum": MAX_COLUMN_VALUES}
+                ),
             },
             "required": ["column_name"],
             "additionalProperties": False,

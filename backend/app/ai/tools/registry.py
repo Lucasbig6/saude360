@@ -29,6 +29,21 @@ class ToolContext:
 ToolHandler = Callable[[ToolContext, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
+def nullable(schema: dict[str, Any]) -> dict[str, Any]:
+    """Torna um parâmetro opcional aceito como ``null``.
+
+    Motivo: o Groq valida os argumentos da tool call no servidor e rejeita
+    ``null`` contra ``{"type": "integer"}`` (ou ``"string"``) com
+    ``tool_use_failed`` — e o modelo frequentemente envia ``null`` para
+    parâmetros opcionais que desconhece (ex.: ``dataset_id`` com um único
+    dataset no escopo, resolvido pelo backend via ``Scope``). O formato
+    ``anyOf`` foi verificado contra a API do Groq.
+    """
+    if "anyOf" in schema:
+        return schema
+    return {"anyOf": [schema, {"type": "null"}]}
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     """Metadados de uma tool — a LLM só enxerga name/description/schema."""

@@ -13,6 +13,12 @@ use get_column_values.
 
 Salvar uma análise (create_analysis) exige confirmação do usuário:
 apresente o resultado e peça confirmação antes de chamá-la.
+
+Específico deste modo (sem painel):
+- Cada sessão está ancorada em um único dataset: não use
+  get_dashboard_context (indisponível aqui) e não cite outros datasets.
+- Ao final, indique a consulta SELECT/WITH efetivamente executada e o
+  que os números significam, sem inventar valores.
 """
 
 SYSTEM_PROMPT = BASE_RULES + "\n" + EXPLORER_RULES

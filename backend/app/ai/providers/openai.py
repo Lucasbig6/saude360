@@ -179,6 +179,12 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         tools: list[dict[str, Any]],
     ) -> LLMResponse:
         data = await self._post(self._request_payload(messages, tools, stream=False))
+        if isinstance(data, dict) and isinstance(data.get("error"), dict):
+            detail = data["error"].get("message") or "erro desconhecido do provider"
+            raise ProviderError(
+                f"Provider '{self.name}' rejeitou a requisição: "
+                f"{self._sanitize(str(detail))[:500]}"
+            )
         choices = data.get("choices") or []
         if not choices:
             raise ProviderError(f"Provider '{self.name}' não retornou choices.")
@@ -254,6 +260,17 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             return None
         if not isinstance(payload, dict):
             return None
+        # Erro embutido no stream (HTTP 200 com {"error": ...}): o Groq usa
+        # esse formato quando a tool call do modelo falha na validação
+        # (ex.: tool_use_failed). Sem isso o turno terminaria vazio e
+        # silencioso. Levantar aqui vira evento `error` no orquestrador.
+        error = payload.get("error")
+        if isinstance(error, dict):
+            detail = error.get("message") or "erro desconhecido do provider"
+            raise ProviderError(
+                f"Provider '{self.name}' rejeitou a requisição: "
+                f"{self._sanitize(str(detail))[:500]}"
+            )
         choices = payload.get("choices") or []
         chunk = LLMChunk(
             usage=LLMUsage.from_payload(payload.get("usage")),

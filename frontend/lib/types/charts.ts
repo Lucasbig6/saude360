@@ -6,6 +6,9 @@ import type { ChartType as ChartWidgetType } from "@/lib/charts/chart-config"
 export type ChartType = ChartWidgetType | "table"
 export type AnalysisChartType = ChartType | "kpi"
 
+/** Tipos plotáveis no explorador (tabela tratada à parte). */
+export type VisualizationType = Exclude<ChartType, "table"> | "kpi"
+
 export const chartTypeLabel: Record<AnalysisChartType, string> = {
   table: "Tabela",
   kpi: "KPI",

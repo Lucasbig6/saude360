@@ -308,6 +308,51 @@ async def test_chat_stream_http_error_raises():
             pass
 
 
+async def test_chat_stream_error_payload_raises_without_secret():
+    """Erro embutido no stream (HTTP 200 + {"error": ...}, ex. Groq
+    tool_use_failed) vira ProviderError em vez de turno vazio silencioso."""
+    body = sse_lines(
+        {
+            "error": {
+                "message": "tool_use_failed envolvendo sk-segredo-123",
+                "type": "invalid_request_error",
+                "code": "tool_use_failed",
+            }
+        }
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=body,
+            headers={"content-type": "text/event-stream"},
+        )
+
+    provider = make_provider(handler)
+    with pytest.raises(ProviderError) as exc_info:
+        async for _ in provider.chat_stream([ChatMessage(role="user", content="x")], []):
+            pass
+    assert "sk-segredo-123" not in str(exc_info.value)
+    assert "tool_use_failed" in str(exc_info.value)
+
+
+async def test_chat_error_body_raises_with_detail():
+    """Resposta 200 com {"error": ...} no modo sem streaming também falha."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=json.dumps(
+                {"error": {"message": "model_not_found", "code": "model_not_found"}}
+            ).encode(),
+            headers={"content-type": "application/json"},
+        )
+
+    provider = make_provider(handler)
+    with pytest.raises(ProviderError, match="model_not_found"):
+        await provider.chat([ChatMessage(role="user", content="x")], [])
+
+
 # ---------------------------------------------------------------------------
 # Fallback de streaming (provider sem SSE)
 # ---------------------------------------------------------------------------

@@ -10,6 +10,10 @@ interface ExploreShellProps {
   right?: ReactNode
   header?: ReactNode
   children: ReactNode
+  /** Classes extras para a coluna central (ex.: ocultar no mobile). */
+  centerClassName?: string
+  /** Classes extras para o painel direito (ex.: ocultar no mobile). */
+  rightClassName?: string
 }
 
 /**
@@ -17,7 +21,14 @@ interface ExploreShellProps {
  * contexto opcional. Os rails ficam ocultos abaixo de `xl` — a área central
  * mantém toda a funcionalidade (seletor de dataset incluído).
  */
-export function ExploreShell({ left, right, header, children }: ExploreShellProps) {
+export function ExploreShell({
+  left,
+  right,
+  header,
+  children,
+  centerClassName,
+  rightClassName,
+}: ExploreShellProps) {
   return (
     <div className="flex min-h-full w-full flex-col xl:h-[calc(100dvh-4rem)]">
       {header}
@@ -38,7 +49,8 @@ export function ExploreShell({ left, right, header, children }: ExploreShellProp
         <div
           className={cn(
             "min-h-0 min-w-0 xl:overflow-y-auto",
-            right ? "" : "border-b border-border"
+            right ? "" : "border-b border-border",
+            centerClassName
           )}
         >
           {children}
@@ -46,7 +58,10 @@ export function ExploreShell({ left, right, header, children }: ExploreShellProp
 
         {right && (
           <aside
-            className="min-h-0 border-t border-border xl:overflow-y-auto xl:border-l xl:border-t-0"
+            className={cn(
+              "min-h-0 border-t border-border xl:overflow-y-auto xl:border-l xl:border-t-0",
+              rightClassName
+            )}
             aria-label="Resultado da investigação"
           >
             {right}

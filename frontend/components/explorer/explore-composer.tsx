@@ -41,11 +41,41 @@ interface ExploreComposerProps {
   executing: boolean
 }
 
-const SUGGESTIONS = [
+const FALLBACK_SUGGESTIONS = [
   "Como evoluíram os atendimentos de janeiro a junho?",
   "Atendimentos por município, do maior para o menor",
   "Total de atendimentos por faixa etária",
 ]
+
+/**
+ * Sugestões ancoradas na fonte selecionada: usam a primeira coluna temporal,
+ * dimensão (groupby) e métrica do dataset. Sem colunas, volta ao genérico.
+ */
+export function buildSuggestions(columns: DatasetColumn[]): string[] {
+  const dims = columns
+    .filter((c) => c.groupby && !c.is_dttm)
+    .map((c) => c.column_name)
+  const times = columns.filter((c) => c.is_dttm).map((c) => c.column_name)
+  const metrics = columns
+    .filter((c) => !c.groupby && !c.is_dttm)
+    .map((c) => c.column_name)
+
+  if (dims.length === 0 && times.length === 0 && metrics.length === 0) {
+    return FALLBACK_SUGGESTIONS
+  }
+
+  const suggestions: string[] = []
+  if (times[0] && metrics[0]) {
+    suggestions.push(`Como evoluíram ${metrics[0]} ao longo de ${times[0]}?`)
+  }
+  if (dims[0] && metrics[0]) {
+    suggestions.push(`${metrics[0]} por ${dims[0]}, do maior para o menor`)
+  }
+  if (dims[0]) {
+    suggestions.push(`Total por ${dims[0]}`)
+  }
+  return suggestions.length > 0 ? suggestions : FALLBACK_SUGGESTIONS
+}
 
 const subscribeToHydration = () => () => {}
 const getHydratedSnapshot = () => true
@@ -232,7 +262,7 @@ export function ExploreComposer({
 
         {!compact && mode === "ai" && (
           <div className="mt-5 flex flex-wrap gap-2">
-            {SUGGESTIONS.map((suggestion) => (
+            {buildSuggestions(columns).map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"

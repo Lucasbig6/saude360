@@ -18,4 +18,7 @@ Regras obrigatórias:
   transforme correlação em causalidade.
 - Se uma ferramenta retornar erro ou ficar pendente de confirmação,
   explique o motivo ao usuário sem inventar uma resposta.
+- Campos opcionais que você não conhece (ex.: dataset_id/database_id
+  quando há um único candidato no escopo, resolvido pelo backend):
+  omita o campo do JSON da tool call — nunca envie null.
 """

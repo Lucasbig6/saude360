@@ -20,7 +20,7 @@ import {
 import { SaveAnalysisDialog } from "@/components/explorer/save-analysis-dialog"
 import { PublishDatasetDialog } from "@/components/explorer/publish-dataset-dialog"
 import { createAnalysis, updateAnalysis } from "@/lib/api/analyses"
-import { buildConfig } from "@/components/explorer/preview-chart"
+import { buildAnalysisPayload } from "@/lib/explorer/analysis-payload"
 import type { Analysis } from "@/lib/types/analysis"
 import type { ChartConfig } from "@/lib/charts/chart-config"
 import {
@@ -187,30 +187,29 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
     setSaveError(null)
 
     const isChart = viewMode !== "table"
-    const payload = {
+    const payload = buildAnalysisPayload({
       name,
       description,
-      sql: sql ?? "",
-      databaseId: databaseId ?? null,
-      dbSchema: dbSchema ?? null,
-      datasetId: datasetId ?? null,
-      chartType: isChart ? chartType : "table",
-      dimension: isChart ? effectiveDimension : null,
-      metric: isChart ? effectiveMetric : null,
-      // Apresentação completa (rótulos, cores, ordenação...) — o backend
-      // guarda o dict cru e devolve igual na leitura.
-      chartConfig: isChart
-        ? buildConfig(
-            chartType,
-            effectiveDimension,
-            effectiveMetric,
-            effectiveColorField,
-            display
-          )
-        : null,
-      // string -> associa; null -> sem vínculo (create) / remove vínculo (update)
       projectId: selectedProjectId,
-    }
+      workspace: {
+        rows: data ?? [],
+        rowCount: data?.length ?? 0,
+        truncated: false,
+        sql: sql ?? null,
+        source: "sql",
+        databaseId: databaseId ?? null,
+        dbSchema: dbSchema ?? null,
+        datasetId: datasetId ?? null,
+      },
+      presentation: {
+        chartType,
+        dimension: isChart ? effectiveDimension : null,
+        metric: isChart ? effectiveMetric : null,
+        colorField: isChart ? effectiveColorField : null,
+        display,
+        viewMode,
+      },
+    })
 
     try {
       // Edição (?analysisId restaurado) atualiza a mesma análise; sem edição, cria.

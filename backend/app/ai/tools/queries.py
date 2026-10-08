@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 from app.ai.policies import ToolPolicyError
-from app.ai.tools.registry import ToolContext, ToolSpec
+from app.ai.tools.registry import ToolContext, ToolSpec, nullable
 from app.superset import queries as superset_queries
 
 
@@ -113,16 +113,21 @@ def execute_query_spec() -> ToolSpec:
                     "type": "string",
                     "description": "Consulta SELECT ou WITH.",
                 },
-                "db_schema": {
-                    "type": "string",
-                    "description": "Schema do banco (opcional).",
-                },
-                "database_id": {
-                    "type": "integer",
-                    "description": (
-                        "Opcional: só é aceito se estiver no escopo da sessão."
-                    ),
-                },
+                "db_schema": nullable(
+                    {
+                        "type": "string",
+                        "description": "Schema do banco (opcional; omita se não souber).",
+                    }
+                ),
+                "database_id": nullable(
+                    {
+                        "type": "integer",
+                        "description": (
+                            "Opcional: só é aceito se estiver no escopo "
+                            "da sessão; omita se não souber."
+                        ),
+                    }
+                ),
             },
             "required": ["sql"],
             "additionalProperties": False,

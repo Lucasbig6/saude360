@@ -518,3 +518,39 @@ async def test_update_widget_config_allowed_only_for_copilot():
     explorer = build_policy("explorer", Scope())
     with pytest.raises(ToolNotAllowedError):
         registry.resolve("update_widget_config", explorer)
+
+
+# ---------------------------------------------------------------------------
+# Schemas nullable (Groq valida tool calls no servidor)
+# ---------------------------------------------------------------------------
+
+
+def test_nullable_helper_accepts_null_and_is_idempotent():
+    from app.ai.tools.registry import nullable
+
+    schema = nullable({"type": "integer"})
+    assert {"type": "null"} in schema["anyOf"]
+    assert {"type": "integer"} in schema["anyOf"]
+    assert nullable(schema) is schema
+
+
+def test_optional_tool_params_accept_null():
+    """Todo parâmetro não-obrigatório deve aceitar null (anyOf).
+
+    O Groq rejeita a requisição inteira (tool_use_failed) quando o modelo
+    envia null para um campo opcional tipado de forma estrita — e o modelo
+    faz isso para ids resolvidos pelo escopo do backend.
+    """
+    registry = build_registry()
+    specs = registry.all()
+    assert specs, "registry sem tools"
+    for spec in specs:
+        schema = spec.input_schema
+        required = set(schema.get("required") or [])
+        for name, prop in (schema.get("properties") or {}).items():
+            if name in required:
+                continue
+            assert isinstance(prop, dict) and any(
+                isinstance(branch, dict) and branch.get("type") == "null"
+                for branch in prop.get("anyOf", [])
+            ), f"{spec.name}.{name} deve aceitar null"

@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.ai.policies import ToolPolicyError
-from app.ai.tools.registry import ToolContext, ToolSpec
+from app.ai.tools.registry import ToolContext, ToolSpec, nullable
 from app.models import Analysis
 from app.superset.queries import validar_sql
 
@@ -124,14 +124,16 @@ def create_analysis_spec() -> ToolSpec:
             "type": "object",
             "properties": {
                 "name": {"type": "string", "maxLength": MAX_NAME_LENGTH},
-                "description": {"type": "string"},
-                "sql": {"type": "string", "description": "SELECT/WITH da análise."},
-                "chart_type": {"type": "string"},
-                "dimension": {"type": "string"},
-                "metric": {"type": "string"},
-                "db_schema": {"type": "string"},
-                "dataset_id": {"type": "integer"},
-                "database_id": {"type": "integer"},
+                "description": nullable({"type": "string"}),
+                "sql": nullable(
+                    {"type": "string", "description": "SELECT/WITH da análise."}
+                ),
+                "chart_type": nullable({"type": "string"}),
+                "dimension": nullable({"type": "string"}),
+                "metric": nullable({"type": "string"}),
+                "db_schema": nullable({"type": "string"}),
+                "dataset_id": nullable({"type": "integer"}),
+                "database_id": nullable({"type": "integer"}),
             },
             "required": ["name"],
             "additionalProperties": False,

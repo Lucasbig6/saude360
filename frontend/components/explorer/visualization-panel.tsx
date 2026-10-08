@@ -24,10 +24,11 @@ import { PreviewChart } from "./preview-chart"
 import { DraggableField } from "./draggable-field"
 import { FieldDropSlot } from "./field-drop-slot"
 
-export type { ChartType } from "@/lib/types/charts"
-import type { ChartType } from "@/lib/types/charts"
-export type VisualizationType = Exclude<ChartType, "table"> | "kpi"
-export type ColumnType = "numeric" | "categorical"
+export type { ChartType, VisualizationType } from "@/lib/types/charts"
+import type { VisualizationType } from "@/lib/types/charts"
+export type { ColumnInfo, ColumnType } from "@/lib/explorer/columns"
+export { analyzeColumns } from "@/lib/explorer/columns"
+import { analyzeColumns } from "@/lib/explorer/columns"
 
 // Reexporta as opções de display para os consumidores do painel.
 export {
@@ -37,11 +38,6 @@ export {
   type ChartDisplayOptions,
 } from "@/lib/charts/display-options"
 
-export interface ColumnInfo {
-  name: string
-  type: ColumnType
-}
-
 export type VisualizationConfig = {
   chartType: VisualizationType
   dimension: string | null
@@ -50,7 +46,8 @@ export type VisualizationConfig = {
 
 interface VisualizationPanelProps {
   data: Record<string, unknown>[]
-  onBackToTable: () => void
+  /** Ausente na aba Visual (a alternância tabela/gráfico vive no resultado). */
+  onBackToTable?: () => void
   chartType: VisualizationType
   onChartTypeChange: (value: VisualizationType) => void
   dimension: string | null
@@ -62,6 +59,11 @@ interface VisualizationPanelProps {
   onColorFieldChange?: (value: string | null) => void
   display?: ChartDisplayOptions
   onDisplayChange?: (value: ChartDisplayOptions) => void
+  /**
+   * Oculta a pré-visualização interna (a aba Visual configura; o gráfico
+   * aparece no resultado compartilhado).
+   */
+  hideChart?: boolean
 }
 
 type SlotType = "dimension" | "metric" | "color"
@@ -74,27 +76,6 @@ const CARTESIAN_TYPES: VisualizationType[] = [
   "area",
   "scatter",
 ]
-
-export function analyzeColumns(
-  data: Record<string, unknown>[]
-): ColumnInfo[] {
-  const sample = data.slice(0, 100)
-  const columnNames = Array.from(
-    new Set(sample.flatMap((row) => Object.keys(row)))
-  )
-
-  return columnNames.map((name) => {
-    const values = sample
-      .map((row) => row[name])
-      .filter((value) => value !== null && value !== undefined)
-
-    if (values.length === 0 || values.every((value) => typeof value === "number")) {
-      return { name, type: values.length === 0 ? "categorical" : "numeric" }
-    }
-
-    return { name, type: "categorical" }
-  })
-}
 
 const controlClass =
   "h-9 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -114,6 +95,7 @@ export function VisualizationPanel({
   onColorFieldChange,
   display,
   onDisplayChange,
+  hideChart = false,
 }: VisualizationPanelProps) {
   const columns = useMemo(() => analyzeColumns(data), [data])
 
@@ -246,16 +228,18 @@ export function VisualizationPanel({
             Arraste os campos para os slots ou clique para selecionar.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onBackToTable}
-          className="shrink-0"
-        >
-          <ChevronLeft size={15} />
-          Tabela
-        </Button>
+        {onBackToTable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onBackToTable}
+            className="shrink-0"
+          >
+            <ChevronLeft size={15} />
+            Tabela
+          </Button>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-5">
@@ -713,16 +697,18 @@ export function VisualizationPanel({
         </div>
 
         {/* Chart */}
-        <div className="h-[400px] rounded-lg border border-border bg-muted/50/50 p-3">
-          <PreviewChart
-            data={data}
-            chartType={chartType}
-            dimension={dimension}
-            metric={metric}
-            colorField={colorField}
-            display={options}
-          />
-        </div>
+        {!hideChart && (
+          <div className="h-[400px] rounded-lg border border-border bg-muted/50/50 p-3">
+            <PreviewChart
+              data={data}
+              chartType={chartType}
+              dimension={dimension}
+              metric={metric}
+              colorField={colorField}
+              display={options}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
