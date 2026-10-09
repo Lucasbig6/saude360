@@ -9,10 +9,12 @@ import type { Analysis } from "@/lib/types/analysis"
 
 interface SourcesRailProps {
   projectId: string | null
+  projectName: string | null
   datasets: DatasetListItem[]
   loadingDatasets: boolean
   datasetsError: string | null
   selectedDatasetId: number | null
+  selectedDatasetName: string | null
   onSelectDataset: (dataset: DatasetListItem) => void
   /** `null` = carregando. Lista vem da página (fonte única de verdade). */
   analyses: Analysis[] | null
@@ -20,14 +22,6 @@ interface SourcesRailProps {
 }
 
 const ANALISES_LIMIT = 6
-
-function RailLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-      {children}
-    </p>
-  )
-}
 
 function railItemActive(active: boolean): string {
   return cn(
@@ -40,10 +34,12 @@ function railItemActive(active: boolean): string {
 
 export function SourcesRail({
   projectId,
+  projectName,
   datasets,
   loadingDatasets,
   datasetsError,
   selectedDatasetId,
+  selectedDatasetName,
   onSelectDataset,
   analyses,
   analysesError = null,
@@ -51,14 +47,50 @@ export function SourcesRail({
   return (
     <nav
       aria-label="Contexto da investigação"
-      className="h-full overflow-y-auto px-5 py-6"
+      className="h-full overflow-y-auto px-3 py-4"
     >
-      <h2 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-        Contexto
-      </h2>
-      <section>
-        <RailLabel>Fontes</RailLabel>
-        <div className="space-y-0.5 pb-2 pt-2">
+      <div className="mb-4">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Contexto da sessão
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/30 p-3">
+          {projectName && (
+            <div className="mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Projeto
+              </p>
+              <p className="mt-1 truncate text-sm font-medium text-foreground">
+                {projectName}
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border/80 bg-background/80 px-2.5 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Fonte ativa
+            </p>
+            <p className="mt-1 truncate text-sm font-medium text-foreground">
+              {selectedDatasetName ?? "Nenhuma fonte selecionada"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <section className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Fontes disponíveis
+          </p>
+          <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {datasets.length}
+          </span>
+        </div>
+
+        <div className="space-y-1 pt-3">
           {loadingDatasets && (
             <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
               <Loader2 size={12} className="animate-spin" />
@@ -92,7 +124,8 @@ export function SourcesRail({
               </button>
             ))}
         </div>
-        <div className="pb-2 pt-1">
+
+        <div className="pt-3">
           <Link
             href={projectId ? `/projetos/${projectId}/fontes` : "/fontes"}
             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
@@ -103,9 +136,17 @@ export function SourcesRail({
         </div>
       </section>
 
-      <section className="mt-6">
-        <RailLabel>Análises</RailLabel>
-        <div className="space-y-0.5 pb-2 pt-2">
+      <section className="mt-4 rounded-xl border border-border bg-muted/20 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Análises recentes
+          </p>
+          <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {analyses?.length ?? 0}
+          </span>
+        </div>
+
+        <div className="space-y-1 pt-3">
           {analyses === null && (
             <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
               <Loader2 size={12} className="animate-spin" />
@@ -115,7 +156,7 @@ export function SourcesRail({
 
           {analyses !== null && analyses.length === 0 && (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">
-              {analysesError ?? "Nenhuma análise salva nesta etapa ainda."}
+              {analysesError ?? "Nenhuma análise salva ainda."}
             </p>
           )}
 
@@ -138,7 +179,8 @@ export function SourcesRail({
             )
           })}
         </div>
-        <div className="pb-2 pt-1">
+
+        <div className="pt-3">
           <Link
             href={projectId ? `/projetos/${projectId}/analises` : "/analises"}
             className="text-xs text-primary hover:underline"
@@ -147,7 +189,6 @@ export function SourcesRail({
           </Link>
         </div>
       </section>
-
     </nav>
   )
 }

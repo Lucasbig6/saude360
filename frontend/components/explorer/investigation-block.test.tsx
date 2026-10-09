@@ -36,6 +36,7 @@ function renderTurn(investigation: Investigation) {
       investigation={investigation}
       onRetry={callbacks.onRetry}
       onAbort={callbacks.onAbort}
+      projectId="test-project"
     />
   )
   return callbacks
@@ -52,6 +53,9 @@ describe("InvestigationBlock (turno do chat, sem gráfico)", () => {
     expect(screen.getByText("Agente")).toBeTruthy()
     expect(screen.getByRole("status")).toHaveTextContent(
       "Executando a consulta..."
+    )
+    expect(screen.getByText("Quantos atendimentos houve?").closest("div")).toHaveClass(
+      "bg-primary"
     )
   })
 

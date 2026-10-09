@@ -254,6 +254,27 @@ async def test_session_is_invisible_to_other_user(
     )
     assert response.status_code == 404
 
+    response = await client.delete(f"/api/ai/sessions/{data['id']}", headers=bob)
+    assert response.status_code == 404
+    assert db.get(AISession, uuid.UUID(data["id"])) is not None
+
+
+async def test_delete_session_removes_its_messages(
+    client, db, override_llm_provider
+):
+    headers = user_headers(db, "alice")
+    dashboard_id = seed_dashboard(db)
+    data = await create_session(client, headers, dashboardId=str(dashboard_id))
+    session_id = uuid.UUID(data["id"])
+    db.add(AIMessage(session_id=session_id, role="user", content="Pergunta"))
+    db.commit()
+
+    response = await client.delete(f"/api/ai/sessions/{data['id']}", headers=headers)
+
+    assert response.status_code == 204
+    assert db.get(AISession, session_id) is None
+    assert db.scalar(select(AIMessage).where(AIMessage.session_id == session_id)) is None
+
 
 async def test_unknown_session_is_404(client, db, override_llm_provider):
     headers = user_headers(db, "alice")
@@ -290,6 +311,9 @@ async def test_post_message_streams_text_and_persists(
     headers = user_headers(db, "alice")
     dashboard_id = seed_dashboard(db)
     session = await create_session(client, headers, dashboardId=str(dashboard_id))
+    session_row = db.get(AISession, uuid.UUID(session["id"]))
+    assert session_row is not None
+    created_at = session_row.updated_at
     override_llm_provider._responses = [
         make_llm_response(content="O painel tem um widget de internações.")
     ]
@@ -318,6 +342,8 @@ async def test_post_message_streams_text_and_persists(
     assert rows[0].content == "O que este painel mostra?"
     assert rows[1].content == "O painel tem um widget de internações."
     assert rows[1].status == "complete"
+    db.refresh(session_row)
+    assert session_row.updated_at > created_at
 
 
 async def test_post_message_empty_body_is_422(

@@ -1,15 +1,27 @@
 "use client"
 
-import { Loader2, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { Check, FileCode2, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Investigation } from "@/hooks/use-explorer-agent"
 import { CopilotMarkdown } from "@/components/dashboard/copilot-markdown"
 import { displayQuestion } from "@/lib/explorer/chat-context"
+import { AgentViz } from "./agent-viz"
+import { ResultActions } from "./result-actions"
+import type { PresentationState } from "@/lib/explorer/workspace"
 
 interface InvestigationBlockProps {
   investigation: Investigation
   onRetry: () => void
   onAbort: () => void
+  onPresentationChange?: (presentation: PresentationState) => void
+  presentation?: PresentationState
+  onSaveAnalysis?: () => void
+  onAddToDashboard?: () => void
+  onDatasetPublished?: (datasetId: number) => void
+  onEditVisual?: () => void
+  projectId: string
+  editingAnalysis?: unknown
 }
 
 const TOOL_STATUS_TEXT: Record<string, string> = {
@@ -28,16 +40,23 @@ const TRACE_LABELS: Record<string, string> = {
 
 /**
  * Turno da conversa com os dados: mensagem do usuário (discreta, à direita)
- * + resposta do agente (rótulo institucional + narrativa em Markdown).
+ * + resposta do agente com resultado inline (gráfico/tabela/SQL).
  *
- * O resultado analítico (gráfico/tabela/insights/ações) vive no painel
- * Resultado, fora das mensagens — a conversa é a narrativa, o painel é a
- * evidência.
+ * O resultado é um componente rico da resposta — não um painel lateral.
+ * A conversa é a narrativa, o resultado é a evidência.
  */
 export function InvestigationBlock({
   investigation,
   onRetry,
   onAbort,
+  onPresentationChange,
+  presentation,
+  onSaveAnalysis,
+  onAddToDashboard,
+  onDatasetPublished,
+  onEditVisual,
+  projectId,
+  editingAnalysis,
 }: InvestigationBlockProps) {
   const streaming = investigation.status === "streaming"
   const statusText = streaming
@@ -47,31 +66,48 @@ export function InvestigationBlock({
       : "Analisando..."
     : null
 
+  const [showSql, setShowSql] = useState(false)
+
+  const hasResult = investigation.queryData !== null && investigation.queryData.rows.length > 0
+
   return (
     <article
       data-testid={`investigation-${investigation.id}`}
-      className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-5 py-5 sm:px-8"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6 sm:px-8"
     >
       {/* Mensagem do usuário */}
       <div className="flex justify-end">
         <div className="max-w-[85%]">
-          <p className="text-right text-xs font-medium text-muted-foreground">
-            Você
-          </p>
-          <p className="mt-1 rounded-lg rounded-tr-sm bg-muted/70 px-3.5 py-2 text-sm text-foreground">
+          <div className="mb-1.5 flex items-center justify-end gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Você
+            </span>
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <span className="text-[10px] font-semibold">EU</span>
+            </div>
+          </div>
+          <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm">
             {displayQuestion(investigation.question)}
-          </p>
+          </div>
         </div>
       </div>
 
       {/* Resposta do agente */}
-      <div>
-        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Sparkles size={12} className="text-primary" />
-          Agente
-          <span aria-hidden="true">·</span>
-          <span className="font-normal">{investigation.datasetName}</span>
-        </p>
+      <div className="rounded-2xl border border-border bg-card/80 p-3 shadow-sm sm:p-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Sparkles size={12} />
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Agente
+          </span>
+          <span aria-hidden="true" className="text-muted-foreground">
+            ·
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {investigation.datasetName}
+          </span>
+        </div>
 
         {streaming && (
           <p
@@ -85,7 +121,7 @@ export function InvestigationBlock({
 
         {investigation.toolTrace.length > 0 && (
           <ul
-            className="mt-2 flex flex-wrap gap-1.5"
+            className="mt-3 flex flex-wrap gap-1.5"
             aria-label="Etapas da investigação"
           >
             {investigation.toolTrace.map((step) => (
@@ -103,16 +139,79 @@ export function InvestigationBlock({
                 {step.status === "running" && (
                   <Loader2 size={11} className="animate-spin" />
                 )}
+                {step.status === "ok" && <Check size={11} />}
                 {TRACE_LABELS[step.name] ?? step.name}
               </li>
             ))}
           </ul>
         )}
 
+        {/* Resultado inline: gráfico/tabela */}
+        {hasResult && investigation.queryData && (
+          <div className="mt-3">
+            <AgentViz
+              rows={investigation.queryData.rows}
+              rowCount={investigation.queryData.rowCount}
+              truncated={investigation.queryData.truncated}
+              executionMs={investigation.queryData.executionMs}
+              presentation={presentation}
+              onPresentationChange={onPresentationChange}
+            />
+          </div>
+        )}
+
+        {/* Insight da IA */}
         {investigation.insight && (
-          <div className="mt-2 text-sm leading-relaxed text-foreground">
+          <div className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm leading-relaxed text-foreground">
             <CopilotMarkdown>{investigation.insight}</CopilotMarkdown>
           </div>
+        )}
+
+        {/* SQL expansível */}
+        {investigation.sql && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowSql((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <FileCode2 size={12} />
+              {showSql ? "Ocultar SQL" : "Ver SQL"}
+            </button>
+            {showSql && (
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/40 px-4 py-2.5 font-mono text-xs text-foreground">
+                {investigation.sql}
+              </pre>
+            )}
+          </div>
+        )}
+
+        {/* Ações do resultado */}
+        {hasResult && onSaveAnalysis && (
+          <ResultActions
+            workspace={{
+              rows: investigation.queryData?.rows ?? [],
+              rowCount: investigation.queryData?.rowCount ?? 0,
+              truncated: investigation.queryData?.truncated ?? false,
+              executionMs: investigation.queryData?.executionMs,
+              sql: investigation.sql,
+              question: displayQuestion(investigation.question),
+              insight: investigation.insight || null,
+              source: "agent",
+              datasetId: investigation.datasetId,
+              datasetName: investigation.datasetName,
+              investigationId: investigation.id,
+              savedAnalysis: investigation.savedAnalysis,
+            }}
+            presentation={presentation!}
+            projectId={projectId}
+            editingAnalysis={editingAnalysis as never}
+            onAnalysisSaved={() => {}}
+            onDatasetPublished={onDatasetPublished ?? (() => {})}
+            onShowSql={() => setShowSql((v) => !v)}
+            onEditVisual={onEditVisual ?? (() => {})}
+            compact
+          />
         )}
 
         {investigation.error && (

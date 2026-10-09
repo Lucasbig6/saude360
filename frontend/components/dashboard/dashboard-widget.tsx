@@ -137,16 +137,13 @@ export function DashboardWidgetView({
       try {
         let response
         if (publicMode) {
-          // Modo público: usa o endpoint sem auth, validado por analysis_id
+          // Modo público: backend deriva SQL/database da análise salva.
           const filterClauses =
             filters.length > 0 && analysis
               ? buildFilterClauses(filters, filterValues, analysis)
               : []
           response = await executePublicQuery({
             analysis_id: widget.analysisId,
-            database_id: databaseId,
-            sql,
-            db_schema: dbSchema ?? undefined,
             ...(filterClauses.length > 0 ? { filters: filterClauses } : {}),
           })
         } else if (filters.length > 0 && analysis) {

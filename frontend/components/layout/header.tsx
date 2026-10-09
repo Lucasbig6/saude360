@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { ChevronDown, LogOut, Settings, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -39,7 +39,7 @@ export function Header() {
 
   return (
     <header className="flex h-20 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <Link href="/inicio" className="flex items-center gap-2.5">
           <BrandMark />
         </Link>
@@ -78,19 +78,23 @@ export function Header() {
             Painéis
           </Link>
         </nav>
+
       </div>
 
       <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
-        <DropdownMenuTrigger className="flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50">
+        <DropdownMenuTrigger
+          aria-label="Menu do usuário"
+          className="flex shrink-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
           <div
             suppressHydrationWarning
             className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
           >
-            {initialsOf(label)}
+            {username ? initialsOf(username) : <User size={17} />}
           </div>
           <span
             suppressHydrationWarning
-            className="hidden text-sm font-medium text-foreground md:block"
+            className="hidden max-w-40 truncate text-sm font-medium text-foreground md:block"
           >
             {label}
           </span>

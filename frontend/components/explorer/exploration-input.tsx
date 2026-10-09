@@ -1,6 +1,7 @@
 "use client"
 
-import { ArrowUp, Loader2, Play } from "lucide-react"
+import { useSyncExternalStore } from "react"
+import { ArrowUp, Loader2, Play, BotMessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SqlEditor } from "./sql-editor"
 import { VisualizationPanel } from "./visualization-panel"
@@ -11,6 +12,10 @@ import type {
   PresentationState,
   WorkspaceData,
 } from "@/lib/explorer/workspace"
+
+const subscribeToHydration = () => () => {}
+const getHydratedSnapshot = () => true
+const getServerHydratedSnapshot = () => false
 
 // ---------------------------------------------------------------------------
 // Agente IA — campo de consulta elegante (não-chat)
@@ -40,7 +45,15 @@ export function AgentInput({
   columns,
   hideSuggestions = false,
 }: AgentInputProps) {
-  const canAsk = Boolean(value.trim()) && !disabled && !busy
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot
+  )
+  const hydratedReady = Boolean(hydrated)
+  const isDisabled = Boolean(disabled)
+  const canAsk =
+    hydratedReady && Boolean(value.trim()) && !isDisabled && !busy
 
   function submit() {
     const text = value.trim()
@@ -60,11 +73,23 @@ export function AgentInput({
   return (
     <div>
       {!hideSuggestions && (
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">
-          O que você quer descobrir?
-        </h2>
+        <div className="mt-8 mb-6">
+          <div className="flex items-center gap-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
+              <BotMessageSquare size={20} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                Explore seus dados
+              </h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Faça uma pergunta, escreva SQL ou explore visualmente.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
-      <div className="mt-3 rounded-lg border border-border bg-card transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
+      <div className="rounded-xl border border-border bg-gradient-to-br from-primary/[0.03] to-transparent transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -76,7 +101,7 @@ export function AgentInput({
               ? "Pergunte sobre seus dados..."
               : "Escolha uma fonte no contexto para começar..."
           }
-          disabled={disabled}
+          disabled={isDisabled}
           className="w-full resize-none bg-transparent px-4 pt-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
         />
         <div className="flex items-center gap-3 px-3 pb-3">
@@ -104,16 +129,20 @@ export function AgentInput({
         </div>
       </div>
       {!hideSuggestions && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {buildSuggestions(columns).map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => onChange(suggestion)}
-              disabled={disabled}
-              className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
+              disabled={isDisabled}
+              className="group flex items-center gap-2.5 rounded-xl border border-border bg-gradient-to-br from-primary/[0.04] to-transparent px-3.5 py-2.5 text-left text-sm text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground hover:shadow-sm disabled:opacity-60"
             >
-              {suggestion}
+              <BotMessageSquare
+                size={14}
+                className="shrink-0 text-primary/60 transition-colors group-hover:text-primary"
+              />
+              <span className="line-clamp-2">{suggestion}</span>
             </button>
           ))}
         </div>
@@ -150,7 +179,7 @@ export function SqlInput({
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">
           Consulta SQL
         </h2>
         <button
@@ -181,7 +210,7 @@ export function SqlInput({
           disabled={!hasDataset}
           datasets={datasets}
           columns={columns}
-          height="240px"
+          height="320px"
         />
       </div>
       {!hasDataset && (

@@ -9,6 +9,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_created_by, get_current_token
+from app.auth.roles import require_role
 from app.db.session import get_db
 from app.models import Analysis, Dashboard, Project, ProjectSource
 from app.schemas.projects import ProjectCreate, ProjectResponse, ProjectUpdate
@@ -144,6 +145,7 @@ def create_project(
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
     created_by: uuid.UUID | None = Depends(get_created_by),
+    _require_analyst: None = Depends(require_role({"ANALISTA", "ADMIN"})),
 ) -> ProjectResponse:
     project = Project(**payload.model_dump(), created_by=created_by)
     db.add(project)
@@ -173,6 +175,7 @@ def delete_project(
     project_id: uuid.UUID,
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
+    _require_admin: None = Depends(require_role({"ADMIN"})),
 ) -> None:
     # FKs em analyses/dashboards usam ON DELETE SET NULL: os recursos
     # permanecem e voltam para as listas globais.

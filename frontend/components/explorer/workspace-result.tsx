@@ -215,25 +215,25 @@ export function WorkspaceResult({
     workspace.savedAnalysis != null
 
   return (
-    <section aria-label="Resultado da investigação" className="mt-6">
+    <section aria-label="Resultado da investigação" className="mt-4">
       {/* Cabeçalho do objeto analítico */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
           Resultado
         </p>
-        <h2 className="mt-1 text-lg font-semibold text-foreground">{title}</h2>
+        <h2 className="mt-1 text-base font-semibold text-foreground">{title}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
       </div>
 
       {/* Progresso do agente (antes do primeiro resultado) */}
       {streaming && workspace.rows.length === 0 && (
-        <div role="status" className="mt-4">
+        <div role="status" className="mt-3">
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />
             {statusText ?? "Analisando..."}
           </p>
           <div className="mt-3 space-y-2" aria-hidden="true">
-            <div className="h-40 animate-pulse rounded-lg bg-muted" />
+            <div className="h-32 animate-pulse rounded-lg bg-muted" />
             <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
           </div>
         </div>
@@ -242,7 +242,7 @@ export function WorkspaceResult({
       {/* Etapas (discretas, durante e depois) */}
       {trace.length > 0 && (
         <ul
-          className="mt-3 flex flex-wrap gap-1.5"
+          className="mt-2 flex flex-wrap gap-1.5"
           aria-label="Etapas da investigação"
         >
           {trace.map((step) => (
@@ -269,7 +269,7 @@ export function WorkspaceResult({
 
       {/* Visualização do resultado */}
       {workspace.rows.length > 0 && (
-        <div className="mt-4 min-w-0">
+        <div className="mt-3 min-w-0">
           <AgentViz
             rows={workspace.rows}
             rowCount={workspace.rowCount}
@@ -283,8 +283,16 @@ export function WorkspaceResult({
 
       {/* Explicação da IA (Markdown com GFM: tabelas, código, listas) */}
       {!hideExplanation && workspace.source === "agent" && workspace.insight && (
-        <div className="mt-4 border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground">
+        <div className="mt-3 border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground">
           <CopilotMarkdown>{workspace.insight}</CopilotMarkdown>
+        </div>
+      )}
+
+      {/* Fonte dos dados */}
+      {workspace.datasetName && (
+        <div className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
+          <p className="text-xs font-medium text-muted-foreground">Fonte dos dados</p>
+          <p className="mt-0.5 text-xs text-foreground">{workspace.datasetName}</p>
         </div>
       )}
 
@@ -292,7 +300,7 @@ export function WorkspaceResult({
       {error && (
         <div
           role="alert"
-          className="mt-4 rounded-lg border border-destructive/40 bg-card px-4 py-3"
+          className="mt-3 rounded-lg border border-destructive/40 bg-card px-4 py-3"
         >
           <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
             <AlertTriangle size={14} />
@@ -326,7 +334,7 @@ export function WorkspaceResult({
       {pendingConfirmation && (
         <div
           role="alert"
-          className="mt-4 rounded-lg border border-primary/40 bg-card px-4 py-3"
+          className="mt-3 rounded-lg border border-primary/40 bg-card px-4 py-3"
         >
           <p className="text-sm font-medium text-foreground">
             O agente quer salvar esta investigação como análise. Confirmar?
@@ -354,7 +362,7 @@ export function WorkspaceResult({
 
       {/* Análise salva pelo agente */}
       {workspace.savedAnalysis && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm text-primary">
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-primary">
           <CheckCircle size={14} />
           Análise salva: {workspace.savedAnalysis.name} ·{" "}
           <Link
@@ -367,7 +375,7 @@ export function WorkspaceResult({
       )}
 
       {saveSuccess && (
-        <p className="mt-3 flex items-center gap-1.5 text-sm text-primary">
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-primary">
           <CheckCircle size={14} />
           Análise salva com sucesso.
         </p>
@@ -375,50 +383,55 @@ export function WorkspaceResult({
 
       {/* Ações do resultado */}
       {workspace.rows.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={() => setShowSql((value) => !value)}
-            aria-expanded={showSql}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <FileCode2 size={13} />
-            Ver SQL
-          </button>
-          <button
-            type="button"
-            onClick={onEditVisual}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Editar visual
-          </button>
-          <button
-            type="button"
-            onClick={() => setSaveOpen(true)}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors"
-          >
-            Salvar análise
-          </button>
-          <button
-            type="button"
-            onClick={handleAddToDashboard}
-            disabled={dashboardLoading || !canAddToDashboard}
-            title={
-              canAddToDashboard
-                ? "Adicionar ao painel"
-                : "Salve a análise antes de adicioná-la a um painel"
-            }
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {dashboardLoading ? "Carregando..." : "Adicionar ao painel"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPublishOpen(true)}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Publicar
-          </button>
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+            Ações
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSaveOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors"
+            >
+              Salvar análise
+            </button>
+            <button
+              type="button"
+              onClick={handleAddToDashboard}
+              disabled={dashboardLoading || !canAddToDashboard}
+              title={
+                canAddToDashboard
+                  ? "Adicionar ao painel"
+                  : "Salve a análise antes de adicioná-la a um painel"
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {dashboardLoading ? "Carregando..." : "Adicionar ao painel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPublishOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Publicar
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSql((value) => !value)}
+              aria-expanded={showSql}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <FileCode2 size={13} />
+              Ver SQL
+            </button>
+            <button
+              type="button"
+              onClick={onEditVisual}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Editar visual
+            </button>
+          </div>
         </div>
       )}
       {dashboardError && (

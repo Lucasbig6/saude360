@@ -21,6 +21,8 @@ interface DashboardViewerProps {
   dashboard: Dashboard
   /** When true, shows a discreet link back to the editor (authenticated context). */
   canEdit?: boolean
+  /** Quando true, usa endpoints públicos (sem auth) para buscar dados dos widgets. */
+  publicMode?: boolean
   editHref?: string
   /**
    * Habilita o Copiloto (sessão de IA). Falso no painel público anônimo:
@@ -32,6 +34,7 @@ interface DashboardViewerProps {
 export function DashboardViewer({
   dashboard,
   canEdit = false,
+  publicMode = false,
   editHref,
   enableCopilot = false,
 }: DashboardViewerProps) {
@@ -224,6 +227,7 @@ export function DashboardViewer({
                 readOnly
                 filterValues={filterValues}
                 refreshKey={refreshKey}
+                publicMode={publicMode}
               />
             )}
           </div>

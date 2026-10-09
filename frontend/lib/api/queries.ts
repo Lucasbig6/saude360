@@ -36,14 +36,16 @@ export async function executeQueryFiltered(
   return apiPost<QueryResult>("/api/queries/execute-filtered", params)
 }
 
-export interface PublicExecuteQueryRequest extends ExecuteQueryRequest {
+export interface PublicExecuteQueryRequest {
   analysis_id: string
   filters?: FilterClause[]
+  limit?: number
 }
 
 /**
  * Executa uma query no contexto de um painel público (sem autenticação).
- * O backend valida que o `analysis_id` pertence a um dashboard antes de executar.
+ * O backend deriva SQL/database/schema da análise salva e valida que o
+ * `analysis_id` pertence a um dashboard antes de executar.
  */
 export async function executePublicQuery(
   params: PublicExecuteQueryRequest

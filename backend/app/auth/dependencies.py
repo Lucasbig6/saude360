@@ -8,6 +8,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.roles import require_role
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import User
@@ -76,4 +77,18 @@ def get_created_by(
 
     return db.scalar(
         select(User.id).where(User.username == username, User.is_active.is_(True))
+    )
+
+
+async def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(get_current_token),
+) -> User | None:
+    """Retorna o objeto User completo se autenticado."""
+    claims = validate_access_token(token)
+    username = claims.get("sub")
+    if not isinstance(username, str) or not username:
+        return None
+    return db.scalar(
+        select(User).where(User.username == username, User.is_active.is_(True))
     )

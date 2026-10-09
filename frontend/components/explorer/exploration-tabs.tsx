@@ -32,7 +32,7 @@ export function ExplorationTabs({
     >
       {TABS.map((tab) => {
         const Icon = tab.icon
-        const disabled = tab.id === "visual" && visualDisabled
+        const disabled = tab.id === "visual" && visualDisabled ? true : false
         return (
           <button
             key={tab.id}

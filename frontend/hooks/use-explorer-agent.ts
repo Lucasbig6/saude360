@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react"
 import {
   createAISession,
+  listAIMessages,
   streamAIMessage,
   type AIMessagePayload,
 } from "@/lib/api/ai"
@@ -109,7 +110,10 @@ function normalizeQueryData(data: unknown): ExplorerQueryData | null {
  */
 export function useExplorerAgent() {
   const [investigations, setInvestigations] = useState<Investigation[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const latestRef = useRef<Investigation[]>([])
+  const activeSessionRef = useRef<string | null>(null)
+  const sessionLoadRef = useRef(0)
   const abortRefs = useRef(new Map<string, AbortController>())
   // toolCallId -> argumentos (para recuperar o SQL do execute_query,
   // que o tool_result não devolve).
@@ -317,7 +321,7 @@ export function useExplorerAgent() {
     [handleEvent, patch]
   )
 
-  /** Nova pergunta → nova sessão `explorer` ancorada no dataset. */
+  /** Nova pergunta cria uma sessão quando necessário e depois reutiliza-a. */
   const ask = useCallback(
     async (question: string, dataset: { id: number; table_name: string }) => {
       const text = question.trim()
@@ -344,14 +348,20 @@ export function useExplorerAgent() {
         return [...prev, inv]
       })
       try {
-        const session = await createAISession({
-          agentType: "explorer",
-          datasetId: dataset.id,
-          title: text.slice(0, 60),
-        })
+        let sessionId = activeSessionRef.current
+        if (!sessionId) {
+          const session = await createAISession({
+            agentType: "explorer",
+            datasetId: dataset.id,
+            title: text.slice(0, 60),
+          })
+          sessionId = session.id
+          activeSessionRef.current = sessionId
+          setActiveSessionId(sessionId)
+        }
         const withSession: Investigation = {
           ...inv,
-          sessionId: session.id,
+          sessionId,
         }
         replace(id, withSession)
         await runStream(withSession, { content: text })
@@ -363,6 +373,83 @@ export function useExplorerAgent() {
       return id
     },
     [patch, replace, runStream]
+  )
+
+  const startNewSession = useCallback(() => {
+    sessionLoadRef.current += 1
+    for (const controller of abortRefs.current.values()) controller.abort()
+    abortRefs.current.clear()
+    activeSessionRef.current = null
+    setActiveSessionId(null)
+    latestRef.current = []
+    setInvestigations([])
+  }, [])
+
+  const loadSession = useCallback(
+    async (
+      sessionId: string,
+      dataset: { id: number; table_name: string }
+    ) => {
+      const loadId = ++sessionLoadRef.current
+      for (const controller of abortRefs.current.values()) controller.abort()
+      abortRefs.current.clear()
+      activeSessionRef.current = sessionId
+      setActiveSessionId(sessionId)
+      latestRef.current = []
+      setInvestigations([])
+
+      const messages = await listAIMessages(sessionId)
+      if (sessionLoadRef.current !== loadId) return
+
+      const restored: Investigation[] = []
+      for (const message of messages) {
+        if (message.role === "user") {
+          restored.push({
+            id: message.id,
+            question: message.content ?? "",
+            datasetId: dataset.id,
+            datasetName: dataset.table_name,
+            sessionId,
+            insight: "",
+            toolTrace: [],
+            currentTool: null,
+            queryData: null,
+            sql: null,
+            savedAnalysis: null,
+            status: "done",
+            error: null,
+            pendingConfirmation: null,
+          })
+        } else if (message.role === "assistant") {
+          const latest = restored[restored.length - 1]
+          if (latest && message.content) latest.insight += message.content
+          const toolCalls = asRecord(message.metadata).toolCalls
+          if (latest && Array.isArray(toolCalls)) {
+            const queryCall = toolCalls.find(
+              (call) =>
+                typeof call === "object" &&
+                call !== null &&
+                asRecord(call).name === "execute_query"
+            )
+            const args = queryCall ? asRecord(asRecord(queryCall).arguments) : {}
+            if (typeof args.sql === "string") latest.sql = args.sql
+          }
+        } else if (message.role === "tool" && message.toolName === "execute_query") {
+          const latest = restored[restored.length - 1]
+          if (latest && message.status === "ok" && message.content) {
+            try {
+              latest.queryData = normalizeQueryData(JSON.parse(message.content))
+            } catch {
+              latest.queryData = null
+            }
+          }
+        }
+      }
+
+      latestRef.current = restored
+      setInvestigations(restored)
+    },
+    []
   )
 
   const retry = useCallback(
@@ -429,7 +516,10 @@ export function useExplorerAgent() {
 
   return {
     investigations,
+    activeSessionId,
     ask,
+    startNewSession,
+    loadSession,
     retry,
     confirmPending,
     dismissPending,

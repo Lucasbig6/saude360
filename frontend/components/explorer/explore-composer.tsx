@@ -103,6 +103,7 @@ export function ExploreComposer({
     getHydratedSnapshot,
     getServerHydratedSnapshot
   )
+  const hydratedReady = Boolean(hydrated)
 
   const canAsk =
     Boolean(value.trim()) && Boolean(selectedDataset) && !executing
@@ -197,7 +198,7 @@ export function ExploreComposer({
             <DatasetChip
               datasets={datasets}
               loading={loadingDatasets}
-              disabled={hydrated && loadingDatasets}
+              disabled={hydratedReady && loadingDatasets}
               selected={selectedDataset}
               onSelect={onSelectDataset}
             />
@@ -212,7 +213,7 @@ export function ExploreComposer({
               onChange={onSqlChange}
               onExecute={onSqlExecute}
               loading={executing}
-              disabled={hydrated && !selectedDataset}
+              disabled={hydratedReady && !selectedDataset}
               datasets={datasets}
               columns={columns}
               height={compact ? "240px" : undefined}

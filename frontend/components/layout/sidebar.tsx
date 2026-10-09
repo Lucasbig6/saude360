@@ -159,17 +159,6 @@ export function BrandMark() {
   )
 }
 
-export function SidebarBrand() {
-  return (
-    <Link
-      href="/inicio"
-      className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border px-4"
-    >
-      <BrandMark />
-    </Link>
-  )
-}
-
 function NavItem({
   link,
   onNavigate,
@@ -257,7 +246,6 @@ export function Sidebar({
         className
       )}
     >
-      <SidebarBrand />
       <SidebarContent sections={sections} />
     </aside>
   )

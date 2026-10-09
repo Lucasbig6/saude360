@@ -27,7 +27,8 @@ services:
       DATABASE_URL: postgresql+psycopg://saude360:saude360_password@saude360-postgres:5432/saude360
       TEST_DATABASE_URL: postgresql+psycopg://saude360:saude360_password@saude360-postgres:5432/saude360_test
       SUPERSET_BASE_URL: http://superset:8088
-      SUPERSET_SECRET_KEY: "chave_secreta_monisus_ambiente_dev_123"
+      APP_ENV: ${APP_ENV:-development}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-chave_secreta_monisus_ambiente_dev_123}
       CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
     ports:
       - "8000:8000"

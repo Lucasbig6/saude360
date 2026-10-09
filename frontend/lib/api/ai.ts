@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiStream } from "../api"
+import { apiDelete, apiGet, apiPost, apiStream } from "../api"
 import { readSSE, type SSEMessage } from "../sse"
 
 export type AIAgentType = "dashboard_copilot" | "explorer"
@@ -54,8 +54,17 @@ export function listAISessions(dashboardId: string): Promise<AISession[]> {
   )
 }
 
+/** Sessões próprias do explorer para uma fonte de dados. */
+export function listExplorerAISessions(datasetId: number): Promise<AISession[]> {
+  return apiGet<AISession[]>(`/api/ai/sessions?datasetId=${datasetId}`)
+}
+
 export function getAISession(sessionId: string): Promise<AISession> {
   return apiGet<AISession>(`/api/ai/sessions/${sessionId}`)
+}
+
+export function deleteAISession(sessionId: string): Promise<void> {
+  return apiDelete(`/api/ai/sessions/${sessionId}`)
 }
 
 export function listAIMessages(sessionId: string): Promise<AIMessage[]> {

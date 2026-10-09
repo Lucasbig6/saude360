@@ -56,7 +56,9 @@ async def create_database(data: dict[str, Any]) -> dict[str, Any]:
             password=data["password"],
         ),
         "expose_in_sqllab": True,
-        "allow_ctas": False,
+        # True: publicar dataset usa CTAS (select_as_cta). Alinhado ao seed
+        # demo e a materialize_query — fonte criada pela UI publica sem erro.
+        "allow_ctas": True,
         "allow_cvas": True,
         "allow_dml": False,
         "allow_run_async": False,

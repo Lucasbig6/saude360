@@ -23,6 +23,7 @@ export default function PainelViewerPage({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const loadedRef = useRef(false)
+  const [isPublic, setIsPublic] = useState(false)
 
   // GET público por slug: sem token e sem localStorage.
   // Sem flag `cancelled`: o guard de loadedRef + cancelamento travaria o
@@ -32,9 +33,13 @@ export default function PainelViewerPage({
     loadedRef.current = true
 
     let edit = false
+    let publicMode = false
     try {
-      edit = isAuthenticated()
+      const authenticated = isAuthenticated()
+      publicMode = !authenticated
+      edit = authenticated
     } catch {
+      publicMode = false
       edit = false
     }
 
@@ -43,6 +48,7 @@ export default function PainelViewerPage({
         setCanEdit(edit)
         setDashboard(value)
         setLoaded(true)
+        setIsPublic(publicMode)
       })
       .catch((err) => {
         setCanEdit(edit)
@@ -52,6 +58,7 @@ export default function PainelViewerPage({
             : "Não foi possível carregar o painel."
         )
         setLoaded(true)
+        setIsPublic(false)
       })
   }, [slug, reloadKey])
 
@@ -120,6 +127,7 @@ export default function PainelViewerPage({
     <DashboardViewer
       dashboard={dashboard}
       canEdit={canEdit}
+      publicMode={isPublic}
       editHref={`/paineis/${dashboard.id}`}
       // Copiloto desativado nos painéis compartilhados por enquanto.
       // Para reativar: enableCopilot={canEdit} (só com sessão autenticada).

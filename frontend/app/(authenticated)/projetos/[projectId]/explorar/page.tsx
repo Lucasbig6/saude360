@@ -1,6 +1,13 @@
 "use client"
 
-import { Suspense, use, useEffect, useRef, useState } from "react"
+import {
+  Suspense,
+  use,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
@@ -16,9 +23,10 @@ import {
   SqlInput,
   VisualInput,
 } from "@/components/explorer/exploration-input"
-import { HistoryDropdown } from "@/components/explorer/history-dropdown"
+import { ChatSessionHistory } from "@/components/explorer/chat-session-history"
 import { InvestigationBlock } from "@/components/explorer/investigation-block"
-import { WorkspaceResult } from "@/components/explorer/workspace-result"
+import { AgentViz } from "@/components/explorer/agent-viz"
+import { ResultActions } from "@/components/explorer/result-actions"
 import { useExplorerAgent } from "@/hooks/use-explorer-agent"
 import {
   listDatasets,
@@ -30,20 +38,24 @@ import { executeQuery } from "@/lib/api/queries"
 import { generatePreviewSql } from "@/lib/explorer/sql"
 import { ApiError } from "@/lib/api"
 import { getAnalysis, getAnalyses } from "@/lib/api/analyses"
+import {
+  deleteAISession,
+  listExplorerAISessions,
+  type AISession,
+} from "@/lib/api/ai"
 import type { Analysis } from "@/lib/types/analysis"
 import {
-  groupHistoryByDay,
   presentationFromRows,
   workspaceFromInvestigation,
-  type HistoryEntry,
   type PresentationState,
   type WorkspaceData,
 } from "@/lib/explorer/workspace"
 import { presentationFromAnalysis } from "@/lib/explorer/analysis-payload"
-import {
-  buildPromptWithContext,
-  displayQuestion,
-} from "@/lib/explorer/chat-context"
+import { getProject } from "@/lib/api/projects"
+
+const subscribeToHydration = () => () => {}
+const getHydratedSnapshot = () => true
+const getServerHydratedSnapshot = () => false
 
 function agentStatusText(currentTool: string | null): string {
   switch (currentTool) {
@@ -63,6 +75,12 @@ function agentStatusText(currentTool: string | null): string {
 }
 
 function ExplorarContent({ projectId }: { projectId: string }) {
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydratedSnapshot
+  )
+  const hydratedReady = Boolean(hydrated)
   const searchParams = useSearchParams()
   const analysisId = searchParams.get("analysisId")
   const datasetIdParam = searchParams.get("datasetId")
@@ -73,18 +91,34 @@ function ExplorarContent({ projectId }: { projectId: string }) {
 
   const [selectedDataset, setSelectedDataset] = useState<DatasetListItem | null>(null)
   const [datasetColumns, setDatasetColumns] = useState<DatasetColumn[]>([])
+  const [projectName, setProjectName] = useState<string | null>(null)
 
-  // Tabs: Agente IA e SQL investigam; Visual configura a apresentação do
-  // resultado compartilhado. O resultado nunca some ao trocar de aba.
   const [tab, setTab] = useState<ExplorationTab>("ai")
 
   const [manualSql, setManualSql] = useState("")
   const [composerText, setComposerText] = useState("")
   const [analysesVersion, setAnalysesVersion] = useState(0)
+  const [chatSessionState, setChatSessionState] = useState<{
+    datasetId: number
+    sessions: AISession[]
+    loading: boolean
+  } | null>(null)
+  const [loadingChatSession, setLoadingChatSession] = useState(false)
+  const chatSessions =
+    selectedDataset && chatSessionState?.datasetId === selectedDataset.id
+      ? chatSessionState.sessions
+      : []
+  const loadingChatSessions = Boolean(
+    selectedDataset &&
+      (chatSessionState?.datasetId !== selectedDataset.id || chatSessionState.loading)
+  )
 
   const {
     investigations,
+    activeSessionId,
     ask,
+    startNewSession,
+    loadSession,
     retry,
     abort,
     abortAll,
@@ -92,29 +126,19 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     dismissPending,
   } = useExplorerAgent()
 
-  // Navegação mobile (<xl): Conversa | Resultado.
-  const [mobileView, setMobileView] = useState<"chat" | "result">("chat")
-
-  // Workspace compartilhado (dados) + apresentação (visual). É o espelho do
-  // resultado atual no painel direito: alimentado pela IA (último resultado),
-  // pelo SQL, pelo histórico ou pelo "Editar visual" de um turno.
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
   const [presentation, setPresentation] = useState<PresentationState>(() =>
     presentationFromRows([])
   )
-  const [history, setHistory] = useState<HistoryEntry[]>([])
 
   const [executing, setExecuting] = useState(false)
   const [executeError, setExecuteError] = useState<string | null>(null)
 
   const [restoreAnalysis, setRestoreAnalysis] = useState<Analysis | null>(null)
-  /** Última SQL disparada — base do botão "Tentar novamente". */
   const lastSqlRef = useRef("")
   const analysisLoadedRef = useRef(false)
   const restoreAppliedRef = useRef(false)
   const datasetIdLoadedRef = useRef(false)
-  const historyIdsRef = useRef(new Set<string>())
-  const resultRef = useRef<HTMLDivElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const workspaceKeyRef = useRef(0)
 
@@ -136,8 +160,37 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     load()
   }, [])
 
-  // Análises salvas do projeto (alimenta o rail esquerdo). Chave derivada:
-  // "carregando" = ausência de resultado para a chave atual.
+  useEffect(() => {
+    const datasetId = selectedDataset?.id
+    if (datasetId == null) return
+
+    let active = true
+    listExplorerAISessions(datasetId)
+      .then((sessions) => {
+        if (active) {
+          setChatSessionState({ datasetId, sessions, loading: false })
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setChatSessionState({ datasetId, sessions: [], loading: false })
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedDataset?.id])
+
+  useEffect(() => {
+    if (!projectId) return
+    getProject(projectId)
+      .then((project) => {
+        if (project) setProjectName(project.name)
+      })
+      .catch(() => {})
+  }, [projectId])
+
   const [analysesState, setAnalysesState] = useState<{
     key: string
     items: Analysis[]
@@ -153,8 +206,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     let active = true
     getAnalyses(projectId)
       .then((items) => {
-        // Defesa adicional: o rail jamais exibe análises de outro projeto,
-        // mesmo se uma resposta intermediária chegar fora de ordem.
         if (active) {
           setAnalysesState({
             key: analysesKey,
@@ -243,9 +294,8 @@ function ExplorarContent({ projectId }: { projectId: string }) {
 
   async function handleSelectDataset(dataset: DatasetListItem) {
     if (!projectId) return
-    // Troca de fonte invalida streams em andamento (sessão é por pergunta,
-    // ancorada no dataset anterior) e limpa o workspace.
     abortAll()
+    startNewSession()
     setSelectedDataset(dataset)
     setWorkspace(null)
     setExecuteError(null)
@@ -283,29 +333,19 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     requestAnimationFrame(() => {
       void handleSelectDataset(match)
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetIdParam, projectId, loadingDatasets, datasets])
 
-  // 1) resolve o ?analysisId uma única vez (nunca dispara request repetido)
-  // Sem flag `cancelled`: com o guard de loadedRef, Strict Mode descartaria o
-  // resultado da 1ª execução e a restauração nunca aplicaria.
   useEffect(() => {
     if (!projectId || !analysisId || analysisLoadedRef.current) return
     analysisLoadedRef.current = true
 
     getAnalysis(analysisId)
       .then((value) => {
-        // Uma análise aberta pela URL só pode ser restaurada no projeto ao
-        // qual ela pertence; evita misturar contextos por parâmetros manuais.
         if (value?.projectId === projectId) setRestoreAnalysis(value)
       })
-      .catch(() => {
-        // análise inacessível: segue sem restauração, editor utilizável
-      })
+      .catch(() => {})
   }, [analysisId, projectId])
 
-  // 2) aplica a restauração quando análise e datasets estiverem resolvidos:
-  // SQL no editor, apresentação restaurada, dataset selecionado.
   useEffect(() => {
     if (!restoreAnalysis || loadingDatasets || restoreAppliedRef.current) {
       return
@@ -382,17 +422,22 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     void handleExecuteQuery(manualSql)
   }
 
-  /** Nova pergunta com contexto da conversa injetado no prompt. */
   function handleAsk(text: string) {
     if (!selectedDataset) return
-    const prompt = buildPromptWithContext(
-      text,
-      investigations.filter((inv) => inv.datasetId === selectedDataset.id)
-    )
     setComposerText("")
     setRestoreAnalysis(null)
     setExecuteError(null)
-    void ask(prompt, selectedDataset)
+    void ask(text, selectedDataset).then(() =>
+      listExplorerAISessions(selectedDataset.id)
+        .then((sessions) =>
+          setChatSessionState({
+            datasetId: selectedDataset.id,
+            sessions,
+            loading: false,
+          })
+        )
+        .catch(() => {})
+    )
   }
 
   function handleAskSql(text: string) {
@@ -403,8 +448,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
 
   function handleTabChange(next: ExplorationTab) {
     setTab(next)
-    // Aba SQL mostra a consulta do resultado atual (agente ou manual),
-    // editável e executável sobre o mesmo workspace.
     if (next === "sql" && workspace?.sql) {
       setManualSql(workspace.sql)
     }
@@ -412,54 +455,64 @@ function ExplorarContent({ projectId }: { projectId: string }) {
 
   function handleEditVisual() {
     setTab("visual")
-    // No mobile a configuração do visual fica na coluna Conversa.
-    setMobileView("chat")
-    resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
-  // Investigações anteriores: espelha investigations (discreto, por dia).
-  // setHistory com updater que devolve `prev` quando nada mudou — sem isso
-  // cada token do streaming geraria um loop de renders.
-  useEffect(() => {
-    setHistory((prev) => {
-      let changed = false
-      const synced = prev.map((entry) => {
-        const inv = investigations.find((item) => item.id === entry.id)
-        if (!inv) return entry
-        const hasResult = inv.queryData !== null
-        if (entry.status !== inv.status || entry.hasResult !== hasResult) {
-          changed = true
-          return { ...entry, status: inv.status, hasResult }
-        }
-        return entry
-      })
-      const fresh = investigations.filter(
-        (inv) => !historyIdsRef.current.has(inv.id)
-      )
-      if (fresh.length > 0) {
-        changed = true
-        const now = Date.now()
-        fresh.forEach((inv) => historyIdsRef.current.add(inv.id))
-        synced.push(
-          ...fresh.map((inv) => ({
-            id: inv.id,
-            question: displayQuestion(inv.question),
-            datasetId: inv.datasetId,
-            datasetName: inv.datasetName,
-            at: now,
-            status: inv.status,
-            hasResult: inv.queryData !== null,
-          }))
-        )
-      }
-      return changed ? synced : prev
-    })
-  }, [investigations])
+  function handleNewChatSession() {
+    startNewSession()
+    setTab("ai")
+    setWorkspace(null)
+    setComposerText("")
+    setExecuteError(null)
+    setManualSql("")
+    appliedQueryRef.current = null
+  }
 
-  // Espelha o resultado mais recente do agente no painel Resultado.
-  // Cada nova pergunta atualiza o painel; a conversa preserva a narrativa.
-  // setStates adiados para o próximo frame (mesmo idioma dos efeitos de
-  // restauração desta página).
+  async function handleSelectChatSession(session: AISession) {
+    if (!selectedDataset) return
+    setLoadingChatSession(true)
+    setTab("ai")
+    setWorkspace(null)
+    setComposerText("")
+    setExecuteError(null)
+    appliedQueryRef.current = null
+    try {
+      await loadSession(session.id, selectedDataset)
+    } catch (err) {
+      setExecuteError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível carregar esta sessão."
+      )
+    } finally {
+      setLoadingChatSession(false)
+    }
+  }
+
+  async function handleDeleteChatSession(session: AISession) {
+    const title = session.title || "Nova conversa"
+    if (!window.confirm(`Excluir "${title}" e todas as mensagens desta sessão?`)) {
+      return
+    }
+
+    try {
+      await deleteAISession(session.id)
+      setChatSessionState((current) => {
+        if (!current || current.datasetId !== selectedDataset?.id) return current
+        return {
+          ...current,
+          sessions: current.sessions.filter((item) => item.id !== session.id),
+        }
+      })
+      if (activeSessionId === session.id) handleNewChatSession()
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível excluir esta sessão."
+      window.alert(message)
+    }
+  }
+
   const appliedQueryRef = useRef<unknown>(null)
   useEffect(() => {
     const inv = [...investigations].reverse().find((i) => i.queryData)
@@ -471,12 +524,8 @@ function ExplorarContent({ projectId }: { projectId: string }) {
         const dataset =
           datasets.find((item) => item.id === inv.datasetId) ?? null
         applyWorkspace(workspaceFromInvestigation(inv, dataset))
-        if (window.matchMedia("(max-width: 1279.5px)").matches) {
-          setMobileView("result")
-        }
         return
       }
-      // Insight e salvamento fluem ao vivo sem resetar a apresentação.
       setWorkspace((prev) =>
         prev && prev.investigationId === inv.id
           ? {
@@ -490,34 +539,10 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     return () => cancelAnimationFrame(frame)
   }, [investigations, datasets])
 
-  function handleRestoreHistory(entry: HistoryEntry) {
-    const inv = investigations.find((item) => item.id === entry.id)
-    if (!inv?.queryData) return
-    const dataset = datasets.find((item) => item.id === inv.datasetId) ?? null
-    if (dataset && dataset.id !== selectedDataset?.id) {
-      setSelectedDataset(dataset)
-      void getDataset(dataset.id)
-        .then((detail) => {
-          const columns =
-            (detail as unknown as { columns?: DatasetColumn[] }).columns ?? []
-          setDatasetColumns(columns)
-        })
-        .catch(() => setDatasetColumns(dataset.columns ?? []))
-    }
-    // Restaura como resultado corrente (para Visual/SQL) sem apagar a conversa.
-    appliedQueryRef.current = inv.queryData
-    applyWorkspace(workspaceFromInvestigation(inv, dataset))
-    setMobileView("result")
-    requestAnimationFrame(() => {
-      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    })
-  }
-
   function handleAnalysisSaved() {
     setAnalysesVersion((version) => version + 1)
   }
 
-  // Análise salva pelo agente (create_analysis confirmada) atualiza o rail.
   const savedAnalysesRef = useRef(new Set<string>())
   useEffect(() => {
     const newlySaved = investigations.some((inv) =>
@@ -562,8 +587,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     }
   }
 
-  // Rolagem da conversa: acompanha o início de um turno e a conclusão
-  // (sem forçar a cada token para não roubar a leitura).
   const chatCursorRef = useRef("")
   const lastInvestigation = investigations[investigations.length - 1]
   const chatCursor = `${investigations.length}:${lastInvestigation?.status ?? ""}`
@@ -585,10 +608,6 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       inv.status === "streaming" || inv.status === "awaiting_confirmation"
   )
 
-  const historyGroups = groupHistoryByDay(history)
-
-  // Investigação que alimenta o painel Resultado: a do workspace atual, ou
-  // a que estiver transmitindo (cada nova pergunta atualiza o resultado).
   const reversedInvestigations = [...investigations].reverse()
   const streamingInv =
     reversedInvestigations.find((i) => i.status === "streaming") ?? null
@@ -628,145 +647,172 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     if (panelInv) dismissPending(panelInv.id)
   }
 
+  const [showSql, setShowSql] = useState(false)
+
   const resultPanel = workspace ? (
-    <WorkspaceResult
-      workspace={workspace}
-      presentation={presentation}
-      onPresentationChange={setPresentation}
-      projectId={projectId}
-      streaming={panelStreaming}
-      statusText={panelStatusText}
-      trace={(panelInv?.toolTrace ?? []).map((step) => ({
-        toolCallId: step.toolCallId,
-        name: step.name,
-        status: step.status,
-      }))}
-      error={panelError}
-      onRetry={handlePanelRetry}
-      onAbort={handlePanelAbort}
-      pendingConfirmation={panelInv?.pendingConfirmation ?? null}
-      onConfirm={handlePanelConfirm}
-      onDismissConfirmation={handlePanelDismiss}
-      editingAnalysis={restoreAnalysis}
-      onAnalysisSaved={handleAnalysisSaved}
-      onDatasetPublished={handleDatasetPublished}
-      onEditVisual={handleEditVisual}
-      hideExplanation={workspace.source === "agent" && tab === "ai"}
-    />
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+          Resultado
+        </p>
+        {panelStreaming && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 size={12} className="animate-spin" />
+            {panelStatusText ?? "Processando..."}
+          </p>
+        )}
+      </div>
+      {panelStreaming && workspace.rows.length === 0 ? (
+        <div className="space-y-2" aria-hidden="true">
+          <div className="h-40 animate-pulse rounded-lg bg-muted" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+        </div>
+      ) : (
+        <>
+          <AgentViz
+            rows={workspace.rows}
+            rowCount={workspace.rowCount}
+            truncated={workspace.truncated}
+            executionMs={workspace.executionMs}
+            presentation={presentation}
+            onPresentationChange={setPresentation}
+          />
+          {workspace.source === "agent" && workspace.insight && tab !== "ai" && (
+            <div className="mt-3 border-l-2 border-border pl-3 text-sm leading-relaxed text-muted-foreground">
+              {workspace.insight}
+            </div>
+          )}
+          {panelError && (
+            <div
+              role="alert"
+              className="mt-3 rounded-lg border border-destructive/40 bg-card px-4 py-3"
+            >
+              <p className="text-sm font-medium text-destructive">
+                Não foi possível concluir.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{panelError}</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handlePanelRetry}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  Tentar novamente
+                </button>
+                {panelStreaming && (
+                  <button
+                    type="button"
+                    onClick={handlePanelAbort}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Interromper
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {panelInv?.pendingConfirmation && (
+            <div
+              role="alert"
+              className="mt-3 rounded-lg border border-primary/40 bg-card px-4 py-3"
+            >
+              <p className="text-sm font-medium text-foreground">
+                O agente quer salvar esta investigação como análise. Confirmar?
+              </p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handlePanelConfirm}
+                  disabled={panelStreaming}
+                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Confirmar e salvar
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePanelDismiss}
+                  disabled={panelStreaming}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          )}
+          <ResultActions
+            workspace={workspace}
+            presentation={presentation}
+            projectId={projectId}
+            editingAnalysis={restoreAnalysis}
+            onAnalysisSaved={handleAnalysisSaved}
+            onDatasetPublished={handleDatasetPublished}
+            onShowSql={() => setShowSql((v) => !v)}
+            onEditVisual={handleEditVisual}
+          />
+          {showSql && workspace.sql && (
+            <details
+              open
+              className="mt-3 rounded-lg border border-border bg-muted/40 px-4 py-2.5"
+            >
+              <summary
+                className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setShowSql(false)
+                }}
+              >
+                Ocultar SQL
+              </summary>
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-foreground">
+                {workspace.sql}
+              </pre>
+            </details>
+          )}
+        </>
+      )}
+    </div>
   ) : panelStreaming || executeError ? (
-    <WorkspaceResult
-      workspace={{
-        rows: [],
-        rowCount: 0,
-        truncated: false,
-        sql: null,
-        question: "Investigando...",
-        source: "agent",
-        datasetId: selectedDataset?.id ?? null,
-        datasetName: selectedDataset?.table_name ?? null,
-      }}
-      presentation={presentation}
-      onPresentationChange={setPresentation}
-      projectId={projectId}
-      streaming={panelStreaming}
-      statusText={panelStatusText ?? "Analisando..."}
-      trace={(panelInv?.toolTrace ?? []).map((step) => ({
-        toolCallId: step.toolCallId,
-        name: step.name,
-        status: step.status,
-      }))}
-      error={executeError}
-      onRetry={() => void handleExecuteQuery(lastSqlRef.current)}
-      onAbort={handlePanelAbort}
-      pendingConfirmation={null}
-      onConfirm={() => {}}
-      onDismissConfirmation={() => {}}
-      editingAnalysis={restoreAnalysis}
-      onAnalysisSaved={handleAnalysisSaved}
-      onDatasetPublished={handleDatasetPublished}
-      onEditVisual={handleEditVisual}
-      hideExplanation
-    />
-  ) : (
-    <div className="mx-5 mt-4 sm:mx-8 xl:mx-8 xl:mt-0 xl:py-5">
+    <div className="mt-4">
       <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
         Resultado
       </p>
-      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        Faça uma pergunta à IA ou execute uma consulta SQL para ver aqui o
-        gráfico, a tabela e os insights da investigação atual.
-      </p>
+      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 size={14} className="animate-spin" />
+        {panelStatusText ?? "Processando..."}
+      </div>
+      <div className="mt-3 space-y-2" aria-hidden="true">
+        <div className="h-40 animate-pulse rounded-lg bg-muted" />
+        <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+      </div>
     </div>
-  )
+  ) : null
 
   return (
     <ExploreShell
-      centerClassName={mobileView === "result" ? "hidden xl:block" : undefined}
-      rightClassName={mobileView === "chat" ? "hidden xl:block" : undefined}
       header={
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <Link
-              href={`/projetos/${projectId}`}
-              aria-label="Voltar"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <ArrowLeft size={17} />
-            </Link>
-            <span className="hidden h-5 w-px bg-border sm:block" />
-            <div className="min-w-0">
-              <h1 className="text-sm font-semibold text-foreground sm:text-base">
-                Explorar
-              </h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">
-                Ambiente de investigação de dados
-              </p>
-            </div>
-          </div>
-          <div
-            className="inline-flex rounded-lg border border-border bg-muted p-0.5 xl:hidden"
-            role="group"
-            aria-label="Alternar entre conversa e resultado"
+        <header className="flex h-14 shrink-0 items-center border-b border-border bg-card px-4 sm:px-6 lg:px-8">
+          <Link
+            href={`/projetos/${projectId}`}
+            aria-label="Voltar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            {(
-              [
-                { id: "chat", label: "Conversa" },
-                { id: "result", label: "Resultado" },
-              ] as const
-            ).map((view) => (
-              <button
-                key={view.id}
-                type="button"
-                aria-pressed={mobileView === view.id}
-                onClick={() => setMobileView(view.id)}
-                className={
-                  mobileView === view.id
-                    ? "rounded-md bg-card px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-border"
-                    : "px-3 py-1.5 text-xs font-medium text-muted-foreground"
-                }
-              >
-                {view.label}
-              </button>
-            ))}
-          </div>
+            <ArrowLeft size={17} />
+          </Link>
         </header>
       }
       left={
         <SourcesRail
           projectId={projectId}
+          projectName={projectName}
           datasets={datasets}
           loadingDatasets={loadingDatasets}
           datasetsError={datasetsError}
           selectedDatasetId={selectedDataset?.id ?? null}
+          selectedDatasetName={selectedDataset?.table_name ?? null}
           onSelectDataset={handleSelectDataset}
           analyses={analyses}
           analysesError={analysesError}
         />
-      }
-      right={
-        <div ref={resultRef} className="scroll-mt-4">
-          {resultPanel}
-        </div>
       }
     >
       <ContextHeader
@@ -776,74 +822,73 @@ function ExplorarContent({ projectId }: { projectId: string }) {
         loading={loadingDatasets}
       />
 
-      <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-8">
-        {/* Modos de uma mesma ferramenta */}
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-3">
           <ExplorationTabs
             active={tab}
             onChange={handleTabChange}
-            visualDisabled={workspace === null}
+            visualDisabled={hydratedReady && workspace === null}
           />
-          <div className="ml-auto min-w-0 max-w-full sm:max-w-64">
-            <HistoryDropdown
-              groups={historyGroups}
-              currentId={lastInvestigation?.id ?? null}
-              onSelect={handleRestoreHistory}
-            />
-          </div>
+          <ChatSessionHistory
+            sessions={chatSessions}
+            activeSessionId={activeSessionId}
+            loading={loadingChatSessions}
+            disabled={!hydratedReady || !selectedDataset || agentBusy || loadingChatSession}
+            onNewSession={handleNewChatSession}
+            onSelectSession={(session) => void handleSelectChatSession(session)}
+            onDeleteSession={(session) => void handleDeleteChatSession(session)}
+          />
         </div>
 
-        {/* Aba Agente IA: conversa com os dados + composer fixo */}
         {tab === "ai" && (
-          <>
-            {investigations.length === 0 ? (
-              <div className="mx-auto mt-8 w-full max-w-2xl text-center">
-                <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                  Converse com seus dados
-                </h2>
-                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                  Faça perguntas em linguagem natural, explore tendências,
-                  compare indicadores e transforme resultados em análises.
-                </p>
-              </div>
-            ) : (
-              <div className="mt-2 divide-y divide-border">
-                {investigations.map((inv) => (
-                  <InvestigationBlock
-                    key={inv.id}
-                    investigation={inv}
-                    onRetry={() => void retry(inv.id)}
-                    onAbort={() => abort(inv.id)}
-                  />
-                ))}
-              </div>
-            )}
-            <div
-              ref={chatEndRef}
-              aria-hidden="true"
-              className="h-1"
-            />
-            <div className="sticky bottom-0 z-10 -mx-5 border-t border-border bg-card/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:-mx-8 sm:px-8">
-              <div className="mx-auto w-full max-w-3xl">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 pb-28">
+              {investigations.length === 0 ? (
+                null
+              ) : (
+                <div className="divide-y divide-border">
+                  {investigations.map((inv) => (
+                    <InvestigationBlock
+                      key={inv.id}
+                      investigation={inv}
+                      onRetry={() => void retry(inv.id)}
+                      onAbort={() => abort(inv.id)}
+                      presentation={presentation}
+                      onPresentationChange={setPresentation}
+                      projectId={projectId}
+                      editingAnalysis={restoreAnalysis}
+                      onDatasetPublished={handleDatasetPublished}
+                      onEditVisual={handleEditVisual}
+                    />
+                  ))}
+                </div>
+              )}
+              <div
+                ref={chatEndRef}
+                aria-hidden="true"
+                className="h-1"
+              />
+            </div>
+            <div className="sticky bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+              <div className="mx-auto w-full max-w-3xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
                 <AgentInput
                   value={composerText}
                   onChange={setComposerText}
                   onAsk={handleAsk}
                   onAskSql={handleAskSql}
-                  disabled={!selectedDataset}
-                  busy={agentBusy}
+                  disabled={!hydratedReady || !selectedDataset || loadingChatSession}
+                  busy={agentBusy || loadingChatSession}
                   hasDataset={selectedDataset !== null}
                   columns={datasetColumns}
                   hideSuggestions={investigations.length > 0}
                 />
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {/* Entrada das abas SQL/Visual */}
-        <div className="mt-5">
-          {tab === "sql" && (
+        {tab === "sql" && (
+          <div className="mt-5 space-y-4">
             <SqlInput
               sql={manualSql}
               onSqlChange={setManualSql}
@@ -854,15 +899,34 @@ function ExplorarContent({ projectId }: { projectId: string }) {
               datasets={datasets}
               columns={datasetColumns}
             />
-          )}
-          {tab === "visual" && (
+            {resultPanel}
+          </div>
+        )}
+
+        {tab === "visual" && (
+          <div className="mt-5 space-y-4">
             <VisualInput
               workspace={workspace}
               presentation={presentation}
               onPresentationChange={setPresentation}
             />
-          )}
-        </div>
+            {workspace && workspace.rows.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
+                  Preview
+                </p>
+                <AgentViz
+                  rows={workspace.rows}
+                  rowCount={workspace.rowCount}
+                  truncated={workspace.truncated}
+                  executionMs={workspace.executionMs}
+                  presentation={presentation}
+                  onPresentationChange={setPresentation}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </ExploreShell>
   )

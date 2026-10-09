@@ -6,67 +6,50 @@ import { cn } from "@/lib/utils"
 interface ExploreShellProps {
   /** Painel esquerdo: fontes e análises que formam o contexto. */
   left?: ReactNode
-  /** Painel direito: resultado da investigação atual. */
-  right?: ReactNode
   header?: ReactNode
   children: ReactNode
   /** Classes extras para a coluna central (ex.: ocultar no mobile). */
   centerClassName?: string
-  /** Classes extras para o painel direito (ex.: ocultar no mobile). */
-  rightClassName?: string
+  /** Classes extras para o container principal. */
+  className?: string
 }
 
 /**
- * Layout de workspace do Explorar: rail esquerdo, área central e painel de
- * contexto opcional. Os rails ficam ocultos abaixo de `xl` — a área central
- * mantém toda a funcionalidade (seletor de dataset incluído).
+ * Layout de workspace do Explorar:
+ * - Em xl: 2 colunas — Contexto (esq), Workspace (centro)
+ * - Em <xl: coluna única — workspace com contexto como drawer
+ * - O `children` mantém a área central de interação (abas SQL/IA/Visual).
  */
 export function ExploreShell({
   left,
-  right,
   header,
   children,
   centerClassName,
-  rightClassName,
+  className,
 }: ExploreShellProps) {
   return (
-    <div className="flex min-h-full w-full flex-col xl:h-[calc(100dvh-4rem)]">
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {header}
-      <div
-        className={cn(
-          "explorer-workspace grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden bg-card",
-          right
-            ? "xl:grid-cols-[minmax(14rem,16.25rem)_minmax(0,1fr)_minmax(34rem,44rem)]"
-            : "xl:grid-cols-[minmax(14rem,16.25rem)_minmax(0,1fr)]"
-        )}
-      >
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
         {left && (
-          <aside className="min-h-0 border-b border-border xl:border-b-0 xl:border-r" aria-label="Contexto da investigação">
+          <aside
+            className={cn(
+              "hidden border-r border-border bg-card/50 md:block",
+              "overflow-y-auto"
+            )}
+            aria-label="Contexto da investigação"
+          >
             {left}
           </aside>
         )}
-
         <div
           className={cn(
-            "min-h-0 min-w-0 xl:overflow-y-auto",
-            right ? "" : "border-b border-border",
+            "min-h-0 min-w-0 flex-1 overflow-visible",
             centerClassName
           )}
         >
           {children}
         </div>
-
-        {right && (
-          <aside
-            className={cn(
-              "min-h-0 border-t border-border xl:overflow-y-auto xl:border-l xl:border-t-0",
-              rightClassName
-            )}
-            aria-label="Resultado da investigação"
-          >
-            {right}
-          </aside>
-        )}
       </div>
     </div>
   )

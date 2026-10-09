@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_token
+from app.auth.roles import require_role
 from app.db.session import get_db
 from app.models import Project, ProjectSource
 from app.superset import sources as superset_sources
@@ -107,6 +108,7 @@ async def create_source(
     request: CreateSourceRequest,
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
+    _require_analyst: None = Depends(require_role({"ANALISTA", "ADMIN"})),
 ) -> dict[str, Any]:
     project_id = request.project_id
     if project_id is not None and not _project_exists(db, project_id):

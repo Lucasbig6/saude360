@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    if settings.app_env.lower() not in ("development", "test"):
+        if len(settings.superset_secret_key) < 32:
+            raise RuntimeError(
+                "SUPERSET_SECRET_KEY insegura em ambiente não-dev. "
+                "Defina uma chave >=32 chars via env."
+            )
     try:
         await superset_client.login()
     except Exception as exc:

@@ -3,10 +3,11 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -183,6 +184,19 @@ def get_session(
     return AISessionResponse.model_validate(_session_dto(session))
 
 
+@router.delete("/sessions/{session_id}", status_code=204)
+def delete_session(
+    session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    token: str = Depends(get_current_token),
+    created_by: uuid.UUID | None = Depends(get_created_by),
+) -> Response:
+    session = _get_session(db, session_id, created_by)
+    db.delete(session)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.get(
     "/sessions/{session_id}/messages", response_model=list[AIMessageResponse]
 )
@@ -233,6 +247,8 @@ async def post_message(
     ``confirmation_required``, ``message_complete``, ``error``.
     """
     session = _get_session(db, session_id, created_by)
+    session.updated_at = datetime.now(timezone.utc)
+    db.commit()
     events = await service.prepare_turn(
         db=db,
         session=session,

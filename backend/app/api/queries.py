@@ -147,13 +147,15 @@ async def estimate_query(
 
 
 class PublicExecuteQueryRequest(BaseModel):
-    """Execução sem token: requer que o analysis_id pertença a um dashboard."""
+    """Execução sem token: deriva tudo da análise salva.
+
+    O cliente envia apenas ``analysis_id`` + filtros/limit opcionais.
+    SQL, database e schema vêm do banco — nunca do request anônimo.
+    """
 
     analysis_id: uuid.UUID
-    database_id: int
-    sql: str
-    db_schema: str | None = None
     filters: list[FilterClause] = []
+    limit: int | None = None
 
 
 @router.post("/execute-public")
@@ -163,10 +165,18 @@ async def execute_public_query(
 ) -> dict[str, Any]:
     """Executa a query de uma análise pertencente a um painel compartilhado.
 
-    Validação de segurança: o ``analysis_id`` deve existir como widget em
-    pelo menos um dashboard — caso contrário retorna 404.  Isso impede que
-    usuários anônimos executem SQL arbitrário contra o Superset.
+    Validação de segurança:
+    1. ``analysis_id`` deve existir (404).
+    2. deve existir como widget em pelo menos um dashboard (404).
+    3. deve ter ``sql`` e ``database_id`` salvos (400/404).
+    4. SQL executado é o salvo + filtros permitidos — nunca SQL do cliente.
     """
+    analysis = db.get(Analysis, request.analysis_id)
+    if analysis is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Análise não encontrada ou não vinculada a um painel público.",
+        )
     # Garante que a análise pertence a algum dashboard (painel compartilhado)
     widget_exists = db.scalar(
         select(DashboardWidget.id).where(
@@ -178,21 +188,27 @@ async def execute_public_query(
             status_code=404,
             detail="Análise não encontrada ou não vinculada a um painel público.",
         )
+    if not analysis.sql or analysis.database_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Análise sem consulta executável.",
+        )
+
+    limit = request.limit
+    if limit is not None:
+        limit = max(1, min(int(limit), 5000))
 
     try:
+        sql = analysis.sql
         if request.filters:
             where_clause = build_where_clause(request.filters)
-            filtered_sql = inject_where_clause(request.sql, where_clause)
-            superset_queries.validar_sql(filtered_sql)
-            return await superset_queries.execute_query(
-                database_id=request.database_id,
-                sql=filtered_sql,
-                schema=request.db_schema,
-            )
+            sql = inject_where_clause(sql, where_clause)
+        superset_queries.validar_sql(sql)
         return await superset_queries.execute_query(
-            database_id=request.database_id,
-            sql=request.sql,
-            schema=request.db_schema,
+            database_id=analysis.database_id,
+            sql=sql,
+            schema=analysis.db_schema,
+            limit=limit,
         )
     except ValueError as e:
         return JSONResponse(

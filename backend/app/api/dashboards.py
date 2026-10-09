@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_created_by, get_current_token
+from app.auth.roles import require_role
 from app.db.session import get_db
 from app.models import Analysis, Dashboard, DashboardFilter, DashboardWidget, Project
 from app.schemas.dashboards import (
@@ -321,6 +322,7 @@ def create_dashboard(
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
     created_by: uuid.UUID | None = Depends(get_created_by),
+    _require_analyst: None = Depends(require_role({"ANALISTA", "ADMIN"})),
 ) -> DashboardResponse:
     _validate_project(db, payload.project_id)
     slug = _resolve_slug(db, payload.slug, payload.name)
@@ -388,6 +390,7 @@ def delete_dashboard(
     dashboard_id: uuid.UUID,
     db: Session = Depends(get_db),
     token: str = Depends(get_current_token),
+    _require_admin: None = Depends(require_role({"ADMIN"})),
 ) -> None:
     dashboard = _get_or_404(db, dashboard_id)
     db.delete(dashboard)

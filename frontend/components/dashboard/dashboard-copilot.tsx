@@ -386,7 +386,7 @@ export function DashboardCopilot({
         data-open={open ? "true" : "false"}
         aria-hidden={!open}
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-lg transition-transform duration-200 ease-in-out sm:w-[min(100%,24rem)] lg:w-[22rem] xl:w-[24rem]",
+          "fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border bg-card shadow-lg transition-transform duration-200 ease-in-out sm:w-[min(100%,24rem)] lg:w-[22rem] xl:w-[24rem] min-h-screen",
           open ? "translate-x-0" : "translate-x-full",
           "pointer-events-none",
           open && "pointer-events-auto"
@@ -599,7 +599,7 @@ export function DashboardCopilot({
 
         {/* Input */}
         <form
-          className="border-t border-border px-3 py-3"
+          className="border-t border-border px-3 py-3 sticky bottom-0 z-10"
           onSubmit={(e) => {
             e.preventDefault()
             void send(draft)
