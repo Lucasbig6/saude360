@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -9,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.analysis import Analysis
 
 
 class Dashboard(Base):
@@ -83,7 +87,9 @@ class DashboardWidget(Base):
     )
 
     dashboard: Mapped[Dashboard] = relationship(back_populates="widgets")
-    analysis: Mapped["Analysis"] = relationship("Analysis", foreign_keys=[analysis_id], lazy="selectin")
+    analysis: Mapped[Analysis] = relationship(
+        "Analysis", foreign_keys=[analysis_id], lazy="selectin"
+    )
 
 
 

@@ -1,0 +1,146 @@
+name: SIGDATA CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Permissões mínimas: os jobs apenas leem o repositório.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24 (mesma linha do frontend/Dockerfile)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências (npm ci, reproduzível via package-lock.json)
+        run: npm ci
+
+      - name: Verificar lint (ESLint)
+        run: npm run lint
+
+      - name: Executar testes (Vitest)
+        run: npm test
+
+      - name: Gerar build de produção (Next.js, inclui type-check)
+        run: npm run build
+
+  backend:
+    name: Backend (FastAPI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: backend
+
+    # Banco de testes efêmero dentro do job. Os testes do conftest.py exigem
+    # TEST_DATABASE_URL com "saude360_test" no nome e sobrepõem DATABASE_URL
+    # com ele. Credencial descartável, só existe durante o job.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: saude360
+          POSTGRES_PASSWORD: sigdata_ci_ephemeral
+          POSTGRES_DB: saude360_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U saude360 -d saude360_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://saude360:sigdata_ci_ephemeral@localhost:5433/saude360_test
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12 (mesma linha do backend/Dockerfile)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache do uv (chave no uv.lock)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-py3.12-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-py3.12-
+
+      - name: Instalar uv
+        run: python -m pip install --upgrade uv
+
+      - name: Instalar dependências (uv sync --frozen, reproduzível via uv.lock)
+        # --no-install-project: o projeto não é empacotável hoje (setuptools
+        # falha em "Multiple top-level packages"); o app roda a partir do
+        # diretório de trabalho, como no backend/Dockerfile.
+        run: uv sync --frozen --python 3.12 --extra dev --no-install-project
+
+      - name: Verificar lint (ruff)
+        run: uv run --no-sync ruff check .
+
+      - name: Executar testes (pytest)
+        run: uv run --no-sync pytest -q
+
+  security:
+    name: Segredos e configuração
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GITLEAKS_VERSION: "8.28.0"
+      GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+
+    steps:
+      - name: Baixar código (commit atual)
+        uses: actions/checkout@v4
+
+      - name: Bloquear arquivos .env versionados
+        run: |
+          tracked="$(git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -vE '\.env\.example$' || true)"
+          if [ -n "$tracked" ]; then
+            echo "::error::Arquivos .env versionados no repositório (arquivos .env nunca devem ser commitados):"
+            printf '%s\n' "$tracked"
+            exit 1
+          fi
+          echo "OK: nenhum arquivo .env versionado."
+
+      - name: Instalar Gitleaks (versão fixada + checksum)
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tgz
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Procurar segredos no commit atual (--redact não imprime valores)
+        run: gitleaks git . --redact --no-banner --log-opts=--max-count=1

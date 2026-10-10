@@ -8,7 +8,6 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.roles import require_role
 from app.core.config import settings
 from app.db.session import get_db
 from app.models import User

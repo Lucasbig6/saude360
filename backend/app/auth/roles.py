@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 import jwt
@@ -10,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.models import Role, User, UserRole
+from app.models import Role, User
 
 
 def _resolve_user_roles(db: Session, token: str) -> set[str]:

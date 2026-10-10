@@ -15,6 +15,7 @@ interface DashboardCanvasValue {
   readOnly: boolean
   filterValues: Record<string, string | string[]>
   refreshKey: number
+  publicMode: boolean
   onRemove: (widgetId: string) => void
   onConfigure?: (widgetId: string) => void
 }
@@ -56,6 +57,7 @@ function WidgetPortal() {
           onRemove={ctx.onRemove}
           onConfigure={ctx.onConfigure}
           readOnly={ctx.readOnly}
+          publicMode={ctx.publicMode}
         />
       </div>
     </div>
@@ -74,6 +76,8 @@ interface DashboardCanvasProps {
   readOnly?: boolean
   filterValues: Record<string, string | string[]>
   refreshKey?: number
+  /** Quando true, os widgets usam endpoints públicos (sem auth). */
+  publicMode?: boolean
   onRemoveWidget?: (widgetId: string) => void
   onConfigure?: (widgetId: string) => void
   onLayoutChange?: (items: CanvasItem[]) => void
@@ -87,6 +91,7 @@ export function DashboardCanvas({
   readOnly = false,
   filterValues,
   refreshKey = 0,
+  publicMode = false,
   onRemoveWidget,
   onConfigure,
   onLayoutChange,
@@ -113,6 +118,7 @@ export function DashboardCanvas({
       readOnly,
       filterValues,
       refreshKey,
+      publicMode,
       onRemove: onRemoveWidget ?? noop,
       onConfigure,
     }),
@@ -123,6 +129,7 @@ export function DashboardCanvas({
       readOnly,
       filterValues,
       refreshKey,
+      publicMode,
       onRemoveWidget,
       onConfigure,
     ]

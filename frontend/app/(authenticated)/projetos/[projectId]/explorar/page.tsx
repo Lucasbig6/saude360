@@ -198,10 +198,7 @@ function ExplorarContent({ projectId }: { projectId: string }) {
   } | null>(null)
   const analysesKey = `${projectId ?? ""}#${analysesVersion}`
   useEffect(() => {
-    if (!projectId) {
-      setAnalysesState({ key: analysesKey, items: [], error: null })
-      return
-    }
+    if (!projectId) return
 
     let active = true
     getAnalyses(projectId)
@@ -228,9 +225,17 @@ function ExplorarContent({ projectId }: { projectId: string }) {
     }
   }, [projectId, analysesKey])
   const analyses =
-    analysesState?.key === analysesKey ? analysesState.items : null
+    !projectId
+      ? []
+      : analysesState?.key === analysesKey
+        ? analysesState.items
+        : null
   const analysesError =
-    analysesState?.key === analysesKey ? analysesState.error : null
+    !projectId
+      ? null
+      : analysesState?.key === analysesKey
+        ? analysesState.error
+        : null
 
   function applyWorkspace(data: WorkspaceData) {
     workspaceKeyRef.current += 1
