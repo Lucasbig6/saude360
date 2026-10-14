@@ -25,10 +25,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { Dashboard, DashboardAppearance, DashboardFilter, DashboardWidth, DashboardWidget } from "@/lib/types/dashboard"
+import type { Dashboard, DashboardAppearance, DashboardFilter, DashboardPage, DashboardWidth, DashboardWidget } from "@/lib/types/dashboard"
 import type { Analysis } from "@/lib/types/analysis"
 import { legacyToWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
 import { updateDashboard, toDashboardPayload } from "@/lib/api/dashboards"
+import {
+  addPage,
+  deletePage,
+  movePage,
+  renamePage,
+  resolveActivePageId,
+  widgetsForPage,
+} from "@/lib/dashboard-pages"
 import { getAnalysis } from "@/lib/api/analyses"
 import { getProject } from "@/lib/api/projects"
 import { cn, dashboardWidthClass, getDashboardSharePath } from "@/lib/utils"
@@ -40,6 +48,8 @@ import { DashboardFiltersBar } from "./dashboard-filters-bar"
 import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { EditDashboardInfoDialog } from "./edit-dashboard-info-dialog"
 import { DashboardCanvas } from "./dashboard-canvas"
+import { DashboardPageBar } from "./dashboard-page-bar"
+import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
 import { WidgetConfigDialog } from "./widget-config-dialog"
 import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
 import type { CanvasItem, GridDropAnalysisData } from "./gridstack-canvas"
@@ -73,6 +83,9 @@ export function DashboardBuilder({
     null
   )
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pagePendingDelete, setPagePendingDelete] = useState<DashboardPage | null>(
+    null
+  )
 
   // Fila de persistência: PUT serializado com o snapshot mais recente.
   //  - latestRef é lido imediatamente antes de cada PUT;
@@ -245,12 +258,16 @@ export function DashboardBuilder({
       analysis: Analysis,
       position?: { x?: number; y?: number; w?: number; h?: number }
     ) => {
-      if (dashboard.widgets.some((widget) => widget.analysisId === analysis.id)) {
+      const pageId = resolveActivePageId(latestRef.current)
+      const pageWidgets = widgetsForPage(latestRef.current.widgets, pageId)
+
+      // mesmo gráfico pode existir em páginas diferentes (uma por página)
+      if (pageWidgets.some((widget) => widget.analysisId === analysis.id)) {
         return
       }
 
-      // anexa na primeira linha livre quando nenhuma coordenada for especificada
-      const appendY = dashboard.widgets.reduce(
+      // anexa na primeira linha livre da PÁGINA quando não houver coordenada
+      const appendY = pageWidgets.reduce(
         (max, w) => Math.max(max, w.layout.y + w.layout.h),
         0
       )
@@ -264,16 +281,17 @@ export function DashboardBuilder({
           h: position?.h ?? 4,
         },
         config: legacyToWidgetConfig(analysis),
+        pageId,
       }
 
       const updated = {
-        ...dashboard,
-        widgets: [...dashboard.widgets, newWidget],
+        ...latestRef.current,
+        widgets: [...latestRef.current.widgets, newWidget],
       }
 
       persist(updated)
     },
-    [dashboard, persist]
+    [persist]
   )
 
   const handleDropAnalysis = useCallback(
@@ -429,12 +447,41 @@ export function DashboardBuilder({
     setRefreshKey((k) => k + 1)
   }, [])
 
+  const activePageId = resolveActivePageId(dashboard)
+  const pageWidgets = widgetsForPage(dashboard.widgets, activePageId)
+
+  // Escopo por página: a biblioteca só esconde análises já usadas na aba atual.
   const excludeAnalysisIds = useMemo(
-    () => dashboard.widgets.map((w) => w.analysisId),
-    [dashboard.widgets]
+    () => pageWidgets.map((w) => w.analysisId),
+    [pageWidgets]
   )
 
   const viewerHref = getDashboardSharePath(dashboard)
+
+  // Barra de páginas (persiste a troca: a página ativa é parte do painel).
+  function handleSelectPage(pageId: string) {
+    if (pageId === activePageId) return
+    persist({ ...dashboard, activePageId: pageId })
+  }
+
+  function handleAddPage() {
+    persist(addPage(dashboard))
+  }
+
+  function handleRenamePage(pageId: string, name: string) {
+    persist(renamePage(dashboard, pageId, name))
+  }
+
+  function handleMovePage(pageId: string, direction: "left" | "right") {
+    persist(movePage(dashboard, pageId, direction))
+  }
+
+  function handleConfirmDeletePage() {
+    if (!pagePendingDelete) return
+    const pageId = pagePendingDelete.id
+    setPagePendingDelete(null)
+    persist(deletePage(dashboard, pageId))
+  }
 
   function handleSaveInfo(data: {
     name: string
@@ -461,7 +508,7 @@ export function DashboardBuilder({
     <div
       className={cn(
         dashboardWidthClass(dashboard.appearance),
-        "px-4 sm:px-6 lg:px-8 py-8 transition-all duration-300",
+        "px-4 sm:px-6 lg:px-8 pt-8 pb-20 transition-all duration-300",
         editing && drawerOpen && "xl:pr-[440px]"
       )}
     >
@@ -665,9 +712,9 @@ export function DashboardBuilder({
       {/* Grid */}
       <section className="mt-6">
         <div
-          className={editing && dashboard.widgets.length > 0 ? "dashboard-edit-grid" : ""}
+          className={editing && pageWidgets.length > 0 ? "dashboard-edit-grid" : ""}
         >
-          {dashboard.widgets.length === 0 ? (
+          {pageWidgets.length === 0 ? (
             <div
               onDragOver={handleEmptyCanvasDragOver}
               onDrop={handleEmptyCanvasDrop}
@@ -717,7 +764,8 @@ export function DashboardBuilder({
             </div>
           ) : (
             <DashboardCanvas
-              dashboard={dashboard}
+              key={activePageId}
+              dashboard={{ ...dashboard, widgets: pageWidgets }}
               editing={editing}
               filterValues={filterValues}
               refreshKey={refreshKey}
@@ -771,6 +819,39 @@ export function DashboardBuilder({
           if (!open) setConfiguringWidgetId(null)
         }}
         onSave={handleConfigSave}
+      />
+
+      {/* Barra inferior de páginas (abas) */}
+      <DashboardPageBar
+        pages={dashboard.pages}
+        activePageId={activePageId}
+        editing={editing}
+        onSelect={handleSelectPage}
+        onAdd={handleAddPage}
+        onRename={handleRenamePage}
+        onMove={handleMovePage}
+        onDelete={(pageId) =>
+          setPagePendingDelete(
+            dashboard.pages.find((page) => page.id === pageId) ?? null
+          )
+        }
+      />
+
+      {/* Exclusão de página — remove também os widgets da página */}
+      <DeleteConfirmationDialog
+        open={pagePendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPagePendingDelete(null)
+        }}
+        title="Excluir página"
+        itemName={pagePendingDelete?.name ?? ""}
+        description={
+          pagePendingDelete
+            ? `A página "${pagePendingDelete.name}" e todos os widgets nela serão excluídos. Esta ação não pode ser desfeita.`
+            : undefined
+        }
+        confirmLabel="Excluir página"
+        onConfirm={handleConfirmDeletePage}
       />
 
       {/* Drawer lateral de gráficos prontos para arrastar e soltar estilo Metabase/Superset */}

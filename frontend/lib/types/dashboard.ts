@@ -39,6 +39,17 @@ export interface DashboardWidget {
    * Evita a chamada autenticada a /api/analyses/:id no viewer anônimo.
    */
   analysisData?: WidgetAnalysisData
+  /**
+   * Página dona do widget (abas da barra inferior). O parser `toDashboard`
+   * sempre preenche: dashboards legados sintetizam a "Página 1".
+   */
+  pageId?: string | null
+}
+
+/** Página do painel (aba da barra inferior). A ordem do array é a posição. */
+export interface DashboardPage {
+  id: string
+  name: string
 }
 
 export type DashboardWidth = "default" | "wide" | "full"
@@ -62,4 +73,11 @@ export interface Dashboard {
   createdBy: string | null
   createdAt: string
   updatedAt: string
+  /**
+   * Abas da barra inferior. Nunca vazia no frontend: o parser sintetiza a
+   * "Página 1" para dashboards legados persistidos sem páginas.
+   */
+  pages: DashboardPage[]
+  /** Página exibida ao abrir (inclusive no link compartilhado). */
+  activePageId: string | null
 }

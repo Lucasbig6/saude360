@@ -1,33 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { Check, FileCode2, Loader2, Sparkles } from "lucide-react"
+import { BarChart3, Check, FileCode2, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Investigation } from "@/hooks/use-explorer-agent"
 import { CopilotMarkdown } from "@/components/dashboard/copilot-markdown"
 import { displayQuestion } from "@/lib/explorer/chat-context"
-import { AgentViz } from "./agent-viz"
-import { ResultActions } from "./result-actions"
-import type { PresentationState } from "@/lib/explorer/workspace"
 
 interface InvestigationBlockProps {
   investigation: Investigation
   onRetry: () => void
   onAbort: () => void
-  onPresentationChange?: (presentation: PresentationState) => void
-  presentation?: PresentationState
-  onSaveAnalysis?: () => void
-  onAddToDashboard?: () => void
-  onDatasetPublished?: (datasetId: number) => void
-  onEditVisual?: () => void
-  projectId: string
-  editingAnalysis?: unknown
 }
 
 const TOOL_STATUS_TEXT: Record<string, string> = {
   get_dataset_schema: "Lendo o schema...",
   get_column_values: "Buscando valores...",
   execute_query: "Executando a consulta...",
+  preview_analysis: "Gerando a prévia da análise...",
   create_analysis: "Salvando a análise...",
 }
 
@@ -35,28 +25,19 @@ const TRACE_LABELS: Record<string, string> = {
   get_dataset_schema: "Schema",
   get_column_values: "Valores",
   execute_query: "Consulta",
+  preview_analysis: "Prévia",
   create_analysis: "Salvamento",
 }
 
 /**
- * Turno da conversa com os dados: mensagem do usuário (discreta, à direita)
- * + resposta do agente com resultado inline (gráfico/tabela/SQL).
- *
- * O resultado é um componente rico da resposta — não um painel lateral.
- * A conversa é a narrativa, o resultado é a evidência.
+ * Turno da conversa: mensagem do usuário (discreta, à direita) + resposta
+ * do agente (status, etapas, insight, SQL). A evidência (gráfico/tabela)
+ * vive no painel de pré-visualização persistente — não dentro da mensagem.
  */
 export function InvestigationBlock({
   investigation,
   onRetry,
   onAbort,
-  onPresentationChange,
-  presentation,
-  onSaveAnalysis,
-  onAddToDashboard,
-  onDatasetPublished,
-  onEditVisual,
-  projectId,
-  editingAnalysis,
 }: InvestigationBlockProps) {
   const streaming = investigation.status === "streaming"
   const statusText = streaming
@@ -68,12 +49,12 @@ export function InvestigationBlock({
 
   const [showSql, setShowSql] = useState(false)
 
-  const hasResult = investigation.queryData !== null && investigation.queryData.rows.length > 0
+  const hasResult = investigation.queryData !== null
 
   return (
     <article
       data-testid={`investigation-${investigation.id}`}
-      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6 sm:px-8"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5 sm:px-6"
     >
       {/* Mensagem do usuário */}
       <div className="flex justify-end">
@@ -146,18 +127,12 @@ export function InvestigationBlock({
           </ul>
         )}
 
-        {/* Resultado inline: gráfico/tabela */}
-        {hasResult && investigation.queryData && (
-          <div className="mt-3">
-            <AgentViz
-              rows={investigation.queryData.rows}
-              rowCount={investigation.queryData.rowCount}
-              truncated={investigation.queryData.truncated}
-              executionMs={investigation.queryData.executionMs}
-              presentation={presentation}
-              onPresentationChange={onPresentationChange}
-            />
-          </div>
+        {/* Evidência no painel: linha compacta apontando para a prévia */}
+        {hasResult && (
+          <p className="mt-3 inline-flex items-center gap-1.5 self-start rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <BarChart3 size={12} />
+            Resultado disponível no painel de pré-visualização.
+          </p>
         )}
 
         {/* Insight da IA */}
@@ -184,34 +159,6 @@ export function InvestigationBlock({
               </pre>
             )}
           </div>
-        )}
-
-        {/* Ações do resultado */}
-        {hasResult && onSaveAnalysis && (
-          <ResultActions
-            workspace={{
-              rows: investigation.queryData?.rows ?? [],
-              rowCount: investigation.queryData?.rowCount ?? 0,
-              truncated: investigation.queryData?.truncated ?? false,
-              executionMs: investigation.queryData?.executionMs,
-              sql: investigation.sql,
-              question: displayQuestion(investigation.question),
-              insight: investigation.insight || null,
-              source: "agent",
-              datasetId: investigation.datasetId,
-              datasetName: investigation.datasetName,
-              investigationId: investigation.id,
-              savedAnalysis: investigation.savedAnalysis,
-            }}
-            presentation={presentation!}
-            projectId={projectId}
-            editingAnalysis={editingAnalysis as never}
-            onAnalysisSaved={() => {}}
-            onDatasetPublished={onDatasetPublished ?? (() => {})}
-            onShowSql={() => setShowSql((v) => !v)}
-            onEditVisual={onEditVisual ?? (() => {})}
-            compact
-          />
         )}
 
         {investigation.error && (

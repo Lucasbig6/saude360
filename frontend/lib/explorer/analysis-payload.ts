@@ -1,5 +1,7 @@
 import { buildConfig } from "@/components/explorer/preview-chart"
 import { chartConfigToDisplay } from "@/lib/charts/display-options"
+import { isChartType } from "@/lib/charts/chart-config"
+import type { VisualizationType } from "@/lib/types/charts"
 import type { AnalysisInput } from "@/lib/api/analyses"
 import type { PresentationState, WorkspaceData } from "./workspace"
 
@@ -41,7 +43,8 @@ export function buildAnalysisPayload({
           presentation.dimension,
           presentation.metric,
           presentation.colorField,
-          presentation.display
+          presentation.display,
+          presentation.filters
         )
       : null,
     projectId,
@@ -50,19 +53,26 @@ export function buildAnalysisPayload({
 
 /** Restaura a apresentação salva de uma análise (usado em ?analysisId=). */
 export function presentationFromAnalysis(analysis: {
-  chartType: string
-  dimension: string | null
-  metric: string | null
-  chartConfig: Parameters<typeof chartConfigToDisplay>[0]
+  chartType?: string | null
+  dimension?: string | null
+  metric?: string | null
+  chartConfig?: Parameters<typeof chartConfigToDisplay>[0]
 }): PresentationState {
   const display = chartConfigToDisplay(analysis.chartConfig)
   const isTable = analysis.chartType === "table"
+  const chartType: VisualizationType =
+    analysis.chartType === "kpi"
+      ? "kpi"
+      : analysis.chartType && isChartType(analysis.chartType)
+        ? analysis.chartType
+        : "bar"
   return {
-    chartType: (isTable ? "bar" : analysis.chartType) as PresentationState["chartType"],
-    dimension: analysis.dimension,
-    metric: analysis.metric,
+    chartType,
+    dimension: analysis.dimension ?? null,
+    metric: analysis.metric ?? null,
     colorField: analysis.chartConfig?.encoding?.color ?? null,
     display,
     viewMode: isTable ? "table" : "chart",
+    filters: analysis.chartConfig?.filters ?? [],
   }
 }

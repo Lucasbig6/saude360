@@ -50,6 +50,8 @@ function makeDashboard(overrides: Partial<Dashboard> = {}): Dashboard {
     createdBy: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
+    pages: [{ id: "p1", name: "Página 1" }],
+    activePageId: "p1",
     ...overrides,
   }
 }

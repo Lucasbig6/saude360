@@ -248,7 +248,7 @@ export default function PrepararPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 size={20} className="animate-spin text-muted-foreground" />
       </div>
     )
@@ -270,7 +270,7 @@ export default function PrepararPage() {
   const isFileSource = !typeConfig.needsConnection
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-muted/50">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/50">
       {/* Top bar */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
         <div className="flex items-center gap-3">

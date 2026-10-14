@@ -1,6 +1,7 @@
 import { suggestViz } from "./suggest-viz"
 import { displayQuestion } from "./chat-context"
 import type { VisualizationType } from "@/lib/types/charts"
+import type { AnalysisFilter } from "@/lib/charts/chart-config"
 import type { ChartDisplayOptions } from "@/lib/charts/display-options"
 import { DEFAULT_DISPLAY_OPTIONS } from "@/lib/charts/display-options"
 import type { Investigation } from "@/hooks/use-explorer-agent"
@@ -37,6 +38,8 @@ export interface PresentationState {
   colorField: string | null
   display: ChartDisplayOptions
   viewMode: PresentationViewMode
+  /** Filtros informativos da análise (chips + persistência em chart_config). */
+  filters: AnalysisFilter[]
 }
 
 /** Apresentação inicial a partir das linhas (heurística do AgentViz). */export function presentationFromRows(
@@ -53,6 +56,7 @@ export interface PresentationState {
     colorField: null,
     display: DEFAULT_DISPLAY_OPTIONS,
     viewMode: hasPlot ? "chart" : "table",
+    filters: [],
   }
 }
 

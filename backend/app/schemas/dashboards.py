@@ -130,6 +130,9 @@ class WidgetIn(CamelModel):
     analysis_id: uuid.UUID
     layout: LayoutIn = Field(default_factory=LayoutIn)
     widget: WidgetConfigIn | None = None
+    #: Página dona do widget. Ausente/None: mantém a atual (update) ou
+    #: cai na página ativa/primeira (insert).
+    page_id: uuid.UUID | None = None
 
 
 class LayoutOut(CamelModel):
@@ -144,6 +147,24 @@ class WidgetOut(CamelModel):
     analysis_id: uuid.UUID
     layout: LayoutOut
     widget: dict[str, Any] = Field(default_factory=dict)
+    #: None em dashboards legados sem páginas explícitas.
+    page_id: uuid.UUID | None = None
+    #: Análise embutida — apenas no endpoint público /by-slug, para o
+    #: viewer anônimo não precisar chamar /api/analyses/:id (autenticada).
+    analysis_data: dict[str, Any] | None = None
+
+
+class PageIn(CamelModel):
+    """Página do painel. A ordem da lista é a posição canônica."""
+
+    id: uuid.UUID | None = None
+    name: Annotated[str, Field(min_length=1, max_length=255)]
+
+
+class PageOut(CamelModel):
+    id: uuid.UUID
+    name: str
+    position: int
 
 
 class FilterIn(CamelModel):
@@ -182,6 +203,10 @@ class DashboardCreate(CamelModel):
     widgets: list[WidgetIn] = Field(default_factory=list)
     filters: list[FilterIn] = Field(default_factory=list)
     project_id: uuid.UUID | None = None
+    #: Ausente/vazia: dashboard sem páginas explícitas (legado — o
+    #: frontend sintetiza a "Página 1" e materializa na primeira edição).
+    pages: list[PageIn] = Field(default_factory=list)
+    active_page_id: uuid.UUID | None = None
 
 
 class DashboardUpdate(CamelModel):
@@ -197,6 +222,8 @@ class DashboardUpdate(CamelModel):
     widgets: list[WidgetIn] | None = None
     filters: list[FilterIn] | None = None
     project_id: uuid.UUID | None = None
+    pages: list[PageIn] | None = None
+    active_page_id: uuid.UUID | None = None
 
 
 class DashboardResponse(CamelModel):
@@ -211,3 +238,5 @@ class DashboardResponse(CamelModel):
     created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
+    pages: list[PageOut] = Field(default_factory=list)
+    active_page_id: uuid.UUID | None = None

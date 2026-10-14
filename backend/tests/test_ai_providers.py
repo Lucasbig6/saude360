@@ -302,7 +302,8 @@ async def test_chat_stream_http_error_raises():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, content=b"boom")
 
-    provider = make_provider(handler)
+    # retry_max_attempts=1 →500 persistente falha direto (sem esperar).
+    provider = make_provider(handler, retry_max_attempts=1)
     with pytest.raises(ProviderError):
         async for _ in provider.chat_stream([ChatMessage(role="user", content="x")], []):
             pass
@@ -351,6 +352,182 @@ async def test_chat_error_body_raises_with_detail():
     provider = make_provider(handler)
     with pytest.raises(ProviderError, match="model_not_found"):
         await provider.chat([ChatMessage(role="user", content="x")], [])
+
+
+# ---------------------------------------------------------------------------
+# Retry de erros transitórios (429/5xx) — cota de tokens do provider
+# ---------------------------------------------------------------------------
+
+
+def make_sleep_recorder():
+    delays: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    return delays, fake_sleep
+
+
+async def test_chat_stream_retries_rate_limit_with_hint_then_succeeds():
+    """429 com o aviso do Groq (``try again in 1.68s``) espera o tempo
+    sugerido e completa o turno em vez de falhar."""
+    delays, fake_sleep = make_sleep_recorder()
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return httpx.Response(
+                429,
+                json={
+                    "error": {
+                        "message": (
+                            "Rate limit reached for model. "
+                            "Please try again in 1.68s."
+                        )
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            content=sse_lines({"choices": [{"delta": {"content": "ok"}}]}),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    provider = make_provider(handler, retry_sleep=fake_sleep)
+    chunks = [
+        chunk
+        async for chunk in provider.chat_stream(
+            [ChatMessage(role="user", content="oi")], []
+        )
+    ]
+
+    text = "".join(chunk.content_delta or "" for chunk in chunks)
+    assert text == "ok"
+    assert calls["count"] == 2
+    assert delays == [1.68]
+
+
+async def test_chat_stream_rate_limit_gives_up_after_max_attempts():
+    """Sem pista do provider, backoff exponencial (2/4/8s) e falha explícita
+    após esgotar as tentativas — nunca retry infinito."""
+    delays, fake_sleep = make_sleep_recorder()
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(429, json={"error": {"message": "rate limited"}})
+
+    provider = make_provider(handler, retry_sleep=fake_sleep)
+    with pytest.raises(ProviderError) as exc_info:
+        async for _ in provider.chat_stream(
+            [ChatMessage(role="user", content="oi")], []
+        ):
+            pass
+
+    assert calls["count"] == 4  # 1 inicial + 3 retries
+    assert delays == [2.0, 4.0, 8.0]
+    assert "429" in str(exc_info.value)
+
+
+async def test_chat_stream_honors_retry_after_header():
+    delays, fake_sleep = make_sleep_recorder()
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return httpx.Response(
+                429, json={"error": {"message": "busy"}}, headers={"Retry-After": "3"}
+            )
+        return httpx.Response(
+            200,
+            content=sse_lines({"choices": [{"delta": {"content": "oi"}}]}),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    provider = make_provider(handler, retry_sleep=fake_sleep)
+    chunks = [
+        chunk
+        async for chunk in provider.chat_stream(
+            [ChatMessage(role="user", content="oi")], []
+        )
+    ]
+
+    assert "".join(c.content_delta or "" for c in chunks) == "oi"
+    assert delays == [3.0]
+
+
+async def test_chat_stream_client_error_does_not_retry():
+    """401 não é transitório: falha na primeira chamada, sem espera."""
+    delays, fake_sleep = make_sleep_recorder()
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(401, json={"error": "bad key"})
+
+    provider = make_provider(handler, retry_sleep=fake_sleep)
+    with pytest.raises(ProviderError):
+        async for _ in provider.chat_stream(
+            [ChatMessage(role="user", content="oi")], []
+        ):
+            pass
+
+    assert calls["count"] == 1
+    assert delays == []
+
+
+async def test_chat_retries_rate_limit_then_succeeds():
+    """O modo não-streaming compartilha o mesmo retry."""
+    delays, fake_sleep = make_sleep_recorder()
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return httpx.Response(
+                429,
+                json={
+                    "error": {
+                        "message": "Rate limit. Please try again in 0.9s."
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": "Olá!"}}
+                ]
+            },
+        )
+
+    provider = make_provider(handler, retry_sleep=fake_sleep)
+    response = await provider.chat([ChatMessage(role="user", content="oi")], [])
+
+    assert response.content == "Olá!"
+    assert calls["count"] == 2
+    assert delays == [0.9]
+
+
+def test_retry_delay_caps_hint_and_respects_budget():
+    provider = make_provider(
+        lambda request: httpx.Response(200, json={}),
+        retry_sleep=make_sleep_recorder()[1],
+    )
+    long_hint = b"Please try again in 120.0s"
+
+    # Pista longa é limitada ao teto para não segurar o turno.
+    assert (
+        provider._retry_delay(429, httpx.Headers(), long_hint, 1, 0.0)
+        == 45.0
+    )
+    # Orçamento total esgotado → falha em vez de esperar de novo.
+    assert provider._retry_delay(429, httpx.Headers(), long_hint, 1, 40.0) is None
+    # Status não-transitório e tentativas esgotadas → sem retry.
+    assert provider._retry_delay(401, httpx.Headers(), b"", 1, 0.0) is None
+    assert provider._retry_delay(429, httpx.Headers(), b"", 4, 0.0) is None
 
 
 # ---------------------------------------------------------------------------

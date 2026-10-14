@@ -23,6 +23,7 @@ def test_copilot_cannot_write():
     assert policy.allows("get_dashboard_context")
     assert policy.allows("execute_query")
     assert not policy.allows("create_analysis")
+    assert not policy.allows("preview_analysis")
     assert policy.confirmation_tools == frozenset()
 
 
@@ -31,6 +32,8 @@ def test_explorer_can_write_only_with_confirmation():
     assert policy.allows("create_analysis")
     assert policy.requires_confirmation("create_analysis", spec_confirms=False)
     assert not policy.requires_confirmation("execute_query", spec_confirms=False)
+    assert policy.allows("preview_analysis")
+    assert not policy.requires_confirmation("preview_analysis", spec_confirms=False)
 
 
 def test_every_agent_type_has_a_policy():
@@ -106,6 +109,7 @@ def test_registry_builds_expected_tools():
         "get_dataset_schema",
         "get_column_values",
         "execute_query",
+        "preview_analysis",
         "create_analysis",
         "update_widget_config",
     }

@@ -47,7 +47,7 @@ async def execute_query(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any
         message = payload.get("error") or payload.get("message") or payload.get("status")
         raise RuntimeError(f"Falha na consulta: {message}")
 
-    return _normalize_result(
+    return normalize_result(
         payload,
         execution_ms=execution_ms,
         max_rows=ctx.policy.max_rows,
@@ -63,7 +63,7 @@ def _optional_int(value: Any) -> int | None:
     return value
 
 
-def _normalize_result(
+def normalize_result(
     payload: Any,
     *,
     execution_ms: int,

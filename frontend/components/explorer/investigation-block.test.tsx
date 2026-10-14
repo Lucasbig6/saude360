@@ -17,6 +17,7 @@ function buildInvestigation(
     toolTrace: [],
     currentTool: null,
     queryData: null,
+    previewConfig: null,
     sql: null,
     savedAnalysis: null,
     status: "streaming",
@@ -36,7 +37,6 @@ function renderTurn(investigation: Investigation) {
       investigation={investigation}
       onRetry={callbacks.onRetry}
       onAbort={callbacks.onAbort}
-      projectId="test-project"
     />
   )
   return callbacks
@@ -92,6 +92,9 @@ describe("InvestigationBlock (turno do chat, sem gráfico)", () => {
     expect(
       screen.queryByRole("button", { name: "Editar visual" })
     ).toBeNull()
+    expect(
+      screen.getByText("Resultado disponível no painel de pré-visualização.")
+    ).toBeTruthy()
   })
 
   it("mostra erro com tentar novamente e interromper no streaming", async () => {

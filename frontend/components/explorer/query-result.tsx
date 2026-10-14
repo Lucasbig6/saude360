@@ -208,6 +208,7 @@ export function QueryResult({ data, loading, error, sql, databaseId, dbSchema, d
         colorField: isChart ? effectiveColorField : null,
         display,
         viewMode,
+        filters: [],
       },
     })
 

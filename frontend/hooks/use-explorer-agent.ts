@@ -9,6 +9,10 @@ import {
 } from "@/lib/api/ai"
 import { ApiError } from "@/lib/api"
 import type { SSEMessage } from "@/lib/sse"
+import {
+  normalizePreviewConfig,
+  type PreviewConfig,
+} from "@/lib/explorer/analysis-draft"
 
 export type InvestigationStatus =
   | "streaming"
@@ -51,6 +55,11 @@ export interface Investigation {
   currentTool: string | null
   queryData: ExplorerQueryData | null
   sql: string | null
+  /**
+   * Contrato estruturado da última `preview_analysis` ok deste turno —
+   * a configuração da análise em edição (junto de queryData, atômicos).
+   */
+  previewConfig: PreviewConfig | null
   /** Preenchido quando `create_analysis` é confirmada e executada. */
   savedAnalysis: SavedAgentAnalysis | null
   status: InvestigationStatus
@@ -76,6 +85,9 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function normalizeQueryData(data: unknown): ExplorerQueryData | null {
+  if (data === null || data === undefined || typeof data !== "object") {
+    return null
+  }
   const record = asRecord(data)
   const rawColumns = Array.isArray(record.columns)
     ? record.columns.filter((c): c is string => typeof c === "string")
@@ -85,11 +97,13 @@ function normalizeQueryData(data: unknown): ExplorerQueryData | null {
     (row): row is Record<string, unknown> =>
       typeof row === "object" && row !== null
   )
-  if (rawColumns.length === 0 && rows.length === 0) return null
+  // Resultado vazio é resultado válido: só dado ausente vira null.
   const columns =
     rawColumns.length > 0
       ? rawColumns
-      : Object.keys(rows[0] ?? {})
+      : rows.length > 0
+        ? Object.keys(rows[0] ?? {})
+        : []
   return {
     columns,
     rows,
@@ -192,6 +206,7 @@ export function useExplorerAgent() {
             let queryData = inv.queryData
             let sql = inv.sql
             let savedAnalysis = inv.savedAnalysis
+            let previewConfig = inv.previewConfig
             if (name === "execute_query" && status === "ok") {
               const normalized = normalizeQueryData(data.data)
               if (normalized) queryData = normalized
@@ -199,6 +214,18 @@ export function useExplorerAgent() {
               const candidate = args?.sql
               if (typeof candidate === "string" && candidate.trim()) {
                 sql = candidate
+              }
+            }
+            if (name === "preview_analysis" && status === "ok") {
+              const result = asRecord(data.data)
+              const config = normalizePreviewConfig(result.config)
+              const normalized = normalizeQueryData(result.data)
+              if (config) {
+                // Atômicos: só troca a pré-visualização quando config e
+                // dados chegam juntos (contrato da tool).
+                previewConfig = config
+                sql = config.sql
+                if (normalized) queryData = normalized
               }
             }
             if (name === "create_analysis" && status === "ok") {
@@ -217,6 +244,7 @@ export function useExplorerAgent() {
               currentTool: null,
               queryData,
               sql,
+              previewConfig,
               savedAnalysis,
             }
           })
@@ -338,6 +366,7 @@ export function useExplorerAgent() {
         currentTool: null,
         queryData: null,
         sql: null,
+        previewConfig: null,
         savedAnalysis: null,
         status: "streaming",
         error: null,
@@ -415,6 +444,7 @@ export function useExplorerAgent() {
             currentTool: null,
             queryData: null,
             sql: null,
+            previewConfig: null,
             savedAnalysis: null,
             status: "done",
             error: null,
@@ -425,18 +455,39 @@ export function useExplorerAgent() {
           if (latest && message.content) latest.insight += message.content
           const toolCalls = asRecord(message.metadata).toolCalls
           if (latest && Array.isArray(toolCalls)) {
-            const queryCall = toolCalls.find(
+            const previewCall = toolCalls.find(
               (call) =>
                 typeof call === "object" &&
                 call !== null &&
-                asRecord(call).name === "execute_query"
+                asRecord(call).name === "preview_analysis"
             )
+            const queryCall =
+              previewCall ??
+              toolCalls.find(
+                (call) =>
+                  typeof call === "object" &&
+                  call !== null &&
+                  asRecord(call).name === "execute_query"
+              )
             const args = queryCall ? asRecord(asRecord(queryCall).arguments) : {}
             if (typeof args.sql === "string") latest.sql = args.sql
           }
-        } else if (message.role === "tool" && message.toolName === "execute_query") {
+        } else if (message.role === "tool" && message.status === "ok" && message.content) {
           const latest = restored[restored.length - 1]
-          if (latest && message.status === "ok" && message.content) {
+          if (latest && message.toolName === "preview_analysis") {
+            try {
+              const parsed = asRecord(JSON.parse(message.content))
+              const config = normalizePreviewConfig(parsed.config)
+              const data = normalizeQueryData(parsed.data)
+              if (config) {
+                latest.previewConfig = config
+                latest.sql = config.sql
+                if (data) latest.queryData = data
+              }
+            } catch {
+              // tool_result malformado: turno restaura sem prévia
+            }
+          } else if (latest && message.toolName === "execute_query") {
             try {
               latest.queryData = normalizeQueryData(JSON.parse(message.content))
             } catch {
@@ -463,6 +514,7 @@ export function useExplorerAgent() {
         currentTool: null,
         queryData: null,
         sql: null,
+        previewConfig: null,
         savedAnalysis: null,
         status: "streaming",
         error: null,

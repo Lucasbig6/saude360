@@ -18,6 +18,7 @@ from app.ai.policies import AgentPolicy, Scope, build_policy
 from app.ai.prompts import get_system_prompt
 from app.ai.providers.base import BaseLLMProvider, ChatMessage, ToolCall
 from app.ai.schemas import (
+    TOOL_STATUS_OK,
     TOOL_STATUS_PENDING_CONFIRMATION,
     StreamEvent,
 )
@@ -319,6 +320,53 @@ def load_messages(db: Session, session_id: uuid.UUID) -> list[AIMessage]:
     return list(db.scalars(stmt).all())
 
 
+# Resultados completos ficam no banco (o frontend restaura a sessão a
+# partir deles); só o contexto reenviado ao modelo é enxugado.
+HISTORY_SAMPLE_ROWS = 5
+_SLIMMED_TOOL_RESULTS = frozenset({"execute_query", "preview_analysis"})
+
+
+def _slim_result_rows(result: dict[str, Any]) -> dict[str, Any]:
+    rows = result.get("rows")
+    if not isinstance(rows, list) or len(rows) <= HISTORY_SAMPLE_ROWS:
+        return result
+    slimmed = dict(result)
+    slimmed["rows"] = rows[:HISTORY_SAMPLE_ROWS]
+    slimmed["rowsOmitted"] = len(rows) - HISTORY_SAMPLE_ROWS
+    return slimmed
+
+
+def slim_tool_content(tool_name: str | None, content: str | None) -> str:
+    """Amostra resultados de tools de dados antes de irem ao prompt.
+
+    Cada turno reenvia o histórico inteiro: um ``preview_analysis`` com
+    centenas de linhas custa milhares de tokens por chamada e estoura a
+    cota de tokens/minuto do provider (HTTP 429). O modelo decide o
+    próximo passo com colunas + amostra de linhas; os dados completos
+    só interessam ao frontend.
+    """
+    if tool_name not in _SLIMMED_TOOL_RESULTS or not content:
+        return content or "{}"
+    try:
+        payload = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return content
+    if not isinstance(payload, dict):
+        return content
+    if tool_name == "preview_analysis":
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return content
+        slimmed = _slim_result_rows(data)
+        if slimmed is data:
+            return content
+        return json.dumps({**payload, "data": slimmed}, ensure_ascii=False)
+    slimmed = _slim_result_rows(payload)
+    if slimmed is payload:
+        return content
+    return json.dumps(slimmed, ensure_ascii=False)
+
+
 def to_chat_messages(rows: list[AIMessage]) -> list[ChatMessage]:
     messages: list[ChatMessage] = []
     for row in rows:
@@ -340,7 +388,7 @@ def to_chat_messages(rows: list[AIMessage]) -> list[ChatMessage]:
             messages.append(
                 ChatMessage(
                     role="tool",
-                    content=row.content or "{}",
+                    content=slim_tool_content(row.tool_name, row.content),
                     tool_call_id=row.tool_call_id,
                 )
             )
@@ -426,6 +474,42 @@ def _tool_call_record(
     )
 
 
+def analysis_context_message(db: Session, session_id: uuid.UUID) -> ChatMessage | None:
+    """Última ``preview_analysis`` bem-sucedida da sessão como contexto.
+
+    Mensagem transitória (não persistida): dá ao modelo o contrato da
+    "análise em edição" para que pedidos subsequentes modifiquem a análise
+    existente — preservando atributos não citados — em vez de criarem outra.
+    """
+    row = db.scalar(
+        select(AIToolCall)
+        .where(
+            AIToolCall.session_id == session_id,
+            AIToolCall.tool_name == "preview_analysis",
+            AIToolCall.status == TOOL_STATUS_OK,
+        )
+        .order_by(AIToolCall.created_at.desc(), AIToolCall.id.desc())
+        .limit(1)
+    )
+    if row is None or not isinstance(row.result, dict):
+        return None
+    config = row.result.get("config")
+    if not isinstance(config, dict):
+        return None
+    return ChatMessage(
+        role="system",
+        content=(
+            "[Análise atual em edição] O usuário está editando esta análise. "
+            "Ao produzir uma nova configuração, preserve todos os atributos "
+            "não citados no pedido (tipo de gráfico, dimensão, métrica, cor, "
+            "ordenação, limite, filtros e rótulos de valor) e altere somente "
+            "o que foi pedido. "
+            "Configuração atual: "
+            f"{json.dumps(config, ensure_ascii=False)}"
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Turno completo
 # ---------------------------------------------------------------------------
@@ -477,6 +561,13 @@ async def prepare_turn(
         )
 
     history = to_chat_messages(await asyncio.to_thread(load_messages, db, session.id))
+
+    if session.agent_type == "explorer":
+        context = await asyncio.to_thread(
+            analysis_context_message, db, session.id
+        )
+        if context is not None:
+            history.insert(0, context)
 
     text = (content or "").strip()
     if text:

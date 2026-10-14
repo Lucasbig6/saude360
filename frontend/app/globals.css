@@ -155,7 +155,7 @@
     @apply font-sans;
   }
   html, body {
-    @apply min-h-screen;
+    @apply min-h-dvh;
   }
   button:not(:disabled),
   select:not(:disabled),

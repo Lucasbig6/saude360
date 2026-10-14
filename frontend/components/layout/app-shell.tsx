@@ -1,6 +1,7 @@
 "use client"
 
-import { ReactNode } from "react"
+import { ReactNode, useEffect, useRef } from "react"
+import { usePathname } from "next/navigation"
 import { Header } from "./header"
 
 interface AppShellProps {
@@ -8,10 +9,21 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const mainRef = useRef<HTMLElement>(null)
+  const pathname = usePathname()
+
+  // `main` é o scroller único do shell e persiste entre rotas; o reset de
+  // scroll do Next vale para `window`, então reiniciamos manualmente.
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0
+  }, [pathname])
+
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background">
       <Header />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main ref={mainRef} className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   )
 }

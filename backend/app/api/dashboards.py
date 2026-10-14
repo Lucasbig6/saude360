@@ -10,13 +10,21 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_created_by, get_current_token
 from app.auth.roles import require_role
 from app.db.session import get_db
-from app.models import Analysis, Dashboard, DashboardFilter, DashboardWidget, Project
+from app.models import (
+    Analysis,
+    Dashboard,
+    DashboardFilter,
+    DashboardPage,
+    DashboardWidget,
+    Project,
+)
 from app.schemas.dashboards import (
     CHART_TYPES,
     DashboardCreate,
     DashboardResponse,
     DashboardUpdate,
     FilterIn,
+    PageIn,
     WidgetIn,
     decode_filter_value,
 )
@@ -75,6 +83,7 @@ def _widget_dto(row: DashboardWidget, include_analysis: bool = False) -> dict[st
             "h": row.height,
         },
         "widget": row.widget or {},
+        "pageId": row.page_id,
     }
     if include_analysis and row.analysis is not None:
         a = row.analysis
@@ -102,6 +111,10 @@ def _filter_dto(row: DashboardFilter) -> dict[str, object]:
     }
 
 
+def _page_dto(row: DashboardPage) -> dict[str, object]:
+    return {"id": row.id, "name": row.name, "position": row.position}
+
+
 def _to_response(dashboard: Dashboard, include_analysis: bool = False) -> DashboardResponse:
     """ORM -> payload camelCase (`layout`, `column`, `defaultValue`...)."""
     return DashboardResponse.model_validate(
@@ -117,6 +130,8 @@ def _to_response(dashboard: Dashboard, include_analysis: bool = False) -> Dashbo
             "createdBy": dashboard.created_by,
             "createdAt": dashboard.created_at,
             "updatedAt": dashboard.updated_at,
+            "pages": [_page_dto(row) for row in dashboard.pages],
+            "activePageId": dashboard.active_page_id,
         }
     )
 
@@ -192,6 +207,7 @@ def _build_widget(
     widget: WidgetIn,
     analysis: Analysis,
     created_at: datetime,
+    default_page_id: uuid.UUID | None,
 ) -> DashboardWidget:
     return DashboardWidget(
         id=widget.id or uuid.uuid4(),
@@ -202,6 +218,7 @@ def _build_widget(
         width=widget.layout.w,
         height=widget.layout.h,
         widget=_widget_payload(widget, analysis),
+        page_id=widget.page_id if widget.page_id is not None else default_page_id,
         created_at=created_at,
     )
 
@@ -223,12 +240,97 @@ def _build_filter(
     )
 
 
+def _sync_pages(
+    db: Session,
+    dashboard: Dashboard,
+    pages: list[PageIn],
+) -> list[DashboardPage]:
+    """Diff de páginas no mesmo formato dos widgets/filtros.
+
+    A ordem da lista do payload é a posição canônica (``position`` = índice);
+    ids honrados do cliente permitem criar páginas novas já com o UUID da UI.
+    Páginas ausentes do payload são excluídas — o FK ``page_id`` faz cascade
+    e remove os widgets da página junto. Devolve as linhas finais em ordem.
+    """
+    existing = {row.id: row for row in dashboard.pages}
+    seen: set[uuid.UUID] = set()
+    ordered: list[DashboardPage] = []
+    for position, page in enumerate(pages):
+        if page.id is not None and page.id in existing:
+            row = existing[page.id]
+            row.name = page.name
+            row.position = position
+        else:
+            row = DashboardPage(
+                id=page.id or uuid.uuid4(),
+                dashboard_id=dashboard.id,
+                name=page.name,
+                position=position,
+            )
+            db.add(row)
+        seen.add(row.id)
+        ordered.append(row)
+
+    for page_id, row in existing.items():
+        if page_id not in seen:
+            db.delete(row)
+
+    dashboard.pages = ordered
+    return ordered
+
+
+def _resolve_active_page(
+    dashboard: Dashboard,
+    requested: uuid.UUID | None,
+    final_pages: list[DashboardPage],
+) -> None:
+    """Página ativa: valida o pedido e coerza para a primeira quando órfã."""
+    ids = [row.id for row in final_pages]
+    if not ids:
+        dashboard.active_page_id = None
+    elif requested is not None and requested in ids:
+        dashboard.active_page_id = requested
+    elif requested is None and dashboard.active_page_id in ids:
+        # PUT sem activePageId: mantém a página ativa atual (se válida).
+        return
+    else:
+        # Pedido inválido ou atual órfã (página excluída) → primeira página.
+        dashboard.active_page_id = ids[0]
+
+
+def _validate_widget_pages(
+    widgets: list[WidgetIn],
+    final_pages: list[DashboardPage],
+) -> None:
+    """Todo ``pageId`` informado precisa existir; ``None`` segue permitido
+    (widget de dashboard legado sem páginas explícitas)."""
+    valid = {row.id for row in final_pages}
+    missing = sorted(
+        str(w.page_id)
+        for w in widgets
+        if w.page_id is not None and w.page_id not in valid
+    )
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Páginas inexistentes para widgets: {', '.join(missing)}",
+        )
+
+
+def _default_page_id(dashboard: Dashboard) -> uuid.UUID | None:
+    if dashboard.active_page_id is not None:
+        return dashboard.active_page_id
+    pages = sorted(dashboard.pages, key=lambda row: row.position)
+    return pages[0].id if pages else None
+
+
 def _sync_widgets(
     db: Session,
     dashboard: Dashboard,
     widgets: list[WidgetIn],
 ) -> None:
     analyses = _load_analyses(db, [w.analysis_id for w in widgets])
+    default_page_id = _default_page_id(dashboard)
 
     existing = {widget.id: widget for widget in dashboard.widgets}
     seen: set[uuid.UUID] = set()
@@ -243,8 +345,13 @@ def _sync_widgets(
             row.width = widget.layout.w
             row.height = widget.layout.h
             row.widget = _widget_payload(widget, analysis)
+            # pageId ausente mantém a página atual do widget.
+            if widget.page_id is not None:
+                row.page_id = widget.page_id
         else:
-            row = _build_widget(dashboard.id, widget, analysis, created_at)
+            row = _build_widget(
+                dashboard.id, widget, analysis, created_at, default_page_id
+            )
             db.add(row)
         seen.add(row.id)
         ordered.append(row)
@@ -336,6 +443,12 @@ def create_dashboard(
     )
     db.add(dashboard)
     db.flush()
+    final_pages = _sync_pages(db, dashboard, payload.pages or [])
+    # Persiste as páginas antes de gravar active_page_id: o UPDATE em
+    # dashboards não pode precedir o INSERT em dashboard_pages (FK).
+    db.flush()
+    _resolve_active_page(dashboard, payload.active_page_id, final_pages)
+    _validate_widget_pages(payload.widgets, final_pages)
     _sync_widgets(db, dashboard, payload.widgets)
     _sync_filters(db, dashboard, payload.filters)
     db.commit()
@@ -362,6 +475,7 @@ def update_dashboard(
     data = payload.model_dump(exclude_unset=True)
     widgets = data.pop("widgets", None)
     filters = data.pop("filters", None)
+    pages_payload = data.pop("pages", None)
 
     if "slug" in data:
         dashboard.slug = _resolve_slug(db, data.pop("slug"), dashboard.name, dashboard.id)
@@ -376,7 +490,19 @@ def update_dashboard(
         _validate_project(db, data["project_id"])
         dashboard.project_id = data["project_id"]
 
+    # Páginas antes dos widgets: o sync valida referências e define o
+    # padrão de página dos widgets novos.
+    if pages_payload is not None:
+        final_pages = _sync_pages(db, dashboard, payload.pages or [])
+        # Mesma ordem do create: páginas materializadas antes de tocar em
+        # active_page_id (UPDATE em dashboards vs INSERT/DELETE em pages).
+        db.flush()
+    else:
+        final_pages = list(dashboard.pages)
+    _resolve_active_page(dashboard, data.get("active_page_id"), final_pages)
+
     if widgets is not None:
+        _validate_widget_pages(payload.widgets or [], final_pages)
         _sync_widgets(db, dashboard, payload.widgets or [])
     if filters is not None:
         _sync_filters(db, dashboard, payload.filters or [])

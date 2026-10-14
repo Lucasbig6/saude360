@@ -19,6 +19,7 @@ function buildInvestigation(
     toolTrace: [],
     currentTool: null,
     queryData: null,
+    previewConfig: null,
     sql: null,
     savedAnalysis: null,
     status: "done",

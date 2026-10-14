@@ -9,7 +9,7 @@ export function ContextHeader({
   loading: boolean
 }) {
   return (
-    <div className="border-b border-border px-5 py-4 sm:px-8">
+    <div className="shrink-0 border-b border-border px-5 py-4 sm:px-8">
       <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
         Fonte de dados
       </p>

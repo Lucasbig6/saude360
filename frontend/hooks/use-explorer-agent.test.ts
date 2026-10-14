@@ -137,3 +137,169 @@ describe("useExplorerAgent sessions", () => {
     expect(result.current.investigations).toEqual([])
   })
 })
+
+describe("useExplorerAgent contrato preview_analysis", () => {
+  it("aplica config e dados da prévia de forma atômica", async () => {
+    vi.mocked(streamAIMessage).mockImplementation(async (_id, _payload, handlers) => {
+      handlers?.onEvent?.({
+        event: "tool_call",
+        data: {
+          toolCallId: "tc-1",
+          name: "preview_analysis",
+          arguments: { chartType: "bar" },
+        },
+      })
+      handlers?.onEvent?.({
+        event: "tool_result",
+        data: {
+          toolCallId: "tc-1",
+          name: "preview_analysis",
+          status: "ok",
+          data: {
+            config: {
+              sql: "SELECT municipio, total FROM demo",
+              chartType: "bar",
+              dimension: "municipio",
+              metric: "total",
+              filters: [{ field: "uf", operator: "=", value: "PE" }],
+            },
+            data: {
+              columns: ["municipio", "total"],
+              rows: [{ municipio: "Recife", total: 80 }],
+              rowCount: 1,
+              truncated: false,
+            },
+          },
+        },
+      })
+      handlers?.onEvent?.({
+        event: "message_complete",
+        data: { content: "Prévia pronta." },
+      })
+    })
+
+    const { result } = renderHook(() => useExplorerAgent())
+
+    await act(async () => {
+      await result.current.ask("Compare por município", dataset)
+    })
+
+    expect(result.current.investigations).toHaveLength(1)
+    const inv = result.current.investigations[0]
+    expect(inv.status).toBe("done")
+    expect(inv.previewConfig).toMatchObject({
+      sql: "SELECT municipio, total FROM demo",
+      chartType: "bar",
+      dimension: "municipio",
+      metric: "total",
+      filters: [{ field: "uf", operator: "=", value: "PE" }],
+    })
+    expect(inv.sql).toBe("SELECT municipio, total FROM demo")
+    expect(inv.queryData).toMatchObject({
+      columns: ["municipio", "total"],
+      rowCount: 1,
+    })
+    expect(inv.toolTrace).toEqual([
+      { toolCallId: "tc-1", name: "preview_analysis", status: "ok" },
+    ])
+  })
+
+  it("config inválida não derruba a prévia (sem config não aplica nada)", async () => {
+    vi.mocked(streamAIMessage).mockImplementation(async (_id, _payload, handlers) => {
+      handlers?.onEvent?.({
+        event: "tool_call",
+        data: { toolCallId: "tc-2", name: "preview_analysis", arguments: {} },
+      })
+      handlers?.onEvent?.({
+        event: "tool_result",
+        data: {
+          toolCallId: "tc-2",
+          name: "preview_analysis",
+          status: "ok",
+          data: { config: { chartType: "bar" }, data: { rows: [] } },
+        },
+      })
+      handlers?.onEvent?.({
+        event: "message_complete",
+        data: { content: "Sem prévia." },
+      })
+    })
+
+    const { result } = renderHook(() => useExplorerAgent())
+
+    await act(async () => {
+      await result.current.ask("Tente novamente", dataset)
+    })
+
+    const inv = result.current.investigations[0]
+    expect(inv.previewConfig).toBeNull()
+    expect(inv.queryData).toBeNull()
+    expect(inv.sql).toBeNull()
+    expect(inv.status).toBe("done")
+  })
+
+  it("restaura a prévia na transcrição da sessão", async () => {
+    vi.mocked(listAIMessages).mockResolvedValue([
+      aiMessage({
+        id: "m-user",
+        role: "user",
+        content: "Compare por município",
+      }),
+      aiMessage({
+        id: "m-assistant",
+        role: "assistant",
+        content: null,
+        metadata: {
+          toolCalls: [
+            {
+              name: "preview_analysis",
+              arguments: { sql: "SELECT municipio, total FROM demo" },
+            },
+          ],
+        },
+      }),
+      aiMessage({
+        id: "m-tool",
+        role: "tool",
+        toolName: "preview_analysis",
+        status: "ok",
+        content: JSON.stringify({
+          config: {
+            sql: "SELECT municipio, total FROM demo",
+            chartType: "line",
+            dimension: "municipio",
+            metric: "total",
+          },
+          data: {
+            columns: ["municipio", "total"],
+            rows: [{ municipio: "Recife", total: 80 }],
+            rowCount: 1,
+            truncated: false,
+          },
+        }),
+      }),
+      aiMessage({
+        id: "m-final",
+        role: "assistant",
+        content: "Recife lidera.",
+      }),
+    ])
+
+    const { result } = renderHook(() => useExplorerAgent())
+
+    await act(async () => {
+      await result.current.loadSession("session-1", dataset)
+    })
+
+    expect(result.current.investigations).toHaveLength(1)
+    const inv = result.current.investigations[0]
+    expect(inv.previewConfig).toMatchObject({
+      chartType: "line",
+      dimension: "municipio",
+      metric: "total",
+    })
+    expect(inv.sql).toBe("SELECT municipio, total FROM demo")
+    expect(inv.queryData).toMatchObject({ rowCount: 1 })
+    expect(inv.insight).toBe("Recife lidera.")
+  })
+})

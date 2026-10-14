@@ -35,6 +35,17 @@ export interface ChartSort {
   direction: "asc" | "desc"
 }
 
+/**
+ * Filtro informativo da análise: documenta a restrição aplicada no WHERE
+ * da SQL (exibida como chip e persistida em chart_config). O dado já vem
+ * filtrado pela consulta validada — o filtro não reexecuta nada sozinho.
+ */
+export interface AnalysisFilter {
+  field: string
+  operator: string
+  value?: unknown
+}
+
 export type ChartNumberFormat = "number" | "currency" | "percent" | "compact"
 
 export type ChartLegendPosition = "top" | "bottom" | "left" | "right"
@@ -65,6 +76,8 @@ export interface ChartConfig {
   smooth?: boolean
   /** Habilita o toolbox com "salvar imagem" no canto do gráfico. */
   exportable?: boolean
+  /** Filtros informativos aplicados no WHERE da SQL (chips + persistência). */
+  filters?: AnalysisFilter[]
   options?: Record<string, unknown>
 }
 
@@ -241,11 +254,28 @@ export function normalizeChartConfig(input: unknown): ChartConfig {
   if (typeof raw.exportable === "boolean") {
     config.exportable = raw.exportable
   }
+  if (Array.isArray(raw.filters)) {
+    const filters = raw.filters.filter(isAnalysisFilter)
+    if (filters.length > 0) {
+      config.filters = filters
+    }
+  }
   if (raw.options && typeof raw.options === "object" && !Array.isArray(raw.options)) {
     config.options = { ...(raw.options as Record<string, unknown>) }
   }
 
   return config
+}
+
+export function isAnalysisFilter(value: unknown): value is AnalysisFilter {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.field === "string" &&
+    record.field.trim() !== "" &&
+    typeof record.operator === "string" &&
+    record.operator.trim() !== ""
+  )
 }
 
 export function legacyToChartConfig(analysis: LegacyAnalysisLike): ChartConfig | null {

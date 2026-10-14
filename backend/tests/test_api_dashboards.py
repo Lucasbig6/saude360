@@ -14,8 +14,8 @@ def truncate_domain() -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE dashboard_filters, dashboard_widgets, dashboards, "
-                "analyses, projects, users CASCADE"
+                "TRUNCATE dashboard_filters, dashboard_widgets, dashboard_pages, "
+                "dashboards, analyses, projects, users CASCADE"
             )
         )
 
@@ -832,3 +832,273 @@ async def test_put_without_widget_keeps_derived_config(client, auth_headers):
     assert response.status_code == 200
     assert response.json()["widgets"][0]["widget"] == expected
     assert expected["type"] == "pie"
+
+
+# ---------------------------------------------------------------------------
+# Páginas do painel (barra inferior fixa)
+# ---------------------------------------------------------------------------
+
+
+def pages_payload(*names: str) -> list[dict]:
+    """Páginas com id gerado no cliente (padrão da UI)."""
+    return [{"id": str(uuid.uuid4()), "name": name} for name in names]
+
+
+async def test_create_with_pages_and_widgets_round_trip(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    page_a, page_b = str(uuid.uuid4()), str(uuid.uuid4())
+    widget_a, widget_b = str(uuid.uuid4()), str(uuid.uuid4())
+
+    response = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel multi",
+            "pages": [
+                {"id": page_a, "name": "Resumo"},
+                {"id": page_b, "name": "Detalhe"},
+            ],
+            "activePageId": page_b,
+            "widgets": [
+                {**widget(analysis_id), "id": widget_a, "pageId": page_a},
+                {**widget(analysis_id, x=6), "id": widget_b, "pageId": page_b},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+
+    assert [(p["id"], p["name"], p["position"]) for p in data["pages"]] == [
+        (page_a, "Resumo", 0),
+        (page_b, "Detalhe", 1),
+    ]
+    assert data["activePageId"] == page_b
+    page_by_widget = {w["id"]: w["pageId"] for w in data["widgets"]}
+    assert page_by_widget == {widget_a: page_a, widget_b: page_b}
+
+    # persistência real: relê do banco (nova sessão)
+    reread = await client.get(f"/api/dashboards/{data['id']}", headers=auth_headers)
+    assert reread.status_code == 200
+    body = reread.json()
+    assert [p["id"] for p in body["pages"]] == [page_a, page_b]
+    assert body["activePageId"] == page_b
+    assert {w["id"]: w["pageId"] for w in body["widgets"]} == {
+        widget_a: page_a,
+        widget_b: page_b,
+    }
+
+
+async def test_create_without_pages_keeps_legacy_contract(client, auth_headers):
+    """Dashboard antigo (sem páginas): pages [], pageId null — o frontend
+    sintetiza a 'Página 1' sem nenhum dado fictício no banco."""
+    analysis_id = await create_analysis(client, auth_headers)
+
+    response = await client.post(
+        "/api/dashboards",
+        json={"name": "Painel legado", "widgets": [widget(analysis_id)]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["pages"] == []
+    assert data["activePageId"] is None
+    assert data["widgets"][0]["pageId"] is None
+
+    public = await client.get(f"/api/dashboards/by-slug/{data['slug']}")
+    assert public.status_code == 200
+    assert public.json()["pages"] == []
+    assert public.json()["widgets"][0]["pageId"] is None
+
+
+async def test_put_renames_reorders_and_deletes_pages(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    page_a, page_b = str(uuid.uuid4()), str(uuid.uuid4())
+    widget_a, widget_b = str(uuid.uuid4()), str(uuid.uuid4())
+
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel editável",
+            "pages": [
+                {"id": page_a, "name": "Resumo"},
+                {"id": page_b, "name": "Detalhe"},
+            ],
+            "activePageId": page_a,
+            "widgets": [
+                {**widget(analysis_id), "id": widget_a, "pageId": page_a},
+                {**widget(analysis_id, x=6), "id": widget_b, "pageId": page_b},
+            ],
+        },
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+    page_c = str(uuid.uuid4())
+
+    # renomeia A, inverte a ordem (B antes de A), cria C e exclui B.
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={
+            "pages": [
+                {"id": page_b, "name": "Detalhe"},
+                {"id": page_a, "name": "Resumo renomeada"},
+                {"id": page_c, "name": "Anexos"},
+            ],
+            "activePageId": page_a,
+            "widgets": [
+                {**widget(analysis_id), "id": widget_a, "pageId": page_a},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert [(p["id"], p["name"], p["position"]) for p in data["pages"]] == [
+        (page_b, "Detalhe", 0),
+        (page_a, "Resumo renomeada", 1),
+        (page_c, "Anexos", 2),
+    ]
+    assert data["activePageId"] == page_a
+    # widget de B excluído junto com a página; widget de A preservado.
+    assert [w["id"] for w in data["widgets"]] == [widget_a]
+
+    reread = await client.get(f"/api/dashboards/{dashboard_id}", headers=auth_headers)
+    body = reread.json()
+    assert [p["id"] for p in body["pages"]] == [page_b, page_a, page_c]
+    assert [w["id"] for w in body["widgets"]] == [widget_a]
+
+
+async def test_put_active_page_coerced_when_invalid(client, auth_headers):
+    page_a, page_b = str(uuid.uuid4()), str(uuid.uuid4())
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel",
+            "pages": [{"id": page_a, "name": "A"}, {"id": page_b, "name": "B"}],
+            "activePageId": page_b,
+        },
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+    assert created.json()["activePageId"] == page_b
+
+    # id inexistente -> coerção para a primeira página (nunca 500).
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={"activePageId": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["activePageId"] == page_a
+
+    # volta para B; páginas não enviadas permanecem intactas.
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={"activePageId": page_b},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["activePageId"] == page_b
+    assert [p["id"] for p in data["pages"]] == [page_a, page_b]
+
+
+async def test_put_keeps_widget_page_when_page_id_omitted(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    page_a = str(uuid.uuid4())
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel",
+            "pages": [{"id": page_a, "name": "A"}],
+            "widgets": [{**widget(analysis_id), "pageId": page_a}],
+        },
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+    widget_id = created.json()["widgets"][0]["id"]
+
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={"widgets": [{"id": widget_id, **widget(analysis_id)}]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["widgets"][0]["pageId"] == page_a
+
+
+async def test_put_new_widget_without_page_lands_on_active_page(
+    client, auth_headers
+):
+    analysis_id = await create_analysis(client, auth_headers)
+    page_a, page_b = str(uuid.uuid4()), str(uuid.uuid4())
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel",
+            "pages": [{"id": page_a, "name": "A"}, {"id": page_b, "name": "B"}],
+            "activePageId": page_b,
+        },
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={"widgets": [widget(analysis_id)]},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["widgets"][0]["pageId"] == page_b
+
+
+async def test_put_widget_with_unknown_page_is_400(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    created = await client.post(
+        "/api/dashboards",
+        json={"name": "Painel", "widgets": [widget(analysis_id)]},
+        headers=auth_headers,
+    )
+    dashboard_id = created.json()["id"]
+
+    response = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={
+            "widgets": [
+                {**widget(analysis_id), "pageId": str(uuid.uuid4())}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+async def test_by_slug_returns_pages_for_shared_viewer(client, auth_headers):
+    analysis_id = await create_analysis(client, auth_headers)
+    page_a, page_b = str(uuid.uuid4()), str(uuid.uuid4())
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Compartilhado",
+            "pages": [{"id": page_a, "name": "A"}, {"id": page_b, "name": "B"}],
+            "activePageId": page_b,
+            "widgets": [
+                {**widget(analysis_id), "pageId": page_a},
+                {**widget(analysis_id, x=6), "pageId": page_b},
+            ],
+        },
+        headers=auth_headers,
+    )
+    slug = created.json()["slug"]
+
+    public = await client.get(f"/api/dashboards/by-slug/{slug}")
+    assert public.status_code == 200
+    body = public.json()
+    assert [(p["id"], p["name"]) for p in body["pages"]] == [
+        (page_a, "A"),
+        (page_b, "B"),
+    ]
+    assert body["activePageId"] == page_b
+    assert [w["pageId"] for w in body["widgets"]] == [page_a, page_b]
+    # dados das análises continuam embutidos para o viewer anônimo.
+    assert body["widgets"][0]["analysisData"]["id"] == analysis_id

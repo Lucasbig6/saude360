@@ -147,10 +147,14 @@ export function AddToDashboardDialog({
     setActionError(null)
 
     try {
+      // O painel novo nasce já com a primeira página materializada.
+      const pageId = crypto.randomUUID()
       const dashboard = await createDashboard({
         name: trimmed,
         description: "",
-        widgets: [createWidget(analysis)],
+        pages: [{ id: pageId, name: "Página 1" }],
+        activePageId: pageId,
+        widgets: [{ ...createWidget(analysis), pageId }],
         filters: [],
         // O painel novo nasce no mesmo projeto da análise.
         ...(analysis.projectId ? { projectId: analysis.projectId } : {}),

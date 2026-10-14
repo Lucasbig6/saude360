@@ -3,6 +3,7 @@ import type {
   Dashboard,
   DashboardAppearance,
   DashboardFilter,
+  DashboardPage,
   DashboardWidget,
 } from "@/lib/types/dashboard"
 import { normalizeWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
@@ -34,6 +35,8 @@ export interface ApiWidget {
   widget?: unknown
   /** Dados inline da análise — presente no endpoint público /by-slug. */
   analysisData?: unknown
+  /** Página dona; null/ausente em dashboards legados sem páginas. */
+  pageId?: string | null
 }
 
 export interface ApiFilter {
@@ -43,6 +46,12 @@ export interface ApiFilter {
   operator: string
   defaultValue: string | string[] | null
   scope: string | string[] | null
+}
+
+export interface ApiPage {
+  id: string
+  name: string
+  position?: number
 }
 
 export interface ApiDashboard {
@@ -57,6 +66,9 @@ export interface ApiDashboard {
   createdBy: string | null
   createdAt: string
   updatedAt: string
+  /** Ausente/vazio em dashboards legados (antes da migração 0007). */
+  pages?: ApiPage[] | null
+  activePageId?: string | null
 }
 
 export interface WidgetPayload {
@@ -64,6 +76,7 @@ export interface WidgetPayload {
   analysisId: string
   layout: ApiLayout
   widget?: WidgetConfig
+  pageId: string | null
 }
 
 export interface DashboardPayload {
@@ -74,6 +87,10 @@ export interface DashboardPayload {
   filters?: DashboardFilter[]
   /** ausente: PUT não altera o vínculo; null: remove; string: associa */
   projectId?: string | null
+  /** abas da barra inferior (ordem da lista = posição canônica) */
+  pages?: DashboardPage[]
+  /** página exibida ao abrir o painel */
+  activePageId?: string | null
 }
 
 export interface DashboardInput extends DashboardPayload {
@@ -164,6 +181,7 @@ function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
       analysisId: widget.analysisId,
       layout: toLayout(widget.layout),
       config: toConfig(widget.widget),
+      pageId: typeof widget.pageId === "string" ? widget.pageId : null,
       ...(analysisData ? { analysisData } : {}),
     }
   })
@@ -209,61 +227,127 @@ function toAppearance(raw: Record<string, unknown> | null): DashboardAppearance 
   return raw as DashboardAppearance
 }
 
+function toPages(raw: unknown): DashboardPage[] {
+  if (!Array.isArray(raw)) return []
+  const pages: DashboardPage[] = []
+  for (const page of raw) {
+    const value = page as ApiPage | null
+    if (
+      !value ||
+      typeof value.id !== "string" ||
+      typeof value.name !== "string" ||
+      pages.some((existing) => existing.id === value.id)
+    ) {
+      throw contractError("/api/dashboards: página inválida")
+    }
+    pages.push({ id: value.id, name: value.name })
+  }
+  // a API devolve as páginas já ordenadas por position; a ordem do array é
+  // a posição canônica (o payload de PUT reenvia nessa mesma ordem).
+  return pages
+}
+
 export function toDashboard(raw: unknown): Dashboard {
   const value = assertApiDashboard(raw)
+  const apiPages = toPages(value.pages)
+
+  let pages: DashboardPage[]
+  let activePageId: string | null
+  let widgets = toWidgets(value.widgets)
+
+  if (apiPages.length === 0) {
+    // Dashboard legado (sem páginas no banco): sintetiza a "Página 1" em
+    // memória e associa todos os widgets — nenhuma linha fictícia é gravada;
+    // a primeira edição materializa de verdade via PUT.
+    const synthesized: DashboardPage = {
+      id: crypto.randomUUID(),
+      name: "Página 1",
+    }
+    pages = [synthesized]
+    activePageId = synthesized.id
+    widgets = widgets.map((widget) => ({ ...widget, pageId: synthesized.id }))
+  } else {
+    pages = apiPages
+    const known = new Set(apiPages.map((page) => page.id))
+    activePageId =
+      typeof value.activePageId === "string" && known.has(value.activePageId)
+        ? value.activePageId
+        : apiPages[0].id
+    // invariante de visibilidade: widget sem página (ou órfã) cai na primeira
+    widgets = widgets.map((widget) =>
+      widget.pageId && known.has(widget.pageId)
+        ? widget
+        : { ...widget, pageId: apiPages[0].id }
+    )
+  }
 
   return {
     id: value.id,
     name: value.name,
     description: value.description ?? "",
     slug: value.slug,
-    widgets: toWidgets(value.widgets),
+    widgets,
     filters: toFilters(value.filters),
     appearance: toAppearance(value.appearance),
     projectId: typeof value.projectId === "string" ? value.projectId : null,
     createdBy: typeof value.createdBy === "string" ? value.createdBy : null,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    pages,
+    activePageId,
   }
 }
 
 /**
  * Widgets JSON-safe. A sentinela `y: Infinity` ("novo, embaixo") não sobrevive
  * ao JSON: ela é convertida para a primeira linha livre abaixo dos widgets já
- * posicionados, para o widget não voltar ao topo ao recarregar.
+ * posicionados, para o widget não voltar ao topo ao recarregar. O cálculo é
+ * por página: widgets de outras abas não empilham o Y da página atual.
  */
-function toWidgetsPayload(widgets: DashboardWidget[]): WidgetPayload[] {
-  const appendY = widgets.reduce((max, widget) => {
+function toWidgetsPayload(
+  widgets: DashboardWidget[],
+  fallbackPageId: string | null
+): WidgetPayload[] {
+  const appendYByPage = new Map<string, number>()
+  for (const widget of widgets) {
+    const pageKey = widget.pageId ?? "__none__"
     const y = widget.layout?.y
     const h = widget.layout?.h
-    if (!Number.isFinite(y) || !Number.isFinite(h)) return max
-    return Math.max(max, y + h)
-  }, 0)
+    if (!Number.isFinite(y) || !Number.isFinite(h)) continue
+    appendYByPage.set(pageKey, Math.max(appendYByPage.get(pageKey) ?? 0, y + h))
+  }
 
-  return widgets.map((widget) => ({
-    id: widget.id,
-    analysisId: widget.analysisId,
-    layout: {
-      x: finite(widget.layout?.x, 0),
-      y: Number.isFinite(widget.layout?.y) ? widget.layout.y : appendY,
-      w: finite(widget.layout?.w, 4),
-      h: finite(widget.layout?.h, 4),
-    },
-    ...(widget.config ? { widget: widget.config } : {}),
-  }))
+  return widgets.map((widget) => {
+    const pageKey = widget.pageId ?? "__none__"
+    const appendY = appendYByPage.get(pageKey) ?? 0
+    return {
+      id: widget.id,
+      analysisId: widget.analysisId,
+      layout: {
+        x: finite(widget.layout?.x, 0),
+        y: Number.isFinite(widget.layout?.y) ? widget.layout.y : appendY,
+        w: finite(widget.layout?.w, 4),
+        h: finite(widget.layout?.h, 4),
+      },
+      ...(widget.config ? { widget: widget.config } : {}),
+      pageId: widget.pageId ?? fallbackPageId,
+    }
+  })
 }
 
 /**
  * PUT completo. `slug` NUNCA é enviado: a identidade do slug é do backend.
  * `projectId` é enviado sempre (round-trip do objeto): manter o valor atual
- * preserva o vínculo; `null` limpa.
+ * preserva o vínculo; `null` limpa. `pages`/`activePageId` são sempre
+ * enviados: a primeira edição materializa as páginas sintetizadas.
  */
 export function toDashboardPayload(dashboard: Dashboard): DashboardPayload {
+  const fallbackPageId = dashboard.pages[0]?.id ?? null
   return {
     name: dashboard.name,
     description: dashboard.description,
     appearance: dashboard.appearance ?? {},
-    widgets: toWidgetsPayload(dashboard.widgets),
+    widgets: toWidgetsPayload(dashboard.widgets, fallbackPageId),
     filters: dashboard.filters.map((filter) => ({
       id: filter.id,
       datasetId: filter.datasetId,
@@ -273,6 +357,8 @@ export function toDashboardPayload(dashboard: Dashboard): DashboardPayload {
       scope: filter.scope,
     })),
     projectId: dashboard.projectId,
+    pages: dashboard.pages.map((page) => ({ id: page.id, name: page.name })),
+    activePageId: dashboard.activePageId ?? fallbackPageId,
   }
 }
 
@@ -281,7 +367,9 @@ function toCreatePayload(data: DashboardInput): DashboardPayload {
     name: data.name,
     description: data.description ?? null,
     appearance: data.appearance ?? {},
-    widgets: data.widgets ? toWidgetsPayload(data.widgets) : undefined,
+    widgets: data.widgets
+      ? toWidgetsPayload(data.widgets, data.pages?.[0]?.id ?? null)
+      : undefined,
     filters: data.filters?.map((filter) => ({
       id: filter.id,
       datasetId: filter.datasetId,
@@ -294,6 +382,12 @@ function toCreatePayload(data: DashboardInput): DashboardPayload {
   // ausente -> cria sem projeto; null -> cria sem projeto; string -> associa.
   if (data.projectId !== undefined) {
     payload.projectId = data.projectId
+  }
+  // ausente -> cria sem páginas (o parse sintetiza a "Página 1");
+  // presente -> materializa já na criação.
+  if (data.pages !== undefined) {
+    payload.pages = data.pages
+    payload.activePageId = data.activePageId ?? data.pages[0]?.id ?? null
   }
   return payload
 }

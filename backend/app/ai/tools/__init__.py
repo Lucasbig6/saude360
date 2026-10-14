@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.ai.tools.analyses import create_analysis_spec
+from app.ai.tools.analysis_preview import preview_analysis_spec
 from app.ai.tools.dashboard import dashboard_context_spec
 from app.ai.tools.datasets import column_values_spec, dataset_schema_spec
 from app.ai.tools.queries import execute_query_spec
@@ -25,6 +26,7 @@ def build_registry() -> ToolRegistry:
         dataset_schema_spec(),
         column_values_spec(),
         execute_query_spec(),
+        preview_analysis_spec(),
         create_analysis_spec(),
         update_widget_config_spec(),
     ):

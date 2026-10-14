@@ -113,6 +113,7 @@ def _explorer_policy() -> AgentPolicy:
                 "get_dataset_schema",
                 "get_column_values",
                 "execute_query",
+                "preview_analysis",
                 "create_analysis",
             }
         ),

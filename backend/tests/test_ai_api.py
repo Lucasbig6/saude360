@@ -630,3 +630,107 @@ async def test_copilot_session_cannot_use_write_tool(
 
     assert '"status": "denied"' in response.text
     assert db.scalar(select(Analysis).where(Analysis.name == "X")) is None
+
+
+# ---------------------------------------------------------------------------
+# Análise conversacional — contexto do 2º turno
+# ---------------------------------------------------------------------------
+
+
+async def test_second_turn_receives_current_analysis_context(
+    client, db, mock_superset_client, override_llm_provider
+):
+    """O turno seguinte recebe a config da última preview_analysis.
+
+    Mensagem transitória role=system no início do history (não persistida):
+    é o contrato que permite ao modelo modificar a análise existente
+    preservando os atributos não citados.
+    """
+    mock_superset_client.get.return_value = {
+        "result": {"database": {"id": 7}}
+    }
+    mock_superset_client.post.return_value = {
+        "status": "success",
+        "colnames": ["municipio", "total"],
+        "data": [{"municipio": "São Paulo", "total": 10}],
+    }
+    headers = user_headers(db, "alice")
+    session = await create_session(
+        client, headers, agentType="explorer", datasetId=12
+    )
+    override_llm_provider._responses = [
+        make_llm_response(
+            tool_calls=[
+                make_tool_call(
+                    "preview_analysis",
+                    {
+                        "sql": "SELECT municipio, SUM(valor) AS total FROM i GROUP BY 1",
+                        "chart_type": "bar",
+                        "dimension": "municipio",
+                        "metric": "total",
+                    },
+                    "call_prev",
+                )
+            ]
+        ),
+        make_llm_response(content="Aqui está a pré-visualização."),
+        make_llm_response(content="Agrupei por município."),
+    ]
+
+    first = await client.post(
+        f"/api/ai/sessions/{session['id']}/messages",
+        json={"content": "total por município"},
+        headers=headers,
+    )
+    assert first.status_code == 200
+    assert '"name": "preview_analysis"' in first.text
+
+    second = await client.post(
+        f"/api/ai/sessions/{session['id']}/messages",
+        json={"content": "ordene do maior para o menor"},
+        headers=headers,
+    )
+    assert second.status_code == 200
+
+    # calls: [preview_analysis passo 1, resposta final do turno 1, turno 2]
+    assert len(override_llm_provider.calls) == 3
+    turn2_messages = override_llm_provider.calls[2]["messages"]
+    # [0] = system prompt do agente; [1] = contexto transitório da análise
+    assert turn2_messages[0].role == "system"
+    context = turn2_messages[1]
+    assert context.role == "system"
+    assert "[Análise atual em edição]" in context.content
+    assert "Configuração atual:" in context.content
+    assert '"chartType": "bar"' in context.content
+    assert '"dimension": "municipio"' in context.content
+
+    # A mensagem de contexto é transitória: não é persistida no histórico.
+    rows = db.scalars(
+        select(AIMessage)
+        .where(AIMessage.session_id == uuid.UUID(session["id"]))
+        .order_by(AIMessage.created_at, AIMessage.id)
+    ).all()
+    assert all("Configuração atual:" not in (row.content or "") for row in rows)
+
+
+async def test_first_turn_has_no_analysis_context(
+    client, db, override_llm_provider
+):
+    headers = user_headers(db, "alice")
+    session = await create_session(
+        client, headers, agentType="explorer", datasetId=12
+    )
+    override_llm_provider._responses = [
+        make_llm_response(content="olá"),
+    ]
+
+    response = await client.post(
+        f"/api/ai/sessions/{session['id']}/messages",
+        json={"content": "oi"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    first_messages = override_llm_provider.calls[0]["messages"]
+    system_messages = [m for m in first_messages if m.role == "system"]
+    assert len(system_messages) == 1  # só o system prompt do agente
+    assert "Configuração atual:" not in system_messages[0].content

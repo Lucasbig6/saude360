@@ -44,6 +44,11 @@ interface AgentVizProps {
    */
   presentation?: PresentationState
   onPresentationChange?: (presentation: PresentationState) => void
+  /**
+   * Classe de altura da área do gráfico (Tailwind). A pré-visualização
+   * usa mais altura que os demais contextos.
+   */
+  chartHeightClass?: string
 }
 
 /**
@@ -58,6 +63,7 @@ export function AgentViz({
   executionMs,
   presentation,
   onPresentationChange,
+  chartHeightClass = "h-64",
 }: AgentVizProps) {
   const controlled = presentation !== undefined && onPresentationChange !== undefined
 
@@ -197,7 +203,7 @@ export function AgentViz({
       </div>
 
       {viewMode === "chart" ? (
-        <div className="h-64 bg-card p-3">
+        <div className={cn("bg-card p-3", chartHeightClass)}>
           <PreviewChart
             data={rows}
             chartType={chartType}

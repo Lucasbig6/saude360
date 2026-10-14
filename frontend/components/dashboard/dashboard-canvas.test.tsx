@@ -44,6 +44,8 @@ function dashboardFixture(): Dashboard {
     createdBy: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    pages: [{ id: "p1", name: "Página 1" }],
+    activePageId: "p1",
   }
 }
 

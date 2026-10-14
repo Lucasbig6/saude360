@@ -6,6 +6,15 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.ai.policies import ToolPolicyError
+from app.ai.tools.analysis_preview import (
+    parse_filters,
+    parse_limit,
+    parse_optional_bool,
+    parse_sort,
+)
+from app.ai.tools.analysis_preview import (
+    parse_optional_str as parse_config_str,
+)
 from app.ai.tools.registry import ToolContext, ToolSpec, nullable
 from app.models import Analysis
 from app.superset.queries import validar_sql
@@ -41,6 +50,22 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
     dimension = _optional_str(args.get("dimension"), 255)
     metric = _optional_str(args.get("metric"), 255)
     db_schema = _optional_str(args.get("db_schema"), 255)
+    color_field = parse_config_str(args.get("color_field"), 255)
+    sort = parse_sort(args.get("sort"))
+    limit = parse_limit(args.get("limit"))
+    filters = parse_filters(args.get("filters"))
+    show_values = parse_optional_bool(args.get("show_values"))
+
+    chart_config = _build_chart_config(
+        chart_type=chart_type,
+        dimension=dimension,
+        metric=metric,
+        color_field=color_field,
+        sort=sort,
+        limit=limit,
+        filters=filters,
+        show_values=show_values,
+    )
 
     if ctx.db is None:
         raise RuntimeError("Sessão de banco indisponível para a tool.")
@@ -58,6 +83,7 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
             "chart_type": chart_type,
             "dimension": dimension,
             "metric": metric,
+            "chart_config": chart_config,
             "created_by": ctx.user_id,
         },
     )
@@ -66,6 +92,61 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
         "name": name,
         "created": True,
     }
+
+
+def _build_chart_config(
+    *,
+    chart_type: str | None,
+    dimension: str | None,
+    metric: str | None,
+    color_field: str | None,
+    sort: dict[str, str] | None,
+    limit: int | None,
+    filters: list[dict[str, Any]],
+    show_values: bool | None = None,
+) -> dict[str, Any] | None:
+    """Monta o ``chart_config`` no shape do frontend (lib/charts/chart-config).
+
+    Mesma convenção do ``buildConfig`` do frontend: kpi é salvo como
+    ``type: "bar"`` (o legado ``chart_type`` guarda "kpi"); campos vazios
+    são omitidos. Retorna ``None`` quando não há o que persistir.
+    """
+    if chart_type is None and dimension is None and metric is None:
+        if (
+            color_field is None
+            and sort is None
+            and limit is None
+            and not filters
+            and not show_values
+        ):
+            return None
+
+    encoding: dict[str, str] = {}
+    if dimension:
+        encoding["x"] = dimension
+    if metric:
+        encoding["y"] = metric
+    if color_field:
+        encoding["color"] = color_field
+
+    config: dict[str, Any] = {
+        "type": "bar"
+        if chart_type in (None, "table", "kpi")
+        else chart_type,
+        "legend": True,
+        "tooltip": True,
+    }
+    if encoding:
+        config["encoding"] = encoding
+    if sort is not None:
+        config["sort"] = sort
+    if limit is not None:
+        config["limit"] = limit
+    if filters:
+        config["filters"] = filters
+    if show_values:
+        config["showValues"] = True
+    return config
 
 
 def _persist(db: Session, data: dict[str, Any]) -> Any:
@@ -131,9 +212,39 @@ def create_analysis_spec() -> ToolSpec:
                 "chart_type": nullable({"type": "string"}),
                 "dimension": nullable({"type": "string"}),
                 "metric": nullable({"type": "string"}),
+                "color_field": nullable({"type": "string"}),
+                "sort": nullable(
+                    {
+                        "type": "object",
+                        "properties": {
+                            "field": {"type": "string"},
+                            "direction": {"type": "string", "enum": ["asc", "desc"]},
+                        },
+                        "required": ["field", "direction"],
+                        "additionalProperties": False,
+                    }
+                ),
+                "limit": nullable({"type": "integer", "minimum": 1, "maximum": 5000}),
+                "filters": nullable(
+                    {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "field": {"type": "string"},
+                                "operator": {"type": "string"},
+                                "value": {},
+                            },
+                            "required": ["field", "operator"],
+                            "additionalProperties": False,
+                        },
+                    }
+                ),
                 "db_schema": nullable({"type": "string"}),
                 "dataset_id": nullable({"type": "integer"}),
                 "database_id": nullable({"type": "integer"}),
+                "show_values": nullable({"type": "boolean"}),
             },
             "required": ["name"],
             "additionalProperties": False,

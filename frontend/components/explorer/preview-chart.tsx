@@ -2,7 +2,11 @@
 
 import { useMemo } from "react"
 import { EChartRenderer } from "@/components/charts/EChartRenderer"
-import type { ChartConfig, ChartSort } from "@/lib/charts/chart-config"
+import type {
+  AnalysisFilter,
+  ChartConfig,
+  ChartSort,
+} from "@/lib/charts/chart-config"
 import {
   DEFAULT_DISPLAY_OPTIONS,
   paletteColors,
@@ -27,7 +31,8 @@ export function buildConfig(
   dimension: string | null,
   metric: string | null,
   colorField: string | null,
-  display: ChartDisplayOptions
+  display: ChartDisplayOptions,
+  filters?: AnalysisFilter[]
 ): ChartConfig {
   const config: ChartConfig = {
     type: chartType === "kpi" ? "bar" : chartType,
@@ -66,6 +71,9 @@ export function buildConfig(
   }
   if (display.limit !== null && display.limit > 0) {
     config.limit = display.limit
+  }
+  if (filters && filters.length > 0) {
+    config.filters = filters
   }
 
   return config

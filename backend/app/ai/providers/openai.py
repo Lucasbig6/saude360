@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Mapping
+import re
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any
 
 import httpx
@@ -24,6 +26,17 @@ from app.ai.providers.base import (
 logger = logging.getLogger(__name__)
 
 DONE_SENTINEL = "[DONE]"
+
+# Erros transitórios: rate limit (429) e falhas momentâneas do provider.
+# Sem retry o turno inteiro morre na primeira janela de cota atingida.
+RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 529})
+# Ex.: Groq devolve "Please try again in 37.64s" — respeitar a janela do
+# provedor evita queimar tentativas, mas com teto para não travar o turno.
+RETRY_MAX_DELAY_SECONDS = 45.0
+RETRY_TOTAL_BUDGET_SECONDS = 75.0
+_RETRY_AFTER_HINT_RE = re.compile(
+    r"try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE
+)
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -48,6 +61,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         timeout: float = 60.0,
         extra_headers: Mapping[str, str] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        retry_max_attempts: int = 4,
+        retry_sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(model=model)
         if not (base_url or "").strip():
@@ -58,6 +73,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             raise ProviderNotConfiguredError("AI_MODEL não configurado.")
         self._base_url = base_url.rstrip("/") + "/"
         self._api_key = api_key or None
+        self._retry_max_attempts = max(1, retry_max_attempts)
+        self._sleep = retry_sleep or asyncio.sleep
         headers: dict[str, str] = {}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -150,22 +167,105 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         return text
 
     # ------------------------------------------------------------------
+    # Retry de erros transitórios (429/5xx)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_retry_hint(headers: httpx.Headers, body: bytes) -> float | None:
+        """Espera sugerida pelo provider: header ``Retry-After`` ou o aviso
+        do Groq no corpo (``Please try again in 1.68s``)."""
+        raw = headers.get("retry-after")
+        if raw:
+            try:
+                return max(float(raw), 0.0)
+            except ValueError:
+                pass
+        text = body.decode("utf-8", errors="replace")
+        match = _RETRY_AFTER_HINT_RE.search(text)
+        if match:
+            return max(float(match.group(1)), 0.0)
+        return None
+
+    def _retry_delay(
+        self,
+        status_code: int,
+        headers: httpx.Headers,
+        body: bytes,
+        attempt: int,
+        elapsed: float,
+    ) -> float | None:
+        """Espera até a próxima tentativa ou ``None`` para falhar de vez.
+
+        Backoff exponencial (2s, 4s, 8s...) quando o provider não dá pista;
+        com pista, obedece-a (limitada) respeitando o orçamento total para
+        não segurar o turno do usuário por minutos.
+        """
+        if status_code not in RETRYABLE_STATUS_CODES:
+            return None
+        if attempt >= self._retry_max_attempts:
+            return None
+        hint = self._parse_retry_hint(headers, body)
+        delay = (
+            hint if hint is not None else float(min(2**attempt, 15))
+        )
+        delay = min(delay, RETRY_MAX_DELAY_SECONDS)
+        if elapsed + delay > RETRY_TOTAL_BUDGET_SECONDS:
+            return None
+        return delay
+
+    def _log_retry(
+        self, status_code: int, attempt: int, delay: float
+    ) -> None:
+        logger.warning(
+            "Provider '%s' retornou HTTP %s (tentativa %s/%s); "
+            "aguardando %.1fs antes de tentar de novo.",
+            self.name,
+            status_code,
+            attempt,
+            self._retry_max_attempts,
+            delay,
+        )
+
+    # ------------------------------------------------------------------
     # Chamadas
     # ------------------------------------------------------------------
 
     async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
-        try:
-            response = await self._client.post("chat/completions", json=payload)
-        except httpx.TimeoutException as exc:
-            raise ProviderError(f"Provider '{self.name}' excedeu o tempo limite.") from exc
-        except httpx.HTTPError as exc:
-            raise ProviderError(
-                f"Falha de conexão com o provider '{self.name}'."
-            ) from exc
-        if response.status_code >= 400:
-            raise ProviderError(
-                self._error_message(response.status_code, response.content)
-            )
+        attempt = 0
+        elapsed = 0.0
+        while True:
+            attempt += 1
+            try:
+                response = await self._client.post(
+                    "chat/completions", json=payload
+                )
+            except httpx.TimeoutException as exc:
+                raise ProviderError(
+                    f"Provider '{self.name}' excedeu o tempo limite."
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise ProviderError(
+                    f"Falha de conexão com o provider '{self.name}'."
+                ) from exc
+            if response.status_code >= 400:
+                delay = self._retry_delay(
+                    response.status_code,
+                    response.headers,
+                    response.content,
+                    attempt,
+                    elapsed,
+                )
+                if delay is None:
+                    raise ProviderError(
+                        self._error_message(
+                            response.status_code, response.content
+                        )
+                    )
+                self._log_retry(response.status_code, attempt, delay)
+                await self._sleep(delay)
+                elapsed += delay
+                continue
+            break
         try:
             return response.json()
         except json.JSONDecodeError as exc:
@@ -205,34 +305,64 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     ) -> AsyncIterator[LLMChunk]:
         payload = self._request_payload(messages, tools, stream=True)
         accumulator = ResponseAccumulator()
-        try:
-            async with self._client.stream(
-                "POST", "chat/completions", json=payload
-            ) as response:
-                if response.status_code >= 400:
-                    body = await response.aread()
-                    raise ProviderError(
-                        self._error_message(response.status_code, body)
-                    )
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[len("data:") :].strip()
-                    if data == DONE_SENTINEL:
+        attempt = 0
+        elapsed = 0.0
+        while True:
+            attempt += 1
+            delay: float | None = None
+            try:
+                async with self._client.stream(
+                    "POST", "chat/completions", json=payload
+                ) as response:
+                    if response.status_code >= 400:
+                        body = await response.aread()
+                        delay = self._retry_delay(
+                            response.status_code,
+                            response.headers,
+                            body,
+                            attempt,
+                            elapsed,
+                        )
+                        if delay is None:
+                            raise ProviderError(
+                                self._error_message(
+                                    response.status_code, body
+                                )
+                            )
+                        self._log_retry(
+                            response.status_code, attempt, delay
+                        )
+                    else:
+                        # Sucesso: só aqui tokens são cedidos ao chamador —
+                        # um 429 sempre chega antes de qualquer yield, então
+                        # o retry nunca duplica conteúdo no stream.
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if not line or not line.startswith("data:"):
+                                continue
+                            data = line[len("data:") :].strip()
+                            if data == DONE_SENTINEL:
+                                break
+                            chunk = self._parse_stream_chunk(data)
+                            if chunk is None:
+                                continue
+                            accumulator.add(chunk)
+                            if chunk.content_delta:
+                                yield LLMChunk(content_delta=chunk.content_delta)
                         break
-                    chunk = self._parse_stream_chunk(data)
-                    if chunk is None:
-                        continue
-                    accumulator.add(chunk)
-                    if chunk.content_delta:
-                        yield LLMChunk(content_delta=chunk.content_delta)
-        except httpx.TimeoutException as exc:
-            raise ProviderError(f"Provider '{self.name}' excedeu o tempo limite.") from exc
-        except httpx.HTTPError as exc:
-            raise ProviderError(
-                f"Falha de conexão com o provider '{self.name}'."
-            ) from exc
+            except httpx.TimeoutException as exc:
+                raise ProviderError(
+                    f"Provider '{self.name}' excedeu o tempo limite."
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise ProviderError(
+                    f"Falha de conexão com o provider '{self.name}'."
+                ) from exc
+            if delay is None:
+                break
+            # Retry agendado pelo status HTTP (fora do contexto do stream).
+            await self._sleep(delay)
+            elapsed += delay
 
         final = accumulator.build()
         for index, tool_call in enumerate(final.tool_calls):

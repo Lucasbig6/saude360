@@ -55,6 +55,50 @@ class Dashboard(Base):
         order_by="DashboardFilter.created_at",
         lazy="selectin",
     )
+    pages: Mapped[list[DashboardPage]] = relationship(
+        back_populates="dashboard",
+        # Há dois vínculos entre as tabelas (dashboard_id e active_page_id);
+        # o relationship usa apenas o FK de dashboard_id.
+        foreign_keys="DashboardPage.dashboard_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="DashboardPage.position",
+        lazy="selectin",
+    )
+    #: Página exibida ao abrir o painel (inclusive no link compartilhado).
+    #: NULL quando o dashboard ainda não tem páginas explícitas (legado).
+    active_page_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("dashboard_pages.id", ondelete="SET NULL")
+    )
+
+
+class DashboardPage(Base):
+    """Página do painel (abas da barra inferior); widgets pertencem a uma.
+
+    Dashboards legados podem não ter páginas — o frontend sintetiza a
+    "Página 1" e ela é materializada no primeiro PUT de edição.
+    """
+
+    __tablename__ = "dashboard_pages"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    dashboard_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("dashboards.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    dashboard: Mapped[Dashboard] = relationship(
+        back_populates="pages",
+        # Mesmo motivo de Dashboard.pages: dois FKs ligam as tabelas.
+        foreign_keys=[dashboard_id],
+    )
 
 
 class DashboardWidget(Base):
@@ -81,6 +125,10 @@ class DashboardWidget(Base):
     )
     widget: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
+    #: Página dona do widget; NULL = dashboard legado sem páginas explícitas.
+    page_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("dashboard_pages.id", ondelete="CASCADE"), index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

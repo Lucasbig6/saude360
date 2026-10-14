@@ -9,7 +9,7 @@ from app.ai.policies import Scope, ToolPolicyError, build_policy
 from app.ai.tools import build_registry
 from app.ai.tools.registry import ToolContext, ToolNotAllowedError
 from app.db.session import SessionLocal
-from app.models import Analysis, Dashboard, DashboardWidget, User
+from app.models import AIToolCall, Analysis, Dashboard, DashboardWidget, User
 
 
 @pytest.fixture
@@ -554,3 +554,350 @@ def test_optional_tool_params_accept_null():
                 isinstance(branch, dict) and branch.get("type") == "null"
                 for branch in prop.get("anyOf", [])
             ), f"{spec.name}.{name} deve aceitar null"
+
+
+# ---------------------------------------------------------------------------
+# preview_analysis — contrato estruturado agente → frontend
+# ---------------------------------------------------------------------------
+
+
+def explorer_policy(**scope_kwargs) -> tuple:
+    policy = build_policy("explorer", Scope(**scope_kwargs))
+    return policy
+
+
+async def test_preview_analysis_returns_config_and_data_together(
+    client, mock_superset_client, db
+):
+    mock_superset_client.post.return_value = {
+        "status": "success",
+        "colnames": ["municipio", "total"],
+        "data": [
+            {"municipio": "São Paulo", "total": 10},
+            {"municipio": "Campinas", "total": 5},
+        ],
+    }
+    policy = explorer_policy(database_ids=frozenset({7}))
+    spec = tool("preview_analysis")
+
+    result = await spec.handler(
+        make_context(db, policy),
+        {
+            "sql": "SELECT municipio, SUM(valor) AS total FROM atendimentos "
+            "WHERE ano = 2025 GROUP BY 1",
+            "chart_type": "bar-horizontal",
+            "dimension": "municipio",
+            "metric": "total",
+            "sort": {"field": "total", "direction": "desc"},
+            "limit": 20,
+            "filters": [{"field": "ano", "operator": "eq", "value": 2025}],
+            "show_values": True,
+        },
+    )
+
+    config = result["config"]
+    data = result["data"]
+    assert config["sql"].startswith("SELECT municipio")
+    assert config["chartType"] == "bar-horizontal"
+    assert config["dimension"] == "municipio"
+    assert config["metric"] == "total"
+    assert config["colorField"] is None
+    assert config["sort"] == {"field": "total", "direction": "desc"}
+    assert config["limit"] == 20
+    assert config["filters"] == [
+        {"field": "ano", "operator": "eq", "value": 2025}
+    ]
+    assert config["showValues"] is True
+    assert data["columns"] == ["municipio", "total"]
+    assert len(data["rows"]) == 2
+    assert data["truncated"] is False
+    assert data["databaseId"] == 7
+    mock_superset_client.post.assert_awaited_once()
+
+
+async def test_preview_analysis_blocks_dml_without_calling_superset(
+    client, mock_superset_client, db
+):
+    policy = explorer_policy(database_ids=frozenset({7}))
+    spec = tool("preview_analysis")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            make_context(db, policy), {"sql": "DELETE FROM atendimentos"}
+        )
+    mock_superset_client.post.assert_not_awaited()
+
+
+async def test_preview_analysis_requires_database_scope(
+    client, mock_superset_client, db
+):
+    policy = explorer_policy()  # sem escopo de database
+    spec = tool("preview_analysis")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(make_context(db, policy), {"sql": "SELECT 1"})
+    mock_superset_client.post.assert_not_awaited()
+
+
+async def test_preview_analysis_rejects_llm_database_out_of_scope(
+    client, mock_superset_client, db
+):
+    policy = explorer_policy(database_ids=frozenset({7}))
+    spec = tool("preview_analysis")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            make_context(db, policy), {"sql": "SELECT 1", "database_id": 999}
+        )
+    mock_superset_client.post.assert_not_awaited()
+
+
+async def test_preview_analysis_rejects_invalid_config_args(
+    client, mock_superset_client, db
+):
+    policy = explorer_policy(database_ids=frozenset({7}))
+    spec = tool("preview_analysis")
+    context = make_context(db, policy)
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"sql": "SELECT 1", "chart_type": "pie3d"})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {"sql": "SELECT 1", "sort": {"field": "total", "direction": "up"}},
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context, {"sql": "SELECT 1", "sort": {"direction": "asc"}}
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"sql": "SELECT 1", "limit": 0})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"sql": "SELECT 1", "limit": 99999})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {
+                "sql": "SELECT 1",
+                "filters": [{"field": "ano", "operator": "regex", "value": "2"}],
+            },
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context, {"sql": "SELECT 1", "show_values": "yes"}
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {"filters": [{"field": "ano", "operator": "eq"}]}
+        )
+    mock_superset_client.post.assert_not_awaited()
+
+
+async def test_preview_analysis_truncates_to_policy_max_rows(
+    client, mock_superset_client, db
+):
+    mock_superset_client.post.return_value = {
+        "status": "success",
+        "colnames": ["n"],
+        "data": [{"n": 1}, {"n": 2}, {"n": 3}],
+    }
+    policy = build_policy(
+        "explorer", Scope(database_ids=frozenset({7})), max_rows=2
+    )
+    spec = tool("preview_analysis")
+
+    result = await spec.handler(
+        make_context(db, policy), {"sql": "SELECT n FROM t"}
+    )
+
+    assert len(result["data"]["rows"]) == 2
+    assert result["data"]["rowCount"] == 3
+    assert result["data"]["truncated"] is True
+    assert result["config"]["chartType"] == "bar"
+
+
+def test_preview_analysis_not_allowed_for_copilot():
+    registry = build_registry()
+    spec = registry.get("preview_analysis")
+    assert spec is not None
+    assert spec.requires_confirmation is False
+
+    copilot = build_policy("dashboard_copilot", Scope())
+    with pytest.raises(ToolNotAllowedError):
+        registry.resolve("preview_analysis", copilot)
+
+    explorer = build_policy("explorer", Scope())
+    assert registry.resolve("preview_analysis", explorer).name == (
+        "preview_analysis"
+    )
+
+
+# ---------------------------------------------------------------------------
+# create_analysis — chart_config estendido (encoding/sort/limit/filters)
+# ---------------------------------------------------------------------------
+
+
+async def test_create_analysis_persists_extended_chart_config(db):
+    policy = build_policy(
+        "explorer",
+        Scope(dataset_ids=frozenset({12}), database_ids=frozenset({7})),
+    )
+    context = ToolContext(
+        agent_type="explorer", policy=policy, session_id=uuid.uuid4(), db=db
+    )
+    spec = tool("create_analysis")
+
+    result = await spec.handler(
+        context,
+        {
+            "name": "Internações por município",
+            "sql": "SELECT municipio, SUM(valor) FROM i GROUP BY 1",
+            "chart_type": "bar-horizontal",
+            "dimension": "municipio",
+            "metric": "total",
+            "color_field": "regiao",
+            "sort": {"field": "total", "direction": "desc"},
+            "limit": 15,
+            "filters": [{"field": "ano", "operator": "eq", "value": 2025}],
+            "show_values": True,
+        },
+    )
+
+    analysis = db.get(Analysis, uuid.UUID(result["analysisId"]))
+    assert analysis is not None
+    assert analysis.chart_type == "bar-horizontal"
+    assert analysis.chart_config["type"] == "bar-horizontal"
+    assert analysis.chart_config["encoding"] == {
+        "x": "municipio",
+        "y": "total",
+        "color": "regiao",
+    }
+    assert analysis.chart_config["sort"] == {
+        "field": "total",
+        "direction": "desc",
+    }
+    assert analysis.chart_config["limit"] == 15
+    assert analysis.chart_config["filters"] == [
+        {"field": "ano", "operator": "eq", "value": 2025}
+    ]
+    assert analysis.chart_config["showValues"] is True
+
+
+async def test_create_analysis_kpi_saved_as_bar_config(db):
+    policy = build_policy(
+        "explorer",
+        Scope(dataset_ids=frozenset({12}), database_ids=frozenset({7})),
+    )
+    context = ToolContext(
+        agent_type="explorer", policy=policy, session_id=uuid.uuid4(), db=db
+    )
+    spec = tool("create_analysis")
+
+    result = await spec.handler(
+        context,
+        {"name": "Total 2025", "sql": "SELECT SUM(x) FROM t", "chart_type": "kpi"},
+    )
+
+    analysis = db.get(Analysis, uuid.UUID(result["analysisId"]))
+    assert analysis is not None
+    assert analysis.chart_type == "kpi"
+    assert analysis.chart_config["type"] == "bar"
+
+
+async def test_create_analysis_rejects_invalid_extended_args(db):
+    policy = build_policy(
+        "explorer",
+        Scope(dataset_ids=frozenset({12}), database_ids=frozenset({7})),
+    )
+    context = ToolContext(
+        agent_type="explorer", policy=policy, session_id=uuid.uuid4(), db=db
+    )
+    spec = tool("create_analysis")
+
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {
+                "name": "X",
+                "filters": [{"field": "ano", "operator": "regex"}],
+            },
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
+            context,
+            {"name": "X", "sort": {"field": "total", "direction": "sideways"}},
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"name": "X", "limit": 100000})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"name": "X", "show_values": "true"})
+    assert db.scalar(select(Analysis).where(Analysis.name == "X")) is None
+
+
+# ---------------------------------------------------------------------------
+# Contexto do turno — "análise em edição" injetada no histórico
+# ---------------------------------------------------------------------------
+
+
+def test_analysis_context_message_uses_latest_ok_preview(db):
+    from datetime import datetime, timedelta, timezone
+
+    from app.ai.service import analysis_context_message
+    from app.models import AISession
+
+    session = AISession(agent_type="explorer", data={})
+    db.add(session)
+    db.flush()
+
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db.add(
+        AIToolCall(
+            session_id=session.id,
+            tool_name="preview_analysis",
+            arguments={"sql": "SELECT 1"},
+            result={"config": {"chartType": "line", "dimension": "municipio"}},
+            status="ok",
+            created_at=base,
+        )
+    )
+    db.add(
+        AIToolCall(
+            session_id=session.id,
+            tool_name="preview_analysis",
+            arguments={"sql": "SELECT 2"},
+            result={"config": {"chartType": "bar-horizontal", "metric": "total"}},
+            status="ok",
+            created_at=base + timedelta(minutes=5),
+        )
+    )
+    db.add(
+        AIToolCall(
+            session_id=session.id,
+            tool_name="preview_analysis",
+            arguments={"sql": "SELECT 3"},
+            result={"config": {"chartType": "pie"}},
+            status="error",
+            created_at=base + timedelta(minutes=10),
+        )
+    )
+    db.commit()
+
+    message = analysis_context_message(db, session.id)
+    assert message is not None
+    assert message.role == "system"
+    assert "Análise atual em edição" in message.content
+    assert "bar-horizontal" in message.content
+    # a chamada mais recente com status ok vence (a 'error' é ignorada)
+    assert '"chartType": "pie"' not in message.content
+
+
+def test_analysis_context_message_without_preview_returns_none(db):
+    from app.ai.service import analysis_context_message
+    from app.models import AISession
+
+    session = AISession(agent_type="explorer", data={})
+    db.add(session)
+    db.commit()
+
+    assert analysis_context_message(db, session.id) is None

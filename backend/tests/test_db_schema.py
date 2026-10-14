@@ -29,6 +29,7 @@ EXPECTED_TABLES = {
     "analyses",
     "audit_logs",
     "dashboard_filters",
+    "dashboard_pages",
     "dashboard_widgets",
     "dashboards",
     "project_sources",
@@ -42,6 +43,9 @@ EXPECTED_TABLES = {
 EXPECTED_ON_DELETE = {
     "fk_dashboard_widgets_dashboard_id_dashboards": "c",
     "fk_dashboard_widgets_analysis_id_analyses": "c",
+    "fk_dashboard_widgets_page_id_dashboard_pages": "c",
+    "fk_dashboard_pages_dashboard_id_dashboards": "c",
+    "fk_dashboards_active_page_id_dashboard_pages": "n",
     "fk_dashboard_filters_dashboard_id_dashboards": "c",
     "fk_user_roles_user_id_users": "c",
     "fk_user_roles_role_id_roles": "c",
@@ -90,7 +94,7 @@ def test_runs_against_test_database(db, migrated_db):
 
 def test_alembic_migration_applied(db):
     version = db.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0006_project_sources"
+    assert version == "0007_dashboard_pages"
 
 
 def test_analysis_has_chart_config_column(db):
@@ -105,6 +109,32 @@ def test_dashboard_widgets_has_widget_column(db):
     columns = {c["name"]: str(c["type"]) for c in inspector.get_columns("dashboard_widgets")}
     assert "widget" in columns
     assert columns["widget"].lower() == "jsonb"
+
+
+def test_dashboard_pages_schema(db):
+    """Migração 0007: tabela de páginas + colunas page_id/active_page_id."""
+    inspector = inspect(db.get_bind())
+    assert "dashboard_pages" in inspector.get_table_names()
+
+    page_columns = {
+        c["name"]: str(c["type"])
+        for c in inspector.get_columns("dashboard_pages")
+    }
+    assert page_columns["name"].lower().startswith("varchar")
+    assert page_columns["position"].lower() == "integer"
+
+    # nullable de propósito: dashboards legados sem páginas explícitas.
+    widget_cols = {
+        c["name"]: c for c in inspector.get_columns("dashboard_widgets")
+    }
+    assert "page_id" in widget_cols
+    assert widget_cols["page_id"]["nullable"] is True
+
+    dashboard_cols = {
+        c["name"]: c for c in inspector.get_columns("dashboards")
+    }
+    assert "active_page_id" in dashboard_cols
+    assert dashboard_cols["active_page_id"]["nullable"] is True
 
 
 def _load_backfill_sql() -> str:

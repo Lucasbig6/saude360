@@ -2,7 +2,12 @@ from app.db.base import Base
 from app.models.ai_session import AIMessage, AISession, AIToolCall
 from app.models.analysis import Analysis
 from app.models.audit import AuditLog
-from app.models.dashboard import Dashboard, DashboardFilter, DashboardWidget
+from app.models.dashboard import (
+    Dashboard,
+    DashboardFilter,
+    DashboardPage,
+    DashboardWidget,
+)
 from app.models.project import Project
 from app.models.project_source import ProjectSource
 from app.models.source import SOURCE_TYPES, Source
@@ -18,6 +23,7 @@ __all__ = [
     "Base",
     "Dashboard",
     "DashboardFilter",
+    "DashboardPage",
     "DashboardWidget",
     "Project",
     "ProjectSource",

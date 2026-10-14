@@ -73,7 +73,7 @@ export function AgentInput({
   return (
     <div>
       {!hideSuggestions && (
-        <div className="mt-8 mb-6">
+        <div className="mt-1 mb-6">
           <div className="flex items-center gap-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary">
               <BotMessageSquare size={20} />
