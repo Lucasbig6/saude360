@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { CheckCircle, FileCode2, LayoutDashboard, Loader2 } from "lucide-react"
+import { useState } from "react"
+import { CheckCircle, FileCode2, LayoutDashboard, Loader2, Pin } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SaveAnalysisDialog } from "./save-analysis-dialog"
 import { PublishDatasetDialog } from "./publish-dataset-dialog"
@@ -14,7 +14,6 @@ import {
   updateAnalysis,
 } from "@/lib/api/analyses"
 import type { Analysis } from "@/lib/types/analysis"
-import { publishDataset } from "@/lib/api/datasets"
 import { ApiError } from "@/lib/api"
 
 export interface ResultActionsProps {
@@ -26,7 +25,11 @@ export interface ResultActionsProps {
   onAnalysisSaved: (analysis: Analysis) => void
   onDatasetPublished: (datasetId: number) => void
   onShowSql: () => void
-  onEditVisual: () => void
+  sqlVisible?: boolean
+  /** Abre a edição de apresentação (ausente em itens fixados do Estúdio). */
+  onEditVisual?: () => void
+  /** Fixa uma cópia do resultado no Estúdio (ausente = fora do workspace). */
+  onPin?: () => void
   /** Compact mode for inline use in AI conversation. */
   compact?: boolean
 }
@@ -39,7 +42,9 @@ export function ResultActions({
   onAnalysisSaved,
   onDatasetPublished,
   onShowSql,
+  sqlVisible = false,
   onEditVisual,
+  onPin,
   compact = false,
 }: ResultActionsProps) {
   const [saveOpen, setSaveOpen] = useState(false)
@@ -47,7 +52,6 @@ export function ResultActions({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
-  const publishedIdRef = useRef<number | null>(null)
   const [dashboardOpen, setDashboardOpen] = useState(false)
   const [dashboardAnalysis, setDashboardAnalysis] = useState<Analysis | null>(
     editingAnalysis
@@ -89,20 +93,6 @@ export function ResultActions({
     } finally {
       setSaving(false)
     }
-  }
-
-  async function handlePublish(name: string, description: string) {
-    if (!workspace.databaseId) {
-      throw new Error("Fonte de dados sem database para publicar.")
-    }
-    const published = await publishDataset({
-      database_id: workspace.databaseId,
-      sql: workspace.sql ?? "",
-      db_schema: workspace.dbSchema ?? null,
-      name,
-      description: description || null,
-    })
-    publishedIdRef.current = published.id
   }
 
   async function handleAddToDashboard() {
@@ -190,15 +180,28 @@ export function ResultActions({
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <FileCode2 size={13} />
-            Ver SQL
+            {sqlVisible ? "Ocultar SQL" : "Ver SQL"}
           </button>
-          <button
-            type="button"
-            onClick={onEditVisual}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Editar visual
-          </button>
+          {onEditVisual && (
+            <button
+              type="button"
+              onClick={onEditVisual}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Editar visual
+            </button>
+          )}
+          {onPin && (
+            <button
+              type="button"
+              onClick={onPin}
+              title="Fixar uma cópia deste resultado no Estúdio"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Pin size={13} />
+              Fixar no Estúdio
+            </button>
+          )}
           {saveSuccess && (
             <span className="flex items-center gap-1.5 text-xs text-primary">
               <CheckCircle size={13} />
@@ -234,12 +237,7 @@ export function ResultActions({
         sql={workspace.sql ?? ""}
         databaseId={workspace.databaseId!}
         dbSchema={workspace.dbSchema ?? null}
-        onSuccess={() => {
-          if (publishedIdRef.current != null) {
-            onDatasetPublished(publishedIdRef.current)
-            publishedIdRef.current = null
-          }
-        }}
+        onSuccess={onDatasetPublished}
       />
       <AddToDashboardDialog
         open={dashboardOpen}

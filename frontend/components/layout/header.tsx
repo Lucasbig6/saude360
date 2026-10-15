@@ -38,7 +38,7 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-20 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 lg:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <Link href="/inicio" className="flex items-center gap-2.5">
           <BrandMark />
@@ -64,18 +64,6 @@ export function Header() {
             className="text-sm font-medium text-foreground hover:text-primary transition-colors"
           >
             Explorar
-          </Link>
-          <Link
-            href="/analises"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Análises
-          </Link>
-          <Link
-            href="/paineis"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Painéis
           </Link>
         </nav>
 

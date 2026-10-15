@@ -1,6 +1,6 @@
 "use client"
 
-/** Cabeçalho de contexto: fonte atual do workspace. */
+/** Contexto da fonte ativa, sem competir com a conversa. */
 export function ContextHeader({
   datasetName,
   loading,
@@ -9,17 +9,16 @@ export function ContextHeader({
   loading: boolean
 }) {
   return (
-    <div className="shrink-0 border-b border-border px-5 py-4 sm:px-8">
-      <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-        Fonte de dados
-      </p>
-      <h2 className="mt-1 truncate text-base font-semibold text-foreground">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-4 sm:px-6">
+      <span className="text-[11px] font-medium text-muted-foreground">Contexto</span>
+      <span aria-hidden="true" className="text-xs text-border">/</span>
+      <p className="min-w-0 truncate text-xs font-medium text-foreground">
         {loading ? (
-          <span className="inline-block h-5 w-40 animate-pulse rounded bg-muted" />
+          <span className="inline-block h-3 w-32 animate-pulse rounded bg-muted" />
         ) : (
-          (datasetName ?? "Nenhuma fonte selecionada")
+          (datasetName ?? "Demonstração · atendimentos de saúde")
         )}
-      </h2>
+      </p>
     </div>
   )
 }

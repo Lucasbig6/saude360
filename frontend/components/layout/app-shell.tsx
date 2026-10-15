@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { Header } from "./header"
+import { ProjectNav } from "./project-nav"
 
 interface AppShellProps {
   children: ReactNode
@@ -21,6 +22,7 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background">
       <Header />
+      <ProjectNav />
       <main ref={mainRef} className="flex-1 overflow-y-auto">
         {children}
       </main>

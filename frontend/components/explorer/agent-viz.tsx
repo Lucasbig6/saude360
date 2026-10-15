@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
 import { PreviewChart } from "./preview-chart"
 import { analyzeColumns } from "@/lib/explorer/columns"
@@ -49,6 +49,8 @@ interface AgentVizProps {
    * usa mais altura que os demais contextos.
    */
   chartHeightClass?: string
+  /** Identidade para associar rótulos/controles em múltiplos resultados. */
+  idPrefix?: string
 }
 
 /**
@@ -64,7 +66,10 @@ export function AgentViz({
   presentation,
   onPresentationChange,
   chartHeightClass = "h-64",
+  idPrefix,
 }: AgentVizProps) {
+  const generatedId = useId().replaceAll(":", "")
+  const controlIdPrefix = idPrefix ?? `agent-${generatedId}`
   const controlled = presentation !== undefined && onPresentationChange !== undefined
 
   const [internal, setInternal] = useState<PresentationState>(() =>
@@ -146,11 +151,11 @@ export function AgentViz({
           </div>
           {viewMode === "chart" && (
             <>
-              <label className="sr-only" htmlFor={`agent-chart-${tableColumns[0]}`}>
+              <label className="sr-only" htmlFor={`${controlIdPrefix}-chart-${tableColumns[0]}`}>
                 Tipo de gráfico
               </label>
               <select
-                id={`agent-chart-${tableColumns[0]}`}
+                id={`${controlIdPrefix}-chart-${tableColumns[0]}`}
                 value={chartType}
                 onChange={(e) =>
                   patch({ chartType: e.target.value as VisualizationType })
@@ -165,11 +170,11 @@ export function AgentViz({
               </select>
               {chartType !== "kpi" && (
                 <>
-                  <label className="sr-only" htmlFor="agent-dimension">
+                  <label className="sr-only" htmlFor={`${controlIdPrefix}-dimension`}>
                     Dimensão
                   </label>
                   <select
-                    id="agent-dimension"
+                    id={`${controlIdPrefix}-dimension`}
                     value={effectiveDimension ?? ""}
                     onChange={(e) => patch({ dimension: e.target.value || null })}
                     className="h-7 max-w-32 rounded-md border border-border bg-card px-1.5 text-xs text-foreground"
@@ -180,11 +185,11 @@ export function AgentViz({
                       </option>
                     ))}
                   </select>
-                  <label className="sr-only" htmlFor="agent-metric">
+                  <label className="sr-only" htmlFor={`${controlIdPrefix}-metric`}>
                     Métrica
                   </label>
                   <select
-                    id="agent-metric"
+                    id={`${controlIdPrefix}-metric`}
                     value={effectiveMetric ?? ""}
                     onChange={(e) => patch({ metric: e.target.value || null })}
                     className="h-7 max-w-32 rounded-md border border-border bg-card px-1.5 text-xs text-foreground"

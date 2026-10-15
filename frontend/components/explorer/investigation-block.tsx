@@ -1,16 +1,27 @@
 "use client"
 
 import { useState } from "react"
-import { BarChart3, Check, FileCode2, Loader2, Sparkles } from "lucide-react"
+import { Check, ChevronDown, ChevronRight, Loader2, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Investigation } from "@/hooks/use-explorer-agent"
+import type { DatasetListItem } from "@/lib/api/datasets"
+import type { WorkspaceData, PresentationState } from "@/lib/explorer/workspace"
+import type { Analysis } from "@/lib/types/analysis"
+import { presentationFromRows, workspaceFromInvestigation } from "@/lib/explorer/workspace"
+import { AgentViz } from "./agent-viz"
+import { ResultActions } from "./result-actions"
 import { CopilotMarkdown } from "@/components/dashboard/copilot-markdown"
 import { displayQuestion } from "@/lib/explorer/chat-context"
 
 interface InvestigationBlockProps {
   investigation: Investigation
+  projectId: string
+  dataset: DatasetListItem | null
   onRetry: () => void
   onAbort: () => void
+  onAnalysisSaved: (analysis: Analysis) => void
+  onDatasetPublished: (datasetId: number) => void
+  onPinResult?: (workspace: WorkspaceData, presentation: PresentationState) => void
 }
 
 const TOOL_STATUS_TEXT: Record<string, string> = {
@@ -36,8 +47,13 @@ const TRACE_LABELS: Record<string, string> = {
  */
 export function InvestigationBlock({
   investigation,
+  projectId,
+  dataset,
   onRetry,
   onAbort,
+  onAnalysisSaved,
+  onDatasetPublished,
+  onPinResult,
 }: InvestigationBlockProps) {
   const streaming = investigation.status === "streaming"
   const statusText = streaming
@@ -47,9 +63,25 @@ export function InvestigationBlock({
       : "Analisando..."
     : null
 
-  const [showSql, setShowSql] = useState(false)
-
   const hasResult = investigation.queryData !== null
+  const [presentationState, setPresentationState] = useState<{
+    queryData: Investigation["queryData"]
+    value: PresentationState
+  }>(() => ({
+    queryData: investigation.queryData,
+    value: presentationFromRows(investigation.queryData?.rows ?? []),
+  }))
+  const presentation =
+    presentationState.queryData === investigation.queryData
+      ? presentationState.value
+      : presentationFromRows(investigation.queryData?.rows ?? [])
+  const [showSql, setShowSql] = useState(false)
+  const [resultExpanded, setResultExpanded] = useState(true)
+  const resultWorkspace = workspaceFromInvestigation(investigation, dataset)
+
+  function handlePresentationChange(value: PresentationState) {
+    setPresentationState({ queryData: investigation.queryData, value })
+  }
 
   return (
     <article
@@ -127,36 +159,65 @@ export function InvestigationBlock({
           </ul>
         )}
 
-        {/* Evidência no painel: linha compacta apontando para a prévia */}
-        {hasResult && (
-          <p className="mt-3 inline-flex items-center gap-1.5 self-start rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            <BarChart3 size={12} />
-            Resultado disponível no painel de pré-visualização.
-          </p>
-        )}
-
         {/* Insight da IA */}
         {investigation.insight && (
-          <div className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm leading-relaxed text-foreground">
+          <div className="mt-3 border-l-2 border-primary/40 pl-3 text-sm leading-relaxed text-foreground">
             <CopilotMarkdown>{investigation.insight}</CopilotMarkdown>
           </div>
         )}
 
-        {/* SQL expansível */}
-        {investigation.sql && (
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setShowSql((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <FileCode2 size={12} />
-              {showSql ? "Ocultar SQL" : "Ver SQL"}
-            </button>
-            {showSql && (
-              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/40 px-4 py-2.5 font-mono text-xs text-foreground">
+        {hasResult && investigation.queryData && (
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                Resultado · {investigation.queryData.rowCount} linhas
+              </p>
+              <button
+                type="button"
+                aria-expanded={resultExpanded}
+                onClick={() => setResultExpanded((expanded) => !expanded)}
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {resultExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                {resultExpanded ? "Recolher" : "Expandir resultado"}
+              </button>
+            </div>
+            {resultExpanded && (
+              <>
+                <div className="mt-2">
+                  <AgentViz
+                    rows={investigation.queryData.rows}
+                    rowCount={investigation.queryData.rowCount}
+                    truncated={investigation.queryData.truncated}
+                    executionMs={investigation.queryData.executionMs}
+                    presentation={presentation}
+                    onPresentationChange={handlePresentationChange}
+                    chartHeightClass="h-72"
+                    idPrefix={`investigation-${investigation.id}`}
+                  />
+                </div>
+            <ResultActions
+              workspace={resultWorkspace}
+              presentation={presentation}
+              projectId={projectId}
+              editingAnalysis={null}
+              onAnalysisSaved={onAnalysisSaved}
+              onDatasetPublished={onDatasetPublished}
+              onShowSql={() => setShowSql((value) => !value)}
+              sqlVisible={showSql}
+              onPin={
+                onPinResult
+                  ? () => onPinResult(resultWorkspace, presentation)
+                  : undefined
+              }
+              compact
+            />
+            {showSql && investigation.sql && (
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-xs text-foreground">
                 {investigation.sql}
               </pre>
+            )}
+              </>
             )}
           </div>
         )}

@@ -14,6 +14,7 @@ interface ExploreShellProps {
    * (alternador Conversa/Resultado).
    */
   right?: ReactNode
+  leftCollapsed?: boolean
   /** Classes extras para a coluna central (ex.: ocultar no mobile). */
   centerClassName?: string
   /** Classes extras para o container principal. */
@@ -32,6 +33,7 @@ export function ExploreShell({
   header,
   children,
   right,
+  leftCollapsed = false,
   centerClassName,
   className,
 }: ExploreShellProps) {
@@ -41,12 +43,12 @@ export function ExploreShell({
       <div
         className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden",
-          "md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]",
-          right &&
+          left && !leftCollapsed && "md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]",
+          right && left && !leftCollapsed &&
             "xl:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_minmax(0,1.15fr)]"
         )}
       >
-        {left && (
+        {left && !leftCollapsed && (
           <aside
             className={cn(
               "hidden border-r border-border bg-card/50 md:block",

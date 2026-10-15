@@ -114,7 +114,7 @@ export function DashboardFooter({
           <Image
             src="/Logo principal.svg"
             alt="SIGDATA"
-            width={290}
+            width={283}
             height={90}
             className="h-auto w-[85px] shrink-0 sm:w-[150px]"
           />

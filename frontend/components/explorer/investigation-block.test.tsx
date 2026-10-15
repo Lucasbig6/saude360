@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event"
 import { InvestigationBlock } from "./investigation-block"
 import type { Investigation } from "@/hooks/use-explorer-agent"
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+}))
+
 function buildInvestigation(
   overrides: Partial<Investigation> = {}
 ): Investigation {
@@ -35,14 +39,18 @@ function renderTurn(investigation: Investigation) {
   render(
     <InvestigationBlock
       investigation={investigation}
+      projectId="project-1"
+      dataset={null}
       onRetry={callbacks.onRetry}
       onAbort={callbacks.onAbort}
+      onAnalysisSaved={vi.fn()}
+      onDatasetPublished={vi.fn()}
     />
   )
   return callbacks
 }
 
-describe("InvestigationBlock (turno do chat, sem gráfico)", () => {
+describe("InvestigationBlock (turno de investigação)", () => {
   it("mostra Você + pergunta e o status do agente", () => {
     renderTurn(
       buildInvestigation({ currentTool: "execute_query", status: "streaming" })
@@ -71,7 +79,8 @@ describe("InvestigationBlock (turno do chat, sem gráfico)", () => {
     expect(screen.queryByText(/Contexto da conversa/)).toBeNull()
   })
 
-  it("renderiza a narrativa em Markdown, sem gráfico no turno", () => {
+  it("integra a narrativa, a evidência e a alternância SQL ao turno", async () => {
+    const user = userEvent.setup()
     renderTurn(
       buildInvestigation({
         status: "done",
@@ -88,13 +97,16 @@ describe("InvestigationBlock (turno do chat, sem gráfico)", () => {
     )
 
     expect(screen.getByText("Recife concentra o volume.")).toBeTruthy()
-    expect(screen.queryByTestId("echart")).toBeNull()
-    expect(
-      screen.queryByRole("button", { name: "Editar visual" })
-    ).toBeNull()
-    expect(
-      screen.getByText("Resultado disponível no painel de pré-visualização.")
-    ).toBeTruthy()
+    expect(screen.getByText("Resultado · 1 linhas")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Recolher" }))
+    expect(screen.queryByRole("group", { name: "Modo de visualização do resultado" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Expandir resultado" }))
+    await user.click(screen.getByRole("button", { name: "Tabela" }))
+    expect(screen.getByRole("columnheader", { name: "municipio" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Salvar análise" })).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Ver SQL" }))
+    expect(screen.getByText("SELECT municipio, total FROM demo")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Ocultar SQL" })).toBeTruthy()
   })
 
   it("mostra erro com tentar novamente e interromper no streaming", async () => {

@@ -67,6 +67,14 @@ export default function PaineisPage() {
     ])
       .then(([items, projects, me]) => {
         if (cancelled) return
+        // Se nenhum dashboard tem projectId associado, redireciona para a
+        // lista de projetos (painéis globais sem projeto estão sendo
+        // substituídos pela navegação por projeto).
+        const hasProjectDashboard =
+          items?.some((d) => d.projectId) ?? false
+        if (!hasProjectDashboard) {
+          router.push("/projetos")
+        }
         setLoad({
           key: reloadKey,
           items,

@@ -85,6 +85,7 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
             "metric": metric,
             "chart_config": chart_config,
             "created_by": ctx.user_id,
+            "project_id": ctx.project_id,
         },
     )
     return {
@@ -245,6 +246,7 @@ def create_analysis_spec() -> ToolSpec:
                 "dataset_id": nullable({"type": "integer"}),
                 "database_id": nullable({"type": "integer"}),
                 "show_values": nullable({"type": "boolean"}),
+                "project_id": nullable({"type": "string"}),
             },
             "required": ["name"],
             "additionalProperties": False,

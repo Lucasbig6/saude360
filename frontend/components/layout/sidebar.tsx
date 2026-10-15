@@ -11,12 +11,8 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
-  Database,
-  FileChartColumn,
   Hospital,
   Home,
-  LayoutGrid,
-  Search,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getProject } from "@/lib/api/projects"
@@ -48,34 +44,7 @@ const globalItems: NavLink[] = [
 ]
 
 function projectItems(projectId: string): NavLink[] {
-  return [
-    {
-      name: "Visão geral",
-      href: `/projetos/${projectId}`,
-      icon: LayoutGrid,
-      exact: true,
-    },
-    {
-      name: "Fontes",
-      href: `/projetos/${projectId}/fontes`,
-      icon: Database,
-    },
-    {
-      name: "Explorar",
-      href: `/projetos/${projectId}/explorar`,
-      icon: Search,
-    },
-    {
-      name: "Análises",
-      href: `/projetos/${projectId}/analises`,
-      icon: FileChartColumn,
-    },
-    {
-      name: "Painéis",
-      href: `/projetos/${projectId}/paineis`,
-      icon: BarChart3,
-    },
-  ]
+  return []
 }
 
 /** `/projetos/<id>/...` -> id do projeto em contexto. */

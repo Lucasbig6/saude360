@@ -34,6 +34,10 @@ export interface PreviewPanelProps {
   onEditVisual: () => void
   /** Explicação da IA aparece fora do chat (abas SQL/Visual). */
   showInsight?: boolean
+  /** Rótulo do cabeçalho (padrão "Pré-visualização"). */
+  title?: string
+  /** Fixa o resultado atual no Estúdio (ausente = fora do workspace). */
+  onPin?: () => void
 }
 
 /**
@@ -60,13 +64,15 @@ export function PreviewPanel({
   onDatasetPublished,
   onEditVisual,
   showInsight = false,
+  title = "Pré-visualização",
+  onPin,
 }: PreviewPanelProps) {
   const [showSql, setShowSql] = useState(false)
 
   const header = (
     <div className="mb-2 flex items-center justify-between gap-4">
       <p className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-        Pré-visualização
+        {title}
       </p>
       {streaming && (
         <p
@@ -228,6 +234,7 @@ export function PreviewPanel({
             onDatasetPublished={onDatasetPublished}
             onShowSql={() => setShowSql((v) => !v)}
             onEditVisual={onEditVisual}
+            onPin={onPin}
           />
           {showSql && workspace.sql && (
             <details

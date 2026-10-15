@@ -23,6 +23,7 @@ class ToolContext:
     user_id: uuid.UUID | None = None
     session_id: uuid.UUID | None = None
     db: Session | None = None
+    project_id: uuid.UUID | None = None
 
 
 #: Handler assíncrono: contexto + arguments (já validados pela política) → dict.
