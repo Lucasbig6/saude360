@@ -1,21 +1,16 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import {
-  ExternalLink,
-  Pencil,
-  RefreshCw,
-  Share2,
-  Sparkles,
-} from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn, dashboardWidthClass } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
+import { getDistinctValues } from "@/lib/api/datasets"
+import { resolveActivePageId, widgetsForPage } from "@/lib/dashboard-pages"
 import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { DashboardCopilot } from "./dashboard-copilot"
 import { DashboardCanvas } from "./dashboard-canvas"
+import { DashboardFooter } from "./dashboard-footer"
 
 interface DashboardViewerProps {
   dashboard: Dashboard
@@ -41,215 +36,185 @@ export function DashboardViewer({
   const [shareOpen, setShareOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
-  const isDark = dashboard.appearance?.theme === "dark"
-  const showBrand = dashboard.appearance?.showBrand !== false
-
-  const filterValues = useMemo(() => {
+  // Página ativa é local ao visualizador: trocar de aba no link compartilhado
+  // não persiste nada no servidor (não altera permissões nem compartilhamento).
+  const [activePageId, setActivePageId] = useState(() =>
+    resolveActivePageId(dashboard)
+  )
+  const [filterValues, setFilterValues] = useState<
+    Record<string, string | string[]>
+  >(() => {
     const initial: Record<string, string | string[]> = {}
     for (const f of dashboard.filters) {
       initial[f.id] = f.defaultValue
     }
     return initial
-  }, [dashboard.filters])
+  })
+  const [distinctValues, setDistinctValues] = useState<Record<string, string[]>>({})
+  const [loadingDistinct, setLoadingDistinct] = useState(false)
+
+  const isDark = dashboard.appearance?.theme === "dark"
+  const showBrand = dashboard.appearance?.showBrand !== false
+
+  // Valores distintos alimentam os selects dos filtros, mas o endpoint é
+  // autenticado: no modo público (anônimo) nunca é chamado — os controles
+  // usam os inputs livres como fallback e nenhuma requisição exige login.
+  // O viewer monta com o dashboard já carregado (filtros fixos durante a
+  // sessão), então o estado inicial dos valores já está correto.
+  useEffect(() => {
+    if (publicMode || dashboard.filters.length === 0) return
+
+    let cancelled = false
+    async function load() {
+      setLoadingDistinct(true)
+      const next: Record<string, string[]> = {}
+      for (const f of dashboard.filters) {
+        try {
+          const res = await getDistinctValues(f.datasetId, f.column)
+          if (!cancelled) next[f.id] = res.result ?? []
+        } catch {
+          if (!cancelled) next[f.id] = []
+        }
+      }
+      if (!cancelled) {
+        setDistinctValues(next)
+        setLoadingDistinct(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [dashboard.filters, publicMode])
+
+  const handleFilterValueChange = useCallback(
+    (filterId: string, value: string | string[]) => {
+      setFilterValues((prev) => ({ ...prev, [filterId]: value }))
+    },
+    []
+  )
+
+  // Valida a página ativa contra as páginas atuais (fallback: primeira).
+  const effectivePageId = resolveActivePageId({
+    ...dashboard,
+    activePageId,
+  })
+  const pageWidgets = widgetsForPage(dashboard.widgets, effectivePageId)
 
   return (
     <div
       className={cn(
-        "min-h-screen",
+        "flex h-dvh flex-col overflow-hidden",
         isDark ? "dark bg-background text-foreground" : "bg-muted/50 text-foreground"
       )}
     >
-      <div
-        className={cn(
-          dashboardWidthClass(dashboard.appearance),
-          "px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-[padding-right] duration-200",
-          copilotOpen && "lg:pr-[24rem] xl:pr-[26rem]"
-        )}
-      >
-        {/* Presentation header */}
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            {showBrand && (
-              <div className="mb-3">
-                <Image
-                  src="/Logo principal.svg"
-                  alt="SIGDATA"
-                  width={283}
-                  height={90}
-                  className="h-auto w-[124px]"
-                />
-              </div>
-            )}
-
-            <h1
-              className={cn(
-                "text-2xl font-semibold text-inherit",
-                "text-foreground"
-              )}
-            >
-              {dashboard.name}
-            </h1>
-            {dashboard.description && (
-              <p
+      {/* Área de visualização: rola abaixo do cabeçalho e acima da footer */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin">
+        <div
+          className={cn(
+            dashboardWidthClass(dashboard.appearance),
+            "px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-[padding-right] duration-200",
+            copilotOpen && "lg:pr-[24rem] xl:pr-[26rem]"
+          )}
+        >
+          {/* Presentation header — marca, ações e filtros vivem na footer */}
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1
                 className={cn(
-                  "mt-1 max-w-2xl text-sm",
-                  "text-muted-foreground"
+                  "text-2xl font-semibold text-inherit",
+                  "text-foreground"
                 )}
               >
-                {dashboard.description}
-              </p>
-            )}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {enableCopilot && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCopilotOpen((v) => !v)}
-                aria-expanded={copilotOpen}
-                aria-controls="dashboard-copilot-panel"
-                className={cn(
-                  isDark
-                    ? "border-border bg-card text-foreground hover:bg-muted"
-                    : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
-                )}
-                title="Abrir copiloto de análise"
-              >
-                <Sparkles size={14} />
-                Copiloto
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              className={cn(
-                isDark
-                  ? "border-border bg-card text-foreground hover:bg-muted"
-                  : "bg-card"
-              )}
-              title="Atualizar dados"
-            >
-              <RefreshCw size={14} />
-              Atualizar
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => setShareOpen(true)}
-            >
-              <Share2 size={14} />
-              Compartilhar
-            </Button>
-
-            {canEdit && (
-              <Link href={editHref ?? "/paineis"}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    isDark
-                      ? "text-muted-foreground hover:text-primary-foreground"
-                      : "text-muted-foreground hover:text-primary"
-                  )}
-                >
-                  <Pencil size={13} />
-                  Editar dashboard
-                </Button>
-              </Link>
-            )}
-          </div>
-        </header>
-
-        {/* Filters (read-only defaults) */}
-        {dashboard.filters.length > 0 && (
-          <section
-            className={cn(
-              "mt-6 rounded-lg border px-4 py-3",
-              isDark
-                ? "border-border bg-card"
-                : "border-border bg-card"
-            )}
-          >
-            <div className="flex flex-wrap gap-3">
-              {dashboard.filters.map((f) => (
-                <div key={f.id} className="text-xs">
-                  <span
-                    className={cn(
-                      "font-medium",
-                      "text-muted-foreground"
-                    )}
-                  >
-                    {f.column}
-                  </span>
-                  <span
-                    className={cn(
-                      "ml-2",
-                      "text-foreground"
-                    )}
-                  >
-                    {Array.isArray(f.defaultValue)
-                      ? f.defaultValue.join(", ") || "—"
-                      : f.defaultValue || "—"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Grid — no drag/resize, no edit controls */}
-        <section className="mt-6">
-          <div>
-            {dashboard.widgets.length === 0 ? (
-              <div
-                className={cn(
-                  "flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center",
-                  isDark
-                    ? "border-border bg-card"
-                    : "border-border bg-card"
-                )}
-              >
+                {dashboard.name}
+              </h1>
+              {dashboard.description && (
                 <p
                   className={cn(
-                    "text-sm",
+                    "mt-1 max-w-2xl text-sm",
                     "text-muted-foreground"
                   )}
                 >
-                  Este painel ainda não possui gráficos.
+                  {dashboard.description}
                 </p>
-              </div>
-            ) : (
-              <DashboardCanvas
-                dashboard={dashboard}
-                readOnly
-                filterValues={filterValues}
-                refreshKey={refreshKey}
-                publicMode={publicMode}
-              />
-            )}
-          </div>
-        </section>
+              )}
+            </div>
 
-        {canEdit && (
-          <footer
-            className={cn(
-              "mt-8 flex justify-end",
-              "text-muted-foreground"
+            {enableCopilot && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCopilotOpen((v) => !v)}
+                  aria-expanded={copilotOpen}
+                  aria-controls="dashboard-copilot-panel"
+                  className={cn(
+                    isDark
+                      ? "border-border bg-card text-foreground hover:bg-muted"
+                      : "border-primary/25 bg-primary/10 text-primary hover:bg-primary/15"
+                  )}
+                  title="Abrir copiloto de análise"
+                >
+                  <Sparkles size={14} />
+                  Copiloto
+                </Button>
+              </div>
             )}
-          >
-            <Link
-              href={editHref ?? "/paineis"}
-              className="inline-flex items-center gap-1 text-xs hover:text-primary"
-            >
-              <ExternalLink size={12} />
-              Abrir no editor
-            </Link>
-          </footer>
-        )}
+          </header>
+
+          {/* Grid — no drag/resize, no edit controls */}
+          <section className="mt-6">
+            <div>
+              {pageWidgets.length === 0 ? (
+                <div
+                  className={cn(
+                    "flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center",
+                    isDark
+                      ? "border-border bg-card"
+                      : "border-border bg-card"
+                  )}
+                >
+                  <p
+                    className={cn(
+                      "text-sm",
+                      "text-muted-foreground"
+                    )}
+                  >
+                    Esta página ainda não possui gráficos.
+                  </p>
+                </div>
+              ) : (
+                <DashboardCanvas
+                  key={effectivePageId}
+                  dashboard={{ ...dashboard, widgets: pageWidgets }}
+                  readOnly
+                  filterValues={filterValues}
+                  refreshKey={refreshKey}
+                  publicMode={publicMode}
+                />
+              )}
+            </div>
+          </section>
+        </div>
       </div>
+
+      {/* Footer fixa na base da área de visualização (no fluxo, sem sobrepor) */}
+      <DashboardFooter
+        pages={dashboard.pages}
+        activePageId={effectivePageId}
+        onSelectPage={setActivePageId}
+        filters={dashboard.filters}
+        filterValues={filterValues}
+        onFilterValueChange={handleFilterValueChange}
+        loadingDistinct={loadingDistinct}
+        distinctValues={distinctValues}
+        showBrand={showBrand}
+        canEdit={canEdit}
+        editHref={editHref}
+        onUpdate={() => setRefreshKey((k) => k + 1)}
+        onShare={() => setShareOpen(true)}
+        className={copilotOpen ? "lg:pr-[24rem] xl:pr-[26rem]" : undefined}
+      />
 
       <ShareDashboardDialog
         open={shareOpen}

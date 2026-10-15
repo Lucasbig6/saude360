@@ -3,6 +3,7 @@
 import { Plus, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 import type { DashboardFilter } from "@/lib/types/dashboard"
 
 interface DashboardFiltersBarProps {
@@ -11,9 +12,16 @@ interface DashboardFiltersBarProps {
   filterValues: Record<string, string | string[]>
   loadingDistinct: boolean
   distinctValues: Record<string, string[]>
-  onAdd: () => void
-  onRemove: (filterId: string) => void
+  /** Só em modo edição (adicionar filtro). */
+  onAdd?: () => void
+  /** Só em modo edição (remover filtro). */
+  onRemove?: (filterId: string) => void
   onValueChange: (filterId: string, value: string | string[]) => void
+  /**
+   * Quebra em várias linhas (padrão). `false` mantém tudo em uma única linha
+   * com rolagem horizontal — usado na footer compacta do visualizador.
+   */
+  wrap?: boolean
 }
 
 function FilterInlineControl({
@@ -135,9 +143,15 @@ export function DashboardFiltersBar({
   onAdd,
   onRemove,
   onValueChange,
+  wrap = true,
 }: DashboardFiltersBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-2",
+        wrap ? "flex-wrap" : "flex-nowrap"
+      )}
+    >
       {filters.map((filter) => (
         <div
           key={filter.id}
@@ -154,7 +168,7 @@ export function DashboardFiltersBar({
           {editing && (
             <button
               type="button"
-              onClick={() => onRemove(filter.id)}
+              onClick={() => onRemove?.(filter.id)}
               className="ml-0.5 rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive cursor-pointer"
             >
               <X size={11} />
