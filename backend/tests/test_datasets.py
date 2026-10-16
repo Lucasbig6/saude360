@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 
@@ -116,6 +118,44 @@ async def test_refresh_columns(client, mock_superset_client, auth_headers):
     assert response.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_create_dataset_updates_display_name_on_existing_dataset(
+    client, mock_superset_client
+):
+    from app.superset.datasets import create_dataset
+
+    mock_superset_client.get.return_value = {
+        "result": [
+            {
+                "id": 42,
+                "table_name": "monisus_ds_ranking_123abc",
+                "database": {"id": 4},
+                "extra": "{}",
+            }
+        ]
+    }
+
+    result = await create_dataset(
+        database_id=4,
+        table_name="monisus_ds_ranking_123abc",
+        description="Indicadores municipais",
+        display_name="Ranking de municípios",
+    )
+
+    assert result["id"] == 42
+    mock_superset_client.post.assert_not_awaited()
+    mock_superset_client.put.assert_awaited_once_with(
+        "/api/v1/dataset/42",
+        json={
+            "description": "Indicadores municipais",
+            "extra": json.dumps(
+                {"monisus_display_name": "Ranking de municípios"},
+                ensure_ascii=False,
+            ),
+        },
+    )
+
+
 # --- Publish Dataset tests ---
 
 
@@ -140,7 +180,7 @@ async def test_publish_dataset_success(client, mock_superset_client, auth_header
             "database_id": 4,
             "sql": "SELECT municipio FROM demo_atendimentos",
             "db_schema": "public",
-            "name": "Teste",
+            "name": "Ranking de municípios",
             "description": "Descricao",
         },
         headers=auth_headers,
@@ -148,12 +188,22 @@ async def test_publish_dataset_success(client, mock_superset_client, auth_header
     assert response.status_code == 201
     body = response.json()
     assert body["id"] == 42
-    assert body["table_name"].startswith("monisus_ds_teste_")
+    assert body["table_name"].startswith("monisus_ds_ranking_de_municipios_")
     assert body["schema"] == "public"
-    assert body["name"] == "Teste"
+    assert body["name"] == "Ranking de municípios"
     assert body["description"] == "Descricao"
     assert body["database_id"] == 4
     assert call_count == 2
+    mock_superset_client.put.assert_awaited_once_with(
+        "/api/v1/dataset/42",
+        json={
+            "description": "Descricao",
+            "extra": json.dumps(
+                {"monisus_display_name": "Ranking de municípios"},
+                ensure_ascii=False,
+            ),
+        },
+    )
 
 
 @pytest.mark.asyncio

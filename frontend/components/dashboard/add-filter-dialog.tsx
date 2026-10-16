@@ -34,6 +34,20 @@ interface AddFilterDialogProps {
   onAdd: (filter: Omit<DashboardFilter, "id">) => void
   existingFilters: DashboardFilter[]
   dashboardWidgetAnalysisIds: string[]
+  /**
+   * Controle pré-selecionado quando o diálogo é aberto pela biblioteca
+   * (Etapa B). O operador é ajustado em conjunto para o filtro continuar
+   * funcional: multi-select → in, date-range → between.
+   */
+  initialControlType?: NonNullable<DashboardFilter["controlType"]>
+}
+
+function operatorForControlType(
+  controlType: NonNullable<DashboardFilter["controlType"]>
+): DashboardFilter["operator"] {
+  if (controlType === "multi-select") return "in"
+  if (controlType === "date-range") return "between"
+  return "eq"
 }
 
 export function AddFilterDialog({
@@ -42,6 +56,7 @@ export function AddFilterDialog({
   onAdd,
   existingFilters,
   dashboardWidgetAnalysisIds,
+  initialControlType = "dropdown",
 }: AddFilterDialogProps) {
   const [step, setStep] = useState<"dataset" | "column" | "config">("dataset")
   const [loading, setLoading] = useState(false)
@@ -56,7 +71,12 @@ export function AddFilterDialog({
   const [columns, setColumns] = useState<DatasetColumn[]>([])
   const [selectedColumn, setSelectedColumn] = useState<string>("")
 
-  const [operator, setOperator] = useState<DashboardFilter["operator"]>("eq")
+  const [operator, setOperator] = useState<DashboardFilter["operator"]>(() =>
+    operatorForControlType(initialControlType)
+  )
+  const [controlType, setControlType] = useState<
+    NonNullable<DashboardFilter["controlType"]>
+  >(initialControlType)
   const [defaultValue, setDefaultValue] = useState<string | string[]>([])
   const [distinctValues, setDistinctValues] = useState<string[]>([])
   const [scope, setScope] = useState<"dashboard" | string[]>("dashboard")
@@ -78,6 +98,7 @@ export function AddFilterDialog({
     setColumns([])
     setSelectedColumn("")
     setOperator("eq")
+    setControlType("dropdown")
     setDefaultValue([])
     setDistinctValues([])
     setLoadingColumns(false)
@@ -182,6 +203,7 @@ export function AddFilterDialog({
       datasetId: selectedDataset.id,
       column: selectedColumn,
       operator,
+      controlType,
       defaultValue,
       scope: effectiveScope,
     })
@@ -322,6 +344,21 @@ export function AddFilterDialog({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="filter-control-type">Controle no painel</Label>
+                  <select
+                    id="filter-control-type"
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    value={controlType}
+                    onChange={(event) => setControlType(event.target.value as NonNullable<DashboardFilter["controlType"]>)}
+                  >
+                    <option value="dropdown">Lista suspensa</option>
+                    <option value="multi-select">Seleção múltipla</option>
+                    <option value="list">Lista de opções</option>
+                    <option value="date-range">Intervalo de datas</option>
+                  </select>
                 </div>
 
                 <div className="space-y-2">

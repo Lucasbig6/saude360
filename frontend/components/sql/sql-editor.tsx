@@ -32,6 +32,7 @@ const FROM_KEYWORDS = ["FROM", "JOIN", "LEFT JOIN", "INNER JOIN", "RIGHT JOIN", 
 
 interface TableSuggestion {
   name: string
+  insertText?: string
   detail?: string
 }
 
@@ -65,7 +66,7 @@ function buildTableSuggestions(
   return tables.map((t) => ({
     label: t.name,
     kind: monaco.languages.CompletionItemKind.Module,
-    insertText: t.name,
+    insertText: t.insertText ?? t.name,
     detail: t.detail ?? "Tabela",
     range,
   }))

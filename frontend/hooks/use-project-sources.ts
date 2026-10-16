@@ -14,6 +14,7 @@ export interface SourceDataset {
   table_name: string
   schema: string
   description?: string | null
+  extra?: string | Record<string, unknown> | null
 }
 
 interface SourceDatasetsResponse {

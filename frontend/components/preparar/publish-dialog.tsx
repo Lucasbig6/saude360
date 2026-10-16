@@ -1,13 +1,14 @@
 "use client"
 
 import { PublishDatasetDialog } from "@/components/datasets/publish-dataset-dialog"
-import { createDataset } from "@/lib/api/datasets"
+import { publishDataset } from "@/lib/api/datasets"
 
 interface PublishDialogProps {
   open: boolean
   onClose: () => void
   sourceId: number
-  tableName: string
+  sql: string
+  defaultName: string
   schemaName: string
   databaseName: string
 }
@@ -16,26 +17,29 @@ export function PublishDialog({
   open,
   onClose,
   sourceId,
-  tableName,
+  sql,
+  defaultName,
   schemaName,
   databaseName,
 }: PublishDialogProps) {
   return (
     <PublishDatasetDialog
+      key={`${sourceId}:${schemaName}:${defaultName}`}
       open={open}
       onOpenChange={(o) => { if (!o) onClose() }}
       title="Publicar como Dataset"
-      description={`Registre a tabela ${schemaName}.${tableName} como dataset no SIGDATA. A tabela original no banco externo não será alterada.`}
-      defaultName={tableName}
+      description="O resultado da consulta será materializado como uma nova tabela e publicado como dataset. A fonte original não será alterada."
+      defaultName={defaultName}
       successMessage="Dataset publicado com sucesso!"
-      successDetail="O dataset está disponível na lista de datasets da fonte e no Explorar."
-      footerInfo={`Fonte: ${databaseName} · Tabela: ${schemaName}.${tableName}`}
+      successDetail="O resultado preparado está disponível como dataset no Explorador."
+      footerInfo={`Fonte: ${databaseName} · Schema de destino: ${schemaName}`}
       onPublish={async (name, description) => {
-        await createDataset({
+        await publishDataset({
           database_id: sourceId,
-          table_name: tableName,
-          table_schema: schemaName,
-          description: description || undefined,
+          sql,
+          db_schema: schemaName,
+          name,
+          description: description || null,
         })
       }}
       onSuccess={onClose}

@@ -28,6 +28,15 @@ import {
 import type { Dashboard, DashboardAppearance, DashboardFilter, DashboardPage, DashboardWidth, DashboardWidget } from "@/lib/types/dashboard"
 import type { Analysis } from "@/lib/types/analysis"
 import { legacyToWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
+import {
+  bringToFront,
+  copyWidgetPayload,
+  duplicateWidget,
+  isEditorShortcutTargetIgnored,
+  pasteWidgetPayload,
+  sendToBack,
+  type CopiedWidgetPayload,
+} from "@/lib/dashboard-elements"
 import { updateDashboard, toDashboardPayload } from "@/lib/api/dashboards"
 import {
   addPage,
@@ -52,6 +61,8 @@ import { DashboardPageBar } from "./dashboard-page-bar"
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
 import { WidgetConfigDialog } from "./widget-config-dialog"
 import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
+import { DashboardPropertiesPanel } from "./dashboard-properties-panel"
+import type { FilterControlType } from "@/lib/types/dashboard"
 import type { CanvasItem, GridDropAnalysisData } from "./gridstack-canvas"
 
 const WIDTH_OPTIONS: {
@@ -75,13 +86,22 @@ export function DashboardBuilder({
 }: DashboardBuilderProps) {
   const [editing, setEditing] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // Etapa C: aba ativa da lateral (biblioteca | propriedades). A troca de
+  // aba nunca desmonta a biblioteca: busca e categoria são preservadas.
+  const [drawerTab, setDrawerTab] = useState<"library" | "props">("library")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addFilterOpen, setAddFilterOpen] = useState(false)
+  // Etapa B: controle pré-selecionado ao abrir o diálogo pela biblioteca.
+  const [filterPreset, setFilterPreset] = useState<FilterControlType>("dropdown")
   const [shareOpen, setShareOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [configuringWidgetId, setConfiguringWidgetId] = useState<string | null>(
     null
   )
+  // Etapa A: seleção visual do elemento ativo (estado local, não persistido).
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
+  // Área de transferência intra-sessão (memória; nunca fonte de verdade).
+  const clipboardRef = useRef<CopiedWidgetPayload | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [pagePendingDelete, setPagePendingDelete] = useState<DashboardPage | null>(
     null
@@ -294,8 +314,42 @@ export function DashboardBuilder({
     [persist]
   )
 
+  const handleAddElement = useCallback(
+    (
+      config: WidgetConfig,
+      position?: { x?: number; y?: number; w?: number; h?: number }
+    ) => {
+      const current = latestRef.current
+      const pageId = resolveActivePageId(current)
+      const pageWidgets = widgetsForPage(current.widgets, pageId)
+      const appendY = pageWidgets.reduce(
+        (max, widget) => Math.max(max, widget.layout.y + widget.layout.h),
+        0
+      )
+      const widget: DashboardWidget = {
+        id: crypto.randomUUID(),
+        analysisId: null,
+        config,
+        layout: {
+          x: position?.x ?? 0,
+          y: position?.y ?? appendY,
+          w: position?.w ?? (config.type === "filter" ? 4 : 4),
+          h: position?.h ?? (config.type === "text" ? 2 : 3),
+        },
+        pageId,
+      }
+      persist({ ...current, widgets: [...current.widgets, widget] })
+    },
+    [persist]
+  )
+
   const handleDropAnalysis = useCallback(
     async (data: GridDropAnalysisData) => {
+      if (data.config) {
+        handleAddElement(data.config, data)
+        return
+      }
+      if (!data.analysisId) return
       try {
         const analysis = await getAnalysis(data.analysisId)
         if (analysis) {
@@ -310,7 +364,7 @@ export function DashboardBuilder({
         setSaveError("Não foi possível carregar o gráfico solto no painel.")
       }
     },
-    [handleAddAnalysis]
+    [handleAddAnalysis, handleAddElement]
   )
 
   const handleEmptyCanvasDragOver = useCallback((event: React.DragEvent) => {
@@ -331,17 +385,27 @@ export function DashboardBuilder({
 
       let analysisId = dataTransfer.getData("text/plain")
       const json = dataTransfer.getData("application/json")
+      let config: WidgetConfig | undefined
       if (json) {
         try {
-          analysisId = JSON.parse(json)?.analysisId ?? analysisId
+          const parsed = JSON.parse(json)
+          analysisId = parsed?.analysisId ?? analysisId
+          config = parsed?.config
         } catch {
           // Mantém o id do formato text/plain como fallback.
         }
       }
 
-      if (!analysisId) return
+      if (!analysisId && !config) return
       event.preventDefault()
-      void handleDropAnalysis({ analysisId, x: 0, y: 0, w: 6, h: 4 })
+      void handleDropAnalysis({
+        ...(analysisId ? { analysisId } : {}),
+        ...(config ? { config } : {}),
+        x: 0,
+        y: 0,
+        w: config ? 4 : 6,
+        h: config ? 3 : 4,
+      })
     },
     [handleDropAnalysis]
   )
@@ -354,9 +418,197 @@ export function DashboardBuilder({
       }
 
       persist(updated)
+      setSelectedWidgetId((prev) => (prev === widgetId ? null : prev))
     },
     [dashboard, persist]
   )
+
+  const handleSelectWidget = useCallback((widgetId: string | null) => {
+    setSelectedWidgetId(widgetId)
+    // A aba de propriedades passa a refletir a seleção; a biblioteca
+    // continua montada (oculta) com busca e categoria preservadas.
+    if (widgetId !== null) {
+      setDrawerTab("props")
+    }
+  }, [])
+
+  function handleToggleDrawer() {
+    if (!drawerOpen) {
+      // Sem seleção, a lateral sempre abre na biblioteca.
+      setDrawerTab(selectedWidgetId !== null ? "props" : "library")
+    }
+    setDrawerOpen((open) => !open)
+  }
+
+  const handleOpenAddFilter = useCallback((preset: FilterControlType = "dropdown") => {
+    setFilterPreset(preset)
+    setAddFilterOpen(true)
+  }, [])
+
+  const handleSaveWidgetLayout = useCallback(
+    (widgetId: string, layout: DashboardWidget["layout"]) => {
+      const current = latestRef.current
+      if (!current.widgets.some((w) => w.id === widgetId)) return
+      const next = current.widgets.map((w) =>
+        w.id === widgetId ? { ...w, layout } : w
+      )
+      persist({ ...current, widgets: next })
+    },
+    [persist]
+  )
+
+  const handleSaveWidgetConfig = useCallback(
+    (widgetId: string, config: WidgetConfig) => {
+      const current = latestRef.current
+      if (!current.widgets.some((w) => w.id === widgetId)) return
+      const next = current.widgets.map((w) =>
+        w.id === widgetId ? { ...w, config } : w
+      )
+      persist({ ...current, widgets: next })
+    },
+    [persist]
+  )
+
+  const handleSaveFilter = useCallback(
+    (filterId: string, patch: Partial<DashboardFilter>) => {
+      const current = latestRef.current
+      const target = current.filters.find((f) => f.id === filterId)
+      if (!target) return
+      const next = { ...target, ...patch }
+      persist({
+        ...current,
+        filters: current.filters.map((f) => (f.id === filterId ? next : f)),
+      })
+      // Espelha o padrão no valor em edição para pré-visualizar na hora.
+      if (patch.defaultValue !== undefined) {
+        setFilterValues((prev) => ({ ...prev, [filterId]: next.defaultValue }))
+      }
+    },
+    [persist]
+  )
+
+  const handleClearFilterValue = useCallback((filterId: string) => {
+    const target = latestRef.current.filters.find((f) => f.id === filterId)
+    if (!target) return
+    const empty =
+      target.operator === "in" || target.operator === "between" ? [] : ""
+    setFilterValues((prev) => ({ ...prev, [filterId]: empty }))
+  }, [])
+
+  const handleDuplicateWidget = useCallback(
+    (widgetId: string) => {
+      const current = latestRef.current
+      const source = current.widgets.find((w) => w.id === widgetId)
+      if (!source) return
+      const copy = duplicateWidget(source)
+      persist({ ...current, widgets: [...current.widgets, copy] })
+      setSelectedWidgetId(copy.id)
+    },
+    [persist]
+  )
+
+  const handleCopyWidget = useCallback((widgetId: string) => {
+    const source = latestRef.current.widgets.find((w) => w.id === widgetId)
+    if (!source) return
+    clipboardRef.current = copyWidgetPayload(source)
+    setSelectedWidgetId(widgetId)
+  }, [])
+
+  const handlePasteWidget = useCallback(() => {
+    const payload = clipboardRef.current
+    if (!payload) return
+    const current = latestRef.current
+    const pageId = resolveActivePageId(current)
+    const pasted = pasteWidgetPayload(payload, pageId)
+    persist({ ...current, widgets: [...current.widgets, pasted] })
+    setSelectedWidgetId(pasted.id)
+  }, [persist])
+
+  const handleBringToFront = useCallback(
+    (widgetId: string) => {
+      const current = latestRef.current
+      if (!current.widgets.some((w) => w.id === widgetId)) return
+      persist({ ...current, widgets: bringToFront(current.widgets, widgetId) })
+    },
+    [persist]
+  )
+
+  const handleSendToBack = useCallback(
+    (widgetId: string) => {
+      const current = latestRef.current
+      if (!current.widgets.some((w) => w.id === widgetId)) return
+      persist({ ...current, widgets: sendToBack(current.widgets, widgetId) })
+    },
+    [persist]
+  )
+
+  // Atalhos ativos somente no modo de edição, sem dialog aberto e sem foco
+  // em campos editáveis. preventDefault só quando a ação for aplicável —
+  // nunca intercepta atalhos do navegador à toa.
+  const anyDialogOpen =
+    addDialogOpen ||
+    addFilterOpen ||
+    shareOpen ||
+    infoOpen ||
+    configuringWidgetId !== null ||
+    pagePendingDelete !== null
+
+  useEffect(() => {
+    if (!editing || anyDialogOpen) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (isEditorShortcutTargetIgnored(event.target)) return
+      const selected = selectedWidgetId
+      const mod = event.ctrlKey || event.metaKey
+
+      if (event.key === "Escape") {
+        if (selected !== null) {
+          event.preventDefault()
+          setSelectedWidgetId(null)
+        }
+        return
+      }
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selected !== null) {
+        event.preventDefault()
+        handleRemoveWidget(selected)
+        return
+      }
+
+      if (!mod) return
+      const key = event.key.toLowerCase()
+
+      if (key === "d" && selected !== null) {
+        event.preventDefault()
+        handleDuplicateWidget(selected)
+      } else if (key === "c" && selected !== null) {
+        event.preventDefault()
+        handleCopyWidget(selected)
+      } else if (key === "v" && clipboardRef.current !== null) {
+        event.preventDefault()
+        handlePasteWidget()
+      } else if (event.key === "]" && selected !== null) {
+        event.preventDefault()
+        handleBringToFront(selected)
+      } else if (event.key === "[" && selected !== null) {
+        event.preventDefault()
+        handleSendToBack(selected)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [
+    editing,
+    anyDialogOpen,
+    selectedWidgetId,
+    handleRemoveWidget,
+    handleDuplicateWidget,
+    handleCopyWidget,
+    handlePasteWidget,
+    handleBringToFront,
+    handleSendToBack,
+  ])
 
   const handleConfigure = useCallback((widgetId: string) => {
     setConfiguringWidgetId(widgetId)
@@ -385,9 +637,24 @@ export function DashboardBuilder({
         id: crypto.randomUUID(),
       }
 
+      const current = latestRef.current
+      const pageId = resolveActivePageId(current)
+      const pageWidgets = widgetsForPage(current.widgets, pageId)
+      const appendY = pageWidgets.reduce(
+        (max, widget) => Math.max(max, widget.layout.y + widget.layout.h),
+        0
+      )
+      const filterWidget: DashboardWidget = {
+        id: crypto.randomUUID(),
+        analysisId: null,
+        config: { type: "filter", filterId: newFilter.id, title: newFilter.column },
+        layout: { x: 0, y: appendY, w: 4, h: 2 },
+        pageId,
+      }
       const updated = {
-        ...dashboard,
-        filters: [...dashboard.filters, newFilter],
+        ...current,
+        widgets: [...current.widgets, filterWidget],
+        filters: [...current.filters, newFilter],
       }
 
       persist(updated)
@@ -410,14 +677,18 @@ export function DashboardBuilder({
         })
         .finally(() => setLoadingDistinct(false))
     },
-    [dashboard, persist]
+    [persist]
   )
 
   const handleRemoveFilter = useCallback(
     (filterId: string) => {
+      const current = latestRef.current
       const updated = {
-        ...dashboard,
-        filters: dashboard.filters.filter((f) => f.id !== filterId),
+        ...current,
+        filters: current.filters.filter((f) => f.id !== filterId),
+        widgets: current.widgets.filter((widget) =>
+          !(widget.config?.type === "filter" && widget.config.filterId === filterId)
+        ),
       }
 
       persist(updated)
@@ -433,7 +704,7 @@ export function DashboardBuilder({
         return next
       })
     },
-    [dashboard, persist]
+    [persist]
   )
 
   const handleFilterValueChange = useCallback(
@@ -452,15 +723,36 @@ export function DashboardBuilder({
 
   // Escopo por página: a biblioteca só esconde análises já usadas na aba atual.
   const excludeAnalysisIds = useMemo(
-    () => pageWidgets.map((w) => w.analysisId),
+    () => pageWidgets.flatMap((widget) => widget.analysisId ? [widget.analysisId] : []),
     [pageWidgets]
   )
+
+  // Etapa C: widget selecionado sempre resolvido na página ativa — nunca se
+  // edita acidentalmente um widget da página anterior.
+  const selectedWidget = useMemo(
+    () => pageWidgets.find((w) => w.id === selectedWidgetId) ?? null,
+    [pageWidgets, selectedWidgetId]
+  )
+
+  const dashboardAnalysisIds = useMemo(
+    () => dashboard.widgets.flatMap((w) => (w.analysisId ? [w.analysisId] : [])),
+    [dashboard.widgets]
+  )
+
+  const selectedFilterLinkedCards = useMemo(() => {
+    if (selectedWidget?.config?.type !== "filter") return 0
+    const filterId = selectedWidget.config.filterId
+    return dashboard.widgets.filter(
+      (w) => w.config?.type === "filter" && w.config.filterId === filterId
+    ).length
+  }, [dashboard.widgets, selectedWidget])
 
   const viewerHref = getDashboardSharePath(dashboard)
 
   // Barra de páginas (persiste a troca: a página ativa é parte do painel).
   function handleSelectPage(pageId: string) {
     if (pageId === activePageId) return
+    setSelectedWidgetId(null)
     persist({ ...dashboard, activePageId: pageId })
   }
 
@@ -623,16 +915,16 @@ export function DashboardBuilder({
                 <Button
                   variant={drawerOpen ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setDrawerOpen((prev) => !prev)}
+                  onClick={handleToggleDrawer}
                   className={
                     drawerOpen
                       ? "bg-primary text-primary-foreground"
                       : ""
                   }
-                  title="Abrir/fechar biblioteca de gráficos para arrastar e soltar"
+                  title="Abrir/fechar biblioteca de elementos e propriedades"
                 >
                   <LayoutGrid size={14} />
-                  <span className="hidden sm:inline">Gráficos</span>
+                  <span className="hidden sm:inline">Elementos</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -648,6 +940,7 @@ export function DashboardBuilder({
                   onClick={() => {
                     setEditing(false)
                     setDrawerOpen(false)
+                    setSelectedWidgetId(null)
                   }}
                 >
                   <Save size={14} />
@@ -700,7 +993,7 @@ export function DashboardBuilder({
                 filterValues={filterValues}
                 loadingDistinct={loadingDistinct}
                 distinctValues={distinctValues}
-                onAdd={() => setAddFilterOpen(true)}
+                onAdd={() => handleOpenAddFilter("dropdown")}
                 onRemove={handleRemoveFilter}
                 onValueChange={handleFilterValueChange}
               />
@@ -748,7 +1041,10 @@ export function DashboardBuilder({
               <div className="mt-6 flex flex-wrap gap-2.5 justify-center">
                 {editing && (
                   <Button
-                    onClick={() => setDrawerOpen(true)}
+                    onClick={() => {
+                      setDrawerTab("library")
+                      setDrawerOpen(true)
+                    }}
                   >
                     <LayoutGrid size={15} />
                     Abrir biblioteca lateral
@@ -768,9 +1064,18 @@ export function DashboardBuilder({
               dashboard={{ ...dashboard, widgets: pageWidgets }}
               editing={editing}
               filterValues={filterValues}
+              distinctValues={distinctValues}
+              loadingDistinct={loadingDistinct}
+              onFilterValueChange={handleFilterValueChange}
               refreshKey={refreshKey}
+              selectedWidgetId={selectedWidgetId}
               onRemoveWidget={handleRemoveWidget}
               onConfigure={handleConfigure}
+              onSelectWidget={handleSelectWidget}
+              onDuplicateWidget={handleDuplicateWidget}
+              onCopyWidget={handleCopyWidget}
+              onBringToFront={handleBringToFront}
+              onSendToBack={handleSendToBack}
               onLayoutChange={handleLayoutChange}
               onDropAnalysis={handleDropAnalysis}
             />
@@ -788,11 +1093,15 @@ export function DashboardBuilder({
 
       {/* Add Filter Dialog */}
       <AddFilterDialog
+        key={addFilterOpen ? `open-${filterPreset}` : "closed"}
         open={addFilterOpen}
         onOpenChange={setAddFilterOpen}
         onAdd={handleAddFilter}
         existingFilters={dashboard.filters}
-        dashboardWidgetAnalysisIds={dashboard.widgets.map((w) => w.analysisId)}
+        dashboardWidgetAnalysisIds={dashboard.widgets.flatMap((widget) =>
+          widget.analysisId ? [widget.analysisId] : []
+        )}
+        initialControlType={filterPreset}
       />
 
       {/* Share */}
@@ -854,17 +1163,75 @@ export function DashboardBuilder({
         onConfirm={handleConfirmDeletePage}
       />
 
-      {/* Drawer lateral de gráficos prontos para arrastar e soltar estilo Metabase/Superset */}
+      {/* Lateral direita: Biblioteca | Propriedades (Etapa C). A biblioteca
+          segue montada na aba oculta para preservar busca e categoria. */}
       {editing && drawerOpen && (
-        <div className="fixed inset-y-0 right-0 top-16 z-40 flex">
-          <DashboardComponentsDrawer
-            open={drawerOpen}
-            onClose={() => setDrawerOpen(false)}
-            onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
-            existingAnalysisIds={excludeAnalysisIds}
-            projectId={dashboard.projectId}
-            projectName={projectName}
-          />
+        <div className="fixed inset-y-0 right-0 top-16 z-40 flex flex-col">
+          <div
+            role="tablist"
+            aria-label="Alternar biblioteca e propriedades"
+            className="flex shrink-0 gap-1 border-b border-l border-border bg-card px-3 pt-2"
+          >
+            {(
+              [
+                { id: "library", label: "Biblioteca" },
+                { id: "props", label: "Propriedades" },
+              ] as const
+            ).map((tab) => {
+              const disabled = tab.id === "props" && selectedWidget === null
+              const active =
+                tab.id === drawerTab && !(tab.id === "props" && selectedWidget === null)
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={active}
+                  disabled={disabled}
+                  onClick={() => setDrawerTab(tab.id)}
+                  className={cn(
+                    "rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted",
+                    disabled && "cursor-not-allowed opacity-50"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex min-h-0 flex-1">
+            <div className={cn("min-h-0", drawerTab === "library" || selectedWidget === null ? "flex" : "hidden")}>
+              <DashboardComponentsDrawer
+                open={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
+                onSelectElement={(config) => handleAddElement(config)}
+                onAddFilter={handleOpenAddFilter}
+                existingAnalysisIds={excludeAnalysisIds}
+                projectId={dashboard.projectId}
+                projectName={projectName}
+              />
+            </div>
+            {drawerTab === "props" && selectedWidget !== null && (
+              <DashboardPropertiesPanel
+                widget={selectedWidget}
+                filters={dashboard.filters}
+                dashboardAnalysisIds={dashboardAnalysisIds}
+                linkedCards={selectedFilterLinkedCards}
+                filterValues={filterValues}
+                onSaveLayout={handleSaveWidgetLayout}
+                onSaveConfig={handleSaveWidgetConfig}
+                onSaveFilter={handleSaveFilter}
+                onClearFilterValue={handleClearFilterValue}
+                onBringToFront={handleBringToFront}
+                onSendToBack={handleSendToBack}
+                onRemoveWidget={handleRemoveWidget}
+                onClose={() => setDrawerTab("library")}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

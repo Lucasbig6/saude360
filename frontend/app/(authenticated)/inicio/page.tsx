@@ -2,97 +2,43 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
+  AlertCircle,
+  ArrowRight,
   BarChart3,
-  ChevronDown,
+  Compass,
   Database,
   FileChartColumn,
-  Hospital,
+  Folder,
+  History,
   LayoutDashboard,
   Loader2,
   Plus,
   Search,
+  Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
 import type { Analysis } from "@/lib/types/analysis"
 import type { Project } from "@/lib/types/project"
-import { chartTypeIcon, chartTypeLabel } from "@/lib/types/charts"
+import { chartTypeIcon } from "@/lib/types/charts"
+import { getProjects } from "@/lib/api/projects"
 import { getDashboards } from "@/lib/api/dashboards"
 import { getAnalyses } from "@/lib/api/analyses"
-import { getProjects } from "@/lib/api/projects"
 import {
   listDatasets,
   datasetDisplayName,
-  type DatasetListItem,
 } from "@/lib/api/datasets"
+import { readRecentIds } from "@/lib/recent"
 import { ApiError } from "@/lib/api"
-
-type RecentKind = "dashboard" | "analysis" | "chart"
-
-interface RecentItem {
-  id: string
-  kind: RecentKind
-  name: string
-  updatedAt: string
-  href: string
-}
-
-interface SearchHit {
-  id: string
-  kind: RecentKind | "dataset"
-  name: string
-  detail: string
-  href: string
-  chartType?: Analysis["chartType"]
-}
-
-const RECENT_LIMIT = 8
-
-function formatDate(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso))
-  } catch {
-    return iso
-  }
-}
-
-function formatRelative(iso: string): string {
-  try {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const minutes = Math.floor(diffMs / 60_000)
-    if (minutes < 1) return "agora mesmo"
-    if (minutes < 60) return `há ${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `há ${hours}h`
-    const days = Math.floor(hours / 24)
-    if (days < 7) return `há ${days}d`
-    return formatDate(iso)
-  } catch {
-    return iso
-  }
-}
-
-function kindLabel(kind: RecentKind | "dataset"): string {
-  switch (kind) {
-    case "dashboard":
-      return "Dashboard"
-    case "analysis":
-      return "Análise"
-    case "chart":
-      return "Gráfico"
-    case "dataset":
-      return "Dataset"
-  }
-}
+import { CreateProjectDialog } from "@/components/project/create-project-dialog"
+import { ProjectPickerDialog } from "@/components/project/project-picker-dialog"
+import { CreateDashboardDialog } from "@/components/dashboard/create-dashboard-dialog"
 
 function normalize(value: string): string {
   return value
@@ -107,653 +53,529 @@ function matchesQuery(haystack: string, query: string): boolean {
   return normalize(haystack).includes(normalize(query))
 }
 
-function Section({
-  title,
-  count,
-  open,
-  onToggle,
-  actions,
-  children,
-}: {
-  title: string
-  count?: number
-  open: boolean
-  onToggle: () => void
-  actions?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <section className="border-b border-border/80 last:border-b-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={open}
-          className="group flex min-w-0 items-center gap-2 text-left"
-        >
-          <ChevronDown
-            size={15}
-            className={cn(
-              "shrink-0 text-muted-foreground transition-transform duration-200",
-              open ? "rotate-0" : "-rotate-90"
-            )}
-          />
-          <h2 className="text-sm font-semibold tracking-tight text-foreground">
-            {title}
-          </h2>
-          {typeof count === "number" && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
-              {count}
-            </span>
-          )}
-        </button>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-      </div>
-      {open && <div className="pb-4">{children}</div>}
-    </section>
-  )
-}
-
-function EmptyInline({
-  title,
-  description,
-  actionLabel,
-  actionHref,
-}: {
-  title: string
-  description: string
-  actionLabel: string
-  actionHref: string
-}) {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-muted/50/50 px-4 py-6 text-center">
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-      <Link href={actionHref} className="mt-3 inline-block">
-        <Button size="sm" variant="outline" className="bg-card">
-          {actionLabel}
-        </Button>
-      </Link>
-    </div>
-  )
-}
-
-function EntryCard({
-  href,
-  icon,
-  iconClassName,
-  title,
-  description,
-  createHref,
-  createLabel,
-}: {
-  href: string
-  icon: React.ReactNode
-  iconClassName: string
-  title: string
-  description: string
-  createHref: string
-  createLabel: string
-}) {
-  return (
-    <div className="group flex h-full flex-col rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/40">
-      <div className="flex items-start justify-between gap-2">
-        <span
-          className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
-            iconClassName
-          )}
-        >
-          {icon}
-        </span>
-        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M9 6l6 6-6 6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </div>
-      <h3 className="mt-4 text-base font-semibold tracking-tight text-foreground">
-        {title}
-      </h3>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-        {description}
-      </p>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <Link
-          href={href}
-          className="text-xs font-medium text-primary transition-colors hover:text-primary"
-        >
-          Ver todos →
-        </Link>
-        <Link
-          href={createHref}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Plus size={12} />
-          {createLabel}
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-function ListRow({
-  href,
-  icon,
-  iconClassName,
-  title,
-  meta,
-  badge,
-  badgeClassName,
-  right,
-}: {
-  href?: string
-  icon: React.ReactNode
-  iconClassName?: string
-  title: string
-  meta?: string
-  badge?: string
-  badgeClassName?: string
-  right?: React.ReactNode
-}) {
-  const content = (
-    <>
-      <span
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-          iconClassName ?? "bg-muted text-muted-foreground"
-        )}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-foreground">
-          {title}
-        </span>
-        {meta && (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-            {meta}
-          </span>
-        )}
-      </span>
-      {badge && (
-        <span
-          className={cn(
-            "hidden shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium sm:inline-flex",
-            badgeClassName ?? "bg-muted text-muted-foreground"
-          )}
-        >
-          {badge}
-        </span>
-      )}
-      {right}
-    </>
-  )
-
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50"
-      >
-        {content}
-        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M9 6l6 6-6 6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </Link>
-    )
+function formatRelative(iso: string): string {
+  try {
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const minutes = Math.floor(diffMs / 60_000)
+    if (minutes < 1) return "agora mesmo"
+    if (minutes < 60) return `há ${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `há ${hours}h`
+    const days = Math.floor(hours / 24)
+    if (days < 7) return `há ${days}d`
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(iso))
+  } catch {
+    return iso
   }
-
-  return (
-    <div className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/50">
-      {content}
-      {right}
-    </div>
-  )
 }
 
-function RecentCard({
-  href,
-  icon,
-  iconClassName,
-  title,
-  timeLabel,
-  badge,
-}: {
-  href: string
-  icon: React.ReactNode
-  iconClassName: string
-  title: string
-  timeLabel: string
-  badge: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex h-full flex-col rounded-lg border border-border/60 bg-muted/50/60 p-3 transition-colors hover:border-primary/40 hover:bg-card"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-            iconClassName
-          )}
-        >
-          {icon}
-        </span>
-        <span className="rounded-md bg-card/80 px-1.5 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-border/70">
-          {badge}
-        </span>
-      </div>
-      <h3 className="mt-2 line-clamp-2 text-sm font-semibold tracking-tight text-foreground">
-        {title}
-      </h3>
-      <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="text-xs text-muted-foreground">{timeLabel}</span>
-        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-primary">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M9 6l6 6-6 6"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </div>
-    </Link>
-  )
+function dashboardHref(dashboard: Dashboard): string {
+  if (dashboard.projectId) {
+    return `/projetos/${dashboard.projectId}/paineis/${dashboard.id}`
+  }
+  return `/paineis/${dashboard.id}`
 }
 
-export default function Home() {
+function analysisHref(analysis: Analysis): string {
+  if (analysis.projectId) {
+    return `/projetos/${analysis.projectId}/analises/${analysis.id}`
+  }
+  return "/projetos"
+}
+
+interface SectionLoad<T> {
+  key: string
+  items: T[] | null
+  error: string | null
+}
+
+function useSection<T>(key: string, load: () => Promise<T[]>): SectionLoad<T> {
+  const [state, setState] = useState<SectionLoad<T>>({
+    key: "",
+    items: null,
+    error: null,
+  })
+
+  useEffect(() => {
+    if (state.key === key) return
+    let cancelled = false
+    load()
+      .then((items) => {
+        if (!cancelled) setState({ key, items, error: null })
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setState({
+            key,
+            items: null,
+            error: err instanceof ApiError ? err.detail : "Erro ao carregar.",
+          })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [key, load, state.key])
+
+  return state.key === key ? state : { key, items: null, error: null }
+}
+
+const loadProjects = () => getProjects()
+const loadDashboards = () => getDashboards()
+const loadAnalyses = () => getAnalyses()
+const loadDatasets = () => listDatasets().then((res) => res.result ?? [])
+
+type PickerMode =
+  | { kind: "analysis" }
+  | { kind: "source" }
+  | { kind: "dataset"; datasetId: number; datasetName: string }
+  | null
+
+/**
+ * Home analítica: saudação, busca global, projetos, continuação e criação.
+ * Tudo vem das APIs existentes; sem dados fictícios.
+ */
+export default function InicioPage() {
+  const router = useRouter()
   const [query, setQuery] = useState("")
-  const [dashboards, setDashboards] = useState<Dashboard[]>([])
-  const [analyses, setAnalyses] = useState<Analysis[]>([])
-  const [loadingDomain, setLoadingDomain] = useState(true)
-  const [domainError, setDomainError] = useState<string | null>(null)
-  const [datasets, setDatasets] = useState<DatasetListItem[]>([])
-  const [projects, setProjects] = useState<Project[] | null>(null)
-  const [recentOpen, setRecentOpen] = useState(true)
+  const [createProjectOpen, setCreateProjectOpen] = useState(false)
+  const [createPanelOpen, setCreatePanelOpen] = useState(false)
+  const [picker, setPicker] = useState<PickerMode>(null)
 
-  function toggleRecent() {
-    setRecentOpen((prev) => !prev)
+  const projects = useSection("projects", loadProjects)
+  const dashboards = useSection("dashboards", loadDashboards)
+  const analyses = useSection("analyses", loadAnalyses)
+  const datasets = useSection("datasets", loadDatasets)
+
+  const projectList = useMemo(() => projects.items ?? [], [projects.items])
+  const recentProjectIds = useMemo(() => readRecentIds("project"), [])
+
+  const orderedProjects = useMemo(() => {
+    const recent = new Set(recentProjectIds)
+    return [...projectList].sort((a, b) => {
+      const aRecent = recent.has(a.id) ? 0 : 1
+      const bRecent = recent.has(b.id) ? 0 : 1
+      if (aRecent !== bRecent) return aRecent - bRecent
+      return b.updatedAt.localeCompare(a.updatedAt)
+    })
+  }, [projectList, recentProjectIds])
+
+  const searching = query.trim().length > 0
+
+  const searchResults = useMemo(() => {
+    if (!searching) return null
+    const q = query.trim()
+    const matchedProjects = projectList.filter((p) =>
+      matchesQuery(`${p.name} ${p.description}`, q)
+    )
+    const matchedDashboards = (dashboards.items ?? []).filter((d) =>
+      matchesQuery(d.name, q)
+    )
+    const matchedAnalyses = (analyses.items ?? []).filter((a) =>
+      matchesQuery(`${a.name} ${a.description ?? ""}`, q)
+    )
+    const matchedDatasets = (datasets.items ?? []).filter((d) =>
+      matchesQuery(`${d.table_name} ${d.description ?? ""}`, q)
+    )
+    return { matchedProjects, matchedDashboards, matchedAnalyses, matchedDatasets }
+  }, [searching, query, projectList, dashboards.items, analyses.items, datasets.items])
+
+  const continueItems = useMemo(() => {
+    const mixed: (
+      | { kind: "dashboard"; item: Dashboard; updatedAt: string }
+      | { kind: "analysis"; item: Analysis; updatedAt: string }
+    )[] = [
+      ...(dashboards.items ?? []).map((item) => ({
+        kind: "dashboard" as const,
+        item,
+        updatedAt: item.updatedAt,
+      })),
+      ...(analyses.items ?? []).map((item) => ({
+        kind: "analysis" as const,
+        item,
+        updatedAt: item.updatedAt,
+      })),
+    ]
+    return mixed
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, 6)
+  }, [dashboards.items, analyses.items])
+
+  const loadingSections =
+    projects.items === null ||
+    dashboards.items === null ||
+    analyses.items === null
+
+  function handlePickProject(project: Project) {
+    if (!picker) return
+    if (picker.kind === "analysis") {
+      router.push(`/projetos/${project.id}/explorar`)
+    } else if (picker.kind === "source") {
+      router.push(`/projetos/${project.id}/fontes/nova`)
+    } else {
+      router.push(
+        `/projetos/${project.id}/explorar?datasetId=${picker.datasetId}`
+      )
+    }
+    setPicker(null)
   }
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      try {
-        const [dashboardList, analysisList] = await Promise.all([
-          getDashboards(),
-          getAnalyses(),
-        ])
-        if (!cancelled) {
-          setDashboards(dashboardList)
-          setAnalyses(analysisList)
-          setDomainError(null)
+  const pickerCopy =
+    picker?.kind === "analysis"
+      ? {
+          title: "Nova análise",
+          description: "Escolha o projeto onde a análise será salva.",
         }
-      } catch (err) {
-        if (!cancelled) {
-          setDomainError(
-            err instanceof ApiError
-              ? err.detail
-              : "Erro ao carregar painéis e análises."
-          )
-        }
-      } finally {
-        if (!cancelled) setLoadingDomain(false)
-      }
-    }
+      : picker?.kind === "source"
+        ? {
+            title: "Conectar fonte de dados",
+            description: "Escolha o projeto que receberá a nova fonte.",
+          }
+        : {
+            title: `Explorar ${picker?.datasetName ?? "dados"}`,
+            description: "Escolha o projeto onde os dados serão explorados.",
+          }
 
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      try {
-        const data = await listDatasets()
-        if (!cancelled) setDatasets(data.result ?? [])
-      } catch {
-        if (!cancelled) setDatasets([])
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Projetos: falha silenciosa (mesmo precedente dos datasets) — o bloco
-  // simplesmente não aparece se a API de projetos estiver indisponível.
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      try {
-        const list = await getProjects()
-        if (!cancelled) setProjects(list)
-      } catch {
-        if (!cancelled) setProjects([])
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const sortedDashboards = useMemo(
-    () =>
-      [...dashboards].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [dashboards]
-  )
-
-  const recentProjects = useMemo(
-    () =>
-      [...(projects ?? [])]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .slice(0, 3),
-    [projects]
-  )
-
-  const recentItems = useMemo<RecentItem[]>(() => {
-    const fromDashboards: RecentItem[] = sortedDashboards.map((d) => ({
-      id: d.id,
-      kind: "dashboard" as const,
-      name: d.name,
-      updatedAt: d.updatedAt,
-      href: `/paineis/${d.id}`,
-    }))
-
-    const fromAnalyses: RecentItem[] = analyses.map((a) => ({
-      id: a.id,
-      kind: a.chartType === "table" ? ("analysis" as const) : ("chart" as const),
-      name: a.name,
-      updatedAt: a.updatedAt,
-      href: `/analises/${a.id}`,
-    }))
-
-    return [...fromDashboards, ...fromAnalyses]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, RECENT_LIMIT)
-  }, [sortedDashboards, analyses])
-
-  const searchHits = useMemo<SearchHit[]>(() => {
-    const trimmed = query.trim()
-    if (!trimmed) return []
-
-    const hits: SearchHit[] = []
-
-    for (const d of sortedDashboards) {
-      const hay = `${d.name} ${d.description}`
-      if (matchesQuery(hay, trimmed)) {
-        hits.push({
-          id: `dashboard-${d.id}`,
-          kind: "dashboard",
-          name: d.name,
-          detail: d.description,
-          href: `/paineis/${d.id}`,
-        })
-      }
-    }
-
-    for (const a of analyses) {
-      const hay = `${a.name} ${a.description} ${chartTypeLabel[a.chartType]}`
-      if (matchesQuery(hay, trimmed)) {
-        hits.push({
-          id: `${a.chartType === "table" ? "analysis" : "chart"}-${a.id}`,
-          kind: a.chartType === "table" ? "analysis" : "chart",
-          name: a.name,
-          detail: chartTypeLabel[a.chartType],
-          href: `/analises/${a.id}`,
-          chartType: a.chartType,
-        })
-      }
-    }
-
-    for (const ds of datasets) {
-      const name = datasetDisplayName(ds)
-      const hay = `${name} ${ds.description ?? ""} ${ds.table_name}`
-      if (matchesQuery(hay, trimmed)) {
-        hits.push({
-          id: `dataset-${ds.id}`,
-          kind: "dataset",
-          name,
-          detail: ds.description || ds.table_name,
-          href: `/explorar?datasetId=${ds.id}`,
-        })
-      }
-    }
-
-    return hits.slice(0, 12)
-  }, [query, sortedDashboards, analyses, datasets])
-
-  const trimmedQuery = query.trim()
-  const showSearchResults = trimmedQuery.length > 0
+  const startActions = [
+    {
+      icon: Folder,
+      title: "Novo projeto",
+      description: "Agrupe painéis, análises e dados por tema.",
+      onClick: () => setCreateProjectOpen(true),
+    },
+    {
+      icon: LayoutDashboard,
+      title: "Novo painel",
+      description: "Monte um dashboard arrastando elementos.",
+      onClick: () => setCreatePanelOpen(true),
+    },
+    {
+      icon: Compass,
+      title: "Nova análise",
+      description: "Explore dados e salve o resultado.",
+      onClick: () => setPicker({ kind: "analysis" }),
+    },
+    {
+      icon: Database,
+      title: "Conectar fonte",
+      description: "Ligue um banco ou arquivo ao projeto.",
+      onClick: () => setPicker({ kind: "source" }),
+    },
+  ]
 
   return (
-    <>
-    {/* Hero: intro + busca */}
-    <div className="border-b border-border bg-card">
-      <section className="mx-auto max-w-7xl px-6 py-12">
-        <p className="text-xs font-semibold uppercase text-primary">
-          SIGDATA
+    <div className="w-full px-4 sm:px-5 lg:px-10 py-25">
+      {/* Saudação + busca */}
+      <section className="flex flex-col items-center justify-center text-center">
+        <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+          <Sparkles size={13} />
+          Workspace analítico
         </p>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground">
-          O que você deseja analisar?
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          O que vamos investigar hoje?
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Pesquise dashboards, gráficos, análises ou dados.
+          Busque projetos, painéis, análises e dados em um só lugar.
         </p>
-
-        <div className="relative mt-5 max-w-2xl">
+        <div className="relative mx-auto mt-5 w-full max-w-3xl">
           <Search
-            size={16}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            size={17}
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Pesquisar dashboards, gráficos, análises ou dados..."
-            aria-label="Pesquisar na plataforma"
-            className="h-10 rounded-lg border-border bg-background pl-9 pr-5 text-sm placeholder:text-muted-foreground focus-visible:ring-ring/60"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Limpar busca"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
-      </section>
-    </div>
-
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 cursor-pointer">
-      {/* Cards de entrada — atalhos por área */}
-      <section aria-label="Atalhos por área" className="pt-6 cursor-pointer">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 cursor-pointer">
-          <EntryCard
-            href="/paineis"
-            icon={<LayoutDashboard size={20} />}
-            iconClassName="bg-primary/15 text-primary"
-            title="Dashboards"
-            description="Painéis para acompanhamento de indicadores."
-            createHref="/paineis"
-            createLabel="Novo"
-          />
-          <EntryCard
-            href="/analises"
-            icon={<BarChart3 size={20} />}
-            iconClassName="bg-chart-4/15 text-chart-4"
-            title="Análises e gráficos"
-            description="Consultas, tabelas analíticas e visualizações salvas."
-            createHref="/explorar"
-            createLabel="Nova"
-          />
-          <EntryCard
-            href="/explorar"
-            icon={<Database size={20} />}
-            iconClassName="bg-info/15 text-info"
-            title="Conjuntos de dados"
-            description="Dados prontos para exploração e análise."
-            createHref="/fontes"
-            createLabel="Fontes"
+            placeholder="Buscar por nome, tema ou assunto..."
+            aria-label="Buscar projetos, painéis, análises e dados"
+            className="h-12 rounded-xl border-border bg-card pl-11 pr-4 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:ring-ring/60"
           />
         </div>
       </section>
 
-      {loadingDomain ? (
-        <section className="pt-6" aria-label="Carregando painéis e análises">
-          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2 size={16} className="animate-spin text-primary" />
-            Carregando painéis e análises...
-          </div>
-        </section>
-      ) : domainError ? (
-        <section className="pt-6" aria-label="Erro ao carregar">
-          <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-4 text-sm text-warning">
-            {domainError}
-          </div>
-        </section>
-      ) : showSearchResults ? (
-        <section className="pt-6" aria-label="Resultados da busca">
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">
-                Resultados para “{trimmedQuery}”
-              </h2>
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium text-muted-foreground">
-                {searchHits.length}
-              </span>
-            </div>
-          </div>
-
-          {searchHits.length === 0 ? (
-            <div className="mt-4">
-              <EmptyInline
-                title="Nenhum resultado encontrado"
-                description="Tente outro termo ou use os atalhos acima."
-                actionLabel="Explorar dados"
-                actionHref="/explorar"
-              />
+      {/* Resultados da busca */}
+      {searchResults && (
+        <>
+          <Separator className="mt-8" />
+          <section aria-label="Resultados da busca" className="mt-6 w-full">
+          {searchResults.matchedProjects.length +
+            searchResults.matchedDashboards.length +
+            searchResults.matchedAnalyses.length +
+            searchResults.matchedDatasets.length ===
+          0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Nada encontrado para “{query.trim()}”
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tente outro termo ou comece algo novo abaixo.
+              </p>
             </div>
           ) : (
-            <div className="mt-2 divide-y divide-border">
-              {searchHits.map((hit) => {
-                const Icon =
-                  hit.kind === "dashboard"
-                    ? LayoutDashboard
-                    : hit.kind === "dataset"
-                      ? Database
-                      : hit.kind === "analysis"
-                        ? FileChartColumn
-                        : hit.chartType
-                          ? chartTypeIcon[hit.chartType]
-                          : BarChart3
-
-                const iconCls =
-                  hit.kind === "dataset"
-                    ? "bg-info/10 text-info"
-                    : hit.kind === "chart"
-                      ? "bg-chart-4/10 text-chart-4"
-                      : hit.kind === "dashboard"
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-foreground"
-
-                return (
-                  <ListRow
-                    key={hit.id}
-                    href={hit.href}
-                    icon={<Icon size={15} />}
-                    iconClassName={iconCls}
-                    title={hit.name}
-                    meta={hit.detail || undefined}
-                    badge={kindLabel(hit.kind)}
-                  />
-                )
-              })}
+            <div className="space-y-4">
+              {searchResults.matchedProjects.length > 0 && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Projetos
+                  </h2>
+                  <ul className="space-y-1.5">
+                    {searchResults.matchedProjects.slice(0, 4).map((project) => (
+                      <li key={project.id}>
+                        <Link
+                          href={`/projetos/${project.id}`}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 transition-colors hover:border-primary/40"
+                        >
+                          <Folder size={15} className="shrink-0 text-primary" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">
+                              {project.name}
+                            </span>
+                            {project.description && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {project.description}
+                              </span>
+                            )}
+                          </span>
+                          <Badge className="shrink-0 bg-primary/10 text-primary">
+                            {project.dashboardCount}{" "}
+                            {project.dashboardCount === 1 ? "painel" : "painéis"}
+                          </Badge>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {searchResults.matchedDashboards.length > 0 && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Painéis
+                  </h2>
+                  <ul className="space-y-1.5">
+                    {searchResults.matchedDashboards.slice(0, 4).map((dashboard) => (
+                      <li key={dashboard.id}>
+                        <Link
+                          href={dashboardHref(dashboard)}
+                          className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 transition-colors hover:border-primary/40"
+                        >
+                          <LayoutDashboard size={15} className="shrink-0 text-primary" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                            {dashboard.name}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {searchResults.matchedAnalyses.length > 0 && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Análises
+                  </h2>
+                  <ul className="space-y-1.5">
+                    {searchResults.matchedAnalyses.slice(0, 4).map((analysis) => {
+                      const Icon = chartTypeIcon[analysis.chartType] ?? BarChart3
+                      return (
+                        <li key={analysis.id}>
+                          <Link
+                            href={analysisHref(analysis)}
+                            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 transition-colors hover:border-primary/40"
+                          >
+                            <Icon size={15} className="shrink-0 text-primary" />
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                              {analysis.name}
+                            </span>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
+              {searchResults.matchedDatasets.length > 0 && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Dados
+                  </h2>
+                  <ul className="space-y-1.5">
+                    {searchResults.matchedDatasets.slice(0, 4).map((dataset) => (
+                      <li key={dataset.id}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPicker({
+                              kind: "dataset",
+                              datasetId: dataset.id,
+                              datasetName: datasetDisplayName(dataset),
+                            })
+                          }
+                          className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5 text-left transition-colors hover:border-primary/40"
+                        >
+                          <Database size={15} className="shrink-0 text-primary" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">
+                              {datasetDisplayName(dataset)}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {dataset.database?.database_name ?? "Banco de dados"}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </section>
-      ) : (
-        <div className="mt-6 border-t border-border pt-2">
-          {/* Projetos — resumo da atividade */}
-          <section aria-label="Projetos" className="border-b border-border/80">
-            <div className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                Projetos
-              </h2>
-              <Link
-                href="/projetos"
-                className="text-xs font-medium text-primary transition-colors hover:text-primary"
-              >
-                Ver todos os projetos →
-              </Link>
-            </div>
-
-            {projects !== null &&
-              (recentProjects.length === 0 ? (
-                <p className="pb-3.5 text-xs text-muted-foreground">
-                  Nenhum projeto ainda.{" "}
-                  <Link
-                    href="/projetos"
-                    className="font-medium text-primary transition-colors hover:text-primary"
-                  >
-                    Criar um projeto
-                  </Link>{" "}
-                  para organizar análises, gráficos e painéis.
-                </p>
-              ) : (
-                <div className="divide-y divide-border pb-1">
-                  {recentProjects.map((project) => (
-                    <ListRow
-                      key={project.id}
-                      href={`/projetos/${project.id}`}
-                      icon={<Hospital size={15} />}
-                      iconClassName="bg-primary/10 text-primary"
-                      title={project.name}
-                      meta={project.description || undefined}
-                      right={
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatRelative(project.updatedAt)}
-                        </span>
-                      }
-                    />
-                  ))}
-                </div>
-              ))}
-          </section>
-        </div>
+        </>
       )}
+
+      {/* Projetos */}
+      {!searching && (
+        <>
+          <Separator className="mt-8" />
+          <section aria-label="Projetos" className="mt-6 w-full">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Seus projetos</h2>
+            <Link
+              href="/projetos"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              Ver todos
+              <ArrowRight size={13} />
+            </Link>
+          </div>
+          {projects.items === null && !projects.error && (
+            <div className="flex items-center justify-center rounded-xl border border-border bg-card p-10">
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {projects.error && (
+            <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
+              <AlertCircle size={14} className="shrink-0" />
+              {projects.error}
+            </div>
+          )}
+          {projects.items !== null && projectList.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Nenhum projeto ainda
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Crie o primeiro para agrupar painéis, análises e dados.
+              </p>
+              <Button size="sm" className="mt-4" onClick={() => setCreateProjectOpen(true)}>
+                <Plus size={14} />
+                Novo projeto
+              </Button>
+            </div>
+          )}
+          {orderedProjects.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {orderedProjects.slice(0, 6).map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projetos/${project.id}`}
+                  className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Folder size={18} />
+                  </span>
+                  <span className="mt-3 block truncate text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
+                    {project.name}
+                  </span>
+                  {project.description && (
+                    <span className="mt-1 block text-xs text-muted-foreground line-clamp-2">
+                      {project.description}
+                    </span>
+                  )}
+                  <span className="mt-3 flex flex-wrap gap-1.5">
+                    <Badge className="bg-primary/10 text-primary">
+                      {project.dashboardCount}{" "}
+                      {project.dashboardCount === 1 ? "painel" : "painéis"}
+                    </Badge>
+                    <Badge className="bg-chart-4/10 text-chart-4">
+                      {project.analysisCount}{" "}
+                      {project.analysisCount === 1 ? "análise" : "análises"}
+                    </Badge>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+        </>
+      )}
+
+      {/* Comece algo novo */}
+      {!searching && (
+        <>
+          <Separator className="mt-8" />
+          <section aria-label="Comece algo novo" className="mt-6 w-full pb-4">
+          <h2 className="mb-3 flex items-center gap-1.5 text-base font-semibold text-foreground">
+            <FileChartColumn size={16} className="text-primary" />
+            Comece algo novo
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {startActions.map((action) => (
+              <button
+                key={action.title}
+                type="button"
+                onClick={action.onClick}
+                className={cn(
+                  "group rounded-xl border border-border bg-card p-5 text-left",
+                  "transition-colors hover:border-primary/40 hover:bg-primary/5"
+                )}
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <action.icon size={18} />
+                </span>
+                <span className="mt-3 block text-sm font-semibold text-foreground">
+                  {action.title}
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                  {action.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+        </>
+      )}
+
+      <CreateProjectDialog
+        open={createProjectOpen}
+        onOpenChange={setCreateProjectOpen}
+        onCreated={(project) => router.push(`/projetos/${project.id}`)}
+      />
+      <CreateDashboardDialog
+        open={createPanelOpen}
+        onOpenChange={setCreatePanelOpen}
+        onCreated={(dashboard) =>
+          router.push(
+            dashboard.projectId
+              ? `/projetos/${dashboard.projectId}/paineis/${dashboard.id}`
+              : `/paineis/${dashboard.id}`
+          )
+        }
+      />
+      <ProjectPickerDialog
+        open={picker !== null}
+        onOpenChange={(open) => {
+          if (!open) setPicker(null)
+        }}
+        title={pickerCopy.title}
+        description={pickerCopy.description}
+        projects={projectList}
+        onPick={handlePickProject}
+      />
     </div>
-    </>
   )
 }

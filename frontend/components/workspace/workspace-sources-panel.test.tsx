@@ -16,7 +16,12 @@ const sources: SourceListItem[] = [
 ]
 
 const datasets: SourceDataset[] = [
-  { id: 10, table_name: "estabelecimentos", schema: "public" },
+  {
+    id: 10,
+    table_name: "monisus_ds_estabelecimentos_123abc",
+    schema: "public",
+    extra: JSON.stringify({ monisus_display_name: "Estabelecimentos" }),
+  },
   { id: 11, table_name: "profissionais", schema: "public" },
 ]
 
@@ -86,6 +91,20 @@ describe("WorkspaceSourcesPanel", () => {
     expect(screen.getByText("Fontes do projeto")).toBeInTheDocument()
   })
 
+  it("recolhe a sidebar pelo controle na própria seção de fontes", async () => {
+    const user = userEvent.setup()
+    const onCollapse = vi.fn()
+    render(<WorkspaceSourcesPanel {...baseProps({ onCollapse })} />)
+
+    const collapseButton = screen.getByRole("button", { name: "Recolher fontes" })
+    expect(collapseButton.parentElement).toContainElement(
+      screen.getByText("Sessão do projeto")
+    )
+
+    await user.click(collapseButton)
+    expect(onCollapse).toHaveBeenCalledOnce()
+  })
+
   it("expandir uma fonte dispara onToggleSource com o id", async () => {
     const user = userEvent.setup()
     const onToggleSource = vi.fn()
@@ -108,10 +127,13 @@ describe("WorkspaceSourcesPanel", () => {
       />
     )
 
-    expect(screen.getByText("estabelecimentos")).toBeInTheDocument()
+    expect(screen.getByText("Estabelecimentos")).toBeInTheDocument()
+    expect(
+      screen.queryByText("monisus_ds_estabelecimentos_123abc")
+    ).not.toBeInTheDocument()
     expect(screen.getByText("profissionais")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /estabelecimentos/ }))
+    await user.click(screen.getByRole("button", { name: /Estabelecimentos/ }))
     expect(onSelectDatasetById).toHaveBeenCalledWith(10)
   })
 

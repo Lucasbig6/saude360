@@ -29,7 +29,7 @@ export interface ApiLayout {
 
 export interface ApiWidget {
   id: string
-  analysisId: string
+  analysisId: string | null
   layout: ApiLayout
   /** Config v2 validada pelo backend (presente desde a migração 0004). */
   widget?: unknown
@@ -46,6 +46,7 @@ export interface ApiFilter {
   operator: string
   defaultValue: string | string[] | null
   scope: string | string[] | null
+  controlType?: string | null
 }
 
 export interface ApiPage {
@@ -73,7 +74,7 @@ export interface ApiDashboard {
 
 export interface WidgetPayload {
   id: string
-  analysisId: string
+  analysisId: string | null
   layout: ApiLayout
   widget?: WidgetConfig
   pageId: string | null
@@ -155,7 +156,8 @@ function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
   const widgets = rawWidgets.map((widget, index) => {
     if (
       typeof widget?.id !== "string" ||
-      typeof widget.analysisId !== "string"
+      (widget.analysisId !== null && typeof widget.analysisId !== "string") ||
+      (widget.analysisId === null && !widget.widget)
     ) {
       throw contractError(`/api/dashboards: widget[${index}] inválido`)
     }
@@ -178,7 +180,7 @@ function toWidgets(rawWidgets: ApiWidget[]): DashboardWidget[] {
 
     return {
       id: widget.id,
-      analysisId: widget.analysisId,
+      analysisId: typeof widget.analysisId === "string" ? widget.analysisId : null,
       layout: toLayout(widget.layout),
       config: toConfig(widget.widget),
       pageId: typeof widget.pageId === "string" ? widget.pageId : null,
@@ -214,6 +216,12 @@ function toFilters(rawFilters: ApiFilter[]): DashboardFilter[] {
       operator: filter.operator as DashboardFilter["operator"],
       defaultValue: filter.defaultValue ?? "",
       scope,
+      controlType:
+        filter.controlType === "multi-select" ||
+        filter.controlType === "list" ||
+        filter.controlType === "date-range"
+          ? filter.controlType
+          : "dropdown",
     }
   })
 }
@@ -355,6 +363,7 @@ export function toDashboardPayload(dashboard: Dashboard): DashboardPayload {
       operator: filter.operator,
       defaultValue: filter.defaultValue,
       scope: filter.scope,
+      controlType: filter.controlType ?? "dropdown",
     })),
     projectId: dashboard.projectId,
     pages: dashboard.pages.map((page) => ({ id: page.id, name: page.name })),
@@ -377,6 +386,7 @@ function toCreatePayload(data: DashboardInput): DashboardPayload {
       operator: filter.operator,
       defaultValue: filter.defaultValue,
       scope: filter.scope,
+      controlType: filter.controlType ?? "dropdown",
     })),
   }
   // ausente -> cria sem projeto; null -> cria sem projeto; string -> associa.

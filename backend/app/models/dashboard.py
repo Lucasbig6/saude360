@@ -109,7 +109,7 @@ class DashboardWidget(Base):
         Uuid, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False
     )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("analyses.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("analyses.id", ondelete="SET NULL"), nullable=True
     )
     position_x: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
@@ -152,6 +152,9 @@ class DashboardFilter(Base):
     dataset_id: Mapped[int | None] = mapped_column(Integer)
     column_name: Mapped[str] = mapped_column(String(255), nullable=False)
     operator: Mapped[str] = mapped_column(String(50), nullable=False)
+    control_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="dropdown", server_default=text("'dropdown'")
+    )
     default_value: Mapped[str | None] = mapped_column(Text)
     scope: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

@@ -17,20 +17,27 @@ import {
 } from "@/lib/charts/chart-config"
 import {
   STATIC_WIDGET_TYPES,
+  FONT_FAMILIES,
   isChartWidgetConfig,
+  isObjectPosition,
   normalizeWidgetConfig,
+  type FontFamily,
   type ImageConfig,
   type KpiConfig,
   type TableConfig,
   type TextConfig,
+  type ShapeConfig,
+  type WidgetStyle,
   type WidgetConfig,
 } from "@/lib/types/widgets"
+import { prepareDashboardImage } from "@/lib/dashboard-image"
 
 const STATIC_TYPE_LABELS: Record<string, string> = {
   table: "Tabela",
   kpi: "KPI",
   text: "Texto",
   image: "Imagem",
+  shape: "Forma",
 }
 
 const SELECT_CLASS =
@@ -124,6 +131,22 @@ export function changeWidgetType(
     const nextConfig: TextConfig = {
       type: "text",
       content: config.type === "text" ? config.content : "",
+    }
+    if (title) nextConfig.title = title
+    if (config.type === "text") {
+      nextConfig.fontFamily = config.fontFamily
+      nextConfig.fontSize = config.fontSize
+      nextConfig.fontWeight = config.fontWeight
+      nextConfig.color = config.color
+      nextConfig.alignment = config.alignment
+    }
+    return nextConfig
+  }
+
+  if (next === "shape") {
+    const nextConfig: ShapeConfig = {
+      type: "shape",
+      shape: config.type === "shape" ? config.shape : "rectangle",
     }
     if (title) nextConfig.title = title
     return nextConfig
@@ -408,15 +431,43 @@ function TextConfigFields({
   onChange: (config: TextConfig) => void
 }) {
   return (
-    <Field label="Conteúdo">
-      <textarea
-        rows={5}
-        className={TEXTAREA_CLASS}
-        value={config.content}
-        placeholder="Texto exibido no widget"
-        onChange={(e) => onChange({ ...config, content: e.target.value })}
-      />
-    </Field>
+    <div className="space-y-3">
+      <Field label="Conteúdo">
+        <textarea
+          rows={5}
+          className={TEXTAREA_CLASS}
+          value={config.content}
+          placeholder="Texto exibido no widget"
+          onChange={(e) => onChange({ ...config, content: e.target.value })}
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Família tipográfica">
+          <select className={SELECT_CLASS} value={config.fontFamily ?? ""} onChange={(event) => onChange({ ...config, fontFamily: (event.target.value || undefined) as FontFamily | undefined })}>
+            <option value="">Padrão</option>
+            {FONT_FAMILIES.map((family) => (
+              <option key={family} value={family}>{family}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Tamanho da fonte">
+          <Input type="number" min={10} max={72} value={config.fontSize ?? 14} onChange={(event) => onChange({ ...config, fontSize: Number(event.target.value) })} />
+        </Field>
+        <Field label="Peso">
+          <select className={SELECT_CLASS} value={config.fontWeight ?? 400} onChange={(event) => onChange({ ...config, fontWeight: Number(event.target.value) as TextConfig["fontWeight"] })}>
+            <option value={400}>Regular</option><option value={500}>Médio</option><option value={600}>Semibold</option><option value={700}>Negrito</option>
+          </select>
+        </Field>
+        <Field label="Cor do texto">
+          <Input type="color" value={config.color ?? "#1f2937"} onChange={(event) => onChange({ ...config, color: event.target.value })} />
+        </Field>
+        <Field label="Alinhamento">
+          <select className={SELECT_CLASS} value={config.alignment ?? "left"} onChange={(event) => onChange({ ...config, alignment: event.target.value as TextConfig["alignment"] })}>
+            <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
+          </select>
+        </Field>
+      </div>
+    </div>
   )
 }
 
@@ -427,8 +478,16 @@ function ImageConfigFields({
   config: ImageConfig
   onChange: (config: ImageConfig) => void
 }) {
+  const [error, setError] = useState<string | null>(null)
   return (
     <div className="grid grid-cols-1 gap-3">
+      <Field label="Enviar PNG, JPEG ou SVG">
+        <Input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (!file) return
+          void prepareDashboardImage(file).then((src) => { setError(null); onChange({ ...config, src }) }).catch((err: unknown) => setError(err instanceof Error ? err.message : "Imagem inválida."))
+        }} />
+      </Field>
       <Field label="URL da imagem">
         <Input
           value={config.src}
@@ -443,8 +502,33 @@ function ImageConfigFields({
           onChange={(e) => onChange({ ...config, alt: e.target.value || undefined })}
         />
       </Field>
+      <Field label="Ajuste da imagem">
+        <select className={SELECT_CLASS} value={config.fit ?? "contain"} onChange={(event) => onChange({ ...config, fit: event.target.value as ImageConfig["fit"] })}>
+          <option value="contain">Conter</option><option value="cover">Cobrir</option><option value="fill">Preencher</option>
+        </select>
+      </Field>
+      <Field label="Posicionamento">
+        <select className={SELECT_CLASS} value={config.objectPosition ?? "center"} onChange={(event) => onChange({ ...config, objectPosition: event.target.value })}>
+          {["center", "top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right"].map((pos) => (
+            <option key={pos} value={pos}>{pos}</option>
+          ))}
+        </select>
+      </Field>
+      {config.objectPosition !== undefined && !isObjectPosition(config.objectPosition) && (
+        <p role="alert" className="text-xs text-destructive">Posicionamento inválido.</p>
+      )}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     </div>
   )
+}
+
+function ShapeConfigFields({ config, onChange }: { config: ShapeConfig; onChange: (config: ShapeConfig) => void }) {
+  return <div className="grid grid-cols-2 gap-3">
+    <Field label="Forma"><select className={SELECT_CLASS} value={config.shape} onChange={(event) => onChange({ ...config, shape: event.target.value as ShapeConfig["shape"] })}><option value="rectangle">Retângulo</option><option value="circle">Círculo</option><option value="line">Linha</option><option value="divider">Divisor</option></select></Field>
+    <Field label="Preenchimento"><Input type="color" value={config.fill ?? "#f1f5f9"} onChange={(event) => onChange({ ...config, fill: event.target.value })} /></Field>
+    <Field label="Contorno"><Input type="color" value={config.stroke ?? "#64748b"} onChange={(event) => onChange({ ...config, stroke: event.target.value })} /></Field>
+    <Field label="Espessura"><Input type="number" min={0} max={24} value={config.strokeWidth ?? 1} onChange={(event) => onChange({ ...config, strokeWidth: Number(event.target.value) })} /></Field>
+  </div>
 }
 
 interface ChartConfigPanelProps {
@@ -471,6 +555,10 @@ export function ChartConfigPanel({
     if (!isWidgetType(value) || value === draft.type) return
     setDraft(changeWidgetType(draft, value))
     setError(null)
+  }
+
+  function patchStyle(partial: Partial<WidgetStyle>) {
+    setDraft({ ...draft, style: { ...draft.style, ...partial } } as WidgetConfig)
   }
 
   function handleApply() {
@@ -517,6 +605,18 @@ export function ChartConfigPanel({
         </Field>
       </div>
 
+      <details className="rounded-md border border-border px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium">Aparência e camada</summary>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Field label="Fundo"><Input type="color" value={draft.style?.backgroundColor ?? "#ffffff"} onChange={(event) => patchStyle({ backgroundColor: event.target.value })} /></Field>
+          <Field label="Borda"><Input type="color" value={draft.style?.borderColor ?? "#e2e8f0"} onChange={(event) => patchStyle({ borderColor: event.target.value })} /></Field>
+          <Field label="Raio"><Input type="number" min={0} max={32} value={draft.style?.borderRadius ?? 8} onChange={(event) => patchStyle({ borderRadius: Number(event.target.value) })} /></Field>
+          <Field label="Transparência"><Input type="number" min={0} max={100} value={Math.round((draft.style?.opacity ?? 1) * 100)} onChange={(event) => patchStyle({ opacity: Number(event.target.value) / 100 })} /></Field>
+          <Field label="Camada"><Input type="number" min={0} max={1000} value={draft.style?.zIndex ?? 0} onChange={(event) => patchStyle({ zIndex: Number(event.target.value) })} /></Field>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.style?.visible !== false} onChange={(event) => patchStyle({ visible: event.target.checked })} />Visível</label>
+        </div>
+      </details>
+
       {columns.length === 0 && (
         <p className="text-xs text-muted-foreground dark:text-muted-foreground">
           Sem colunas disponíveis para os campos deste widget.
@@ -541,6 +641,8 @@ export function ChartConfigPanel({
         <TextConfigFields config={draft} onChange={setDraft} />
       ) : draft.type === "image" ? (
         <ImageConfigFields config={draft} onChange={setDraft} />
+      ) : draft.type === "shape" ? (
+        <ShapeConfigFields config={draft} onChange={setDraft} />
       ) : null}
 
       {error && (

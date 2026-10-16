@@ -18,6 +18,7 @@ export interface DatasetListItem {
   table_name: string
   schema: string
   description?: string | null
+  extra?: string | Record<string, unknown> | null
   database: DatasetDatabase
   columns: DatasetColumn[]
 }
@@ -89,7 +90,23 @@ export async function publishDataset(
 export function datasetDisplayName(dataset: {
   table_name: string
   description?: string | null
+  extra?: string | Record<string, unknown> | null
 }): string {
+  let extra: unknown = dataset.extra
+  if (typeof extra === "string") {
+    try {
+      extra = JSON.parse(extra)
+    } catch {
+      extra = null
+    }
+  }
+  if (extra && typeof extra === "object" && "monisus_display_name" in extra) {
+    const displayName = (extra as Record<string, unknown>).monisus_display_name
+    if (typeof displayName === "string" && displayName.trim()) {
+      return displayName.trim()
+    }
+  }
+
   const description = dataset.description?.trim()
   if (description) return description
 

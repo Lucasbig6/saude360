@@ -81,7 +81,9 @@ describe("DashboardComponentsDrawer", () => {
       />
     )
 
-    expect(screen.getByText("Biblioteca de Gráficos")).toBeInTheDocument()
+    // A lateral evoluiu de "gráficos" para biblioteca de elementos
+    // (filtros, textos, formas, imagens): o título acompanha a intenção.
+    expect(screen.getByText("Biblioteca de elementos")).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText("Internações por Município")).toBeInTheDocument()
@@ -360,5 +362,111 @@ describe("DashboardComponentsDrawer", () => {
       expect(screen.getAllByText("Sem pré-visualização").length).toBeGreaterThan(0)
     })
     expect(screen.queryAllByTestId("echart")).toHaveLength(0)
+  })
+
+  it("adiciona elementos de texto e forma por clique via onSelectElement", async () => {
+    const onSelectElement = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        onSelectElement={onSelectElement}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /Bloco de texto/i }))
+    expect(onSelectElement).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "text", content: "Adicione seu texto" })
+    )
+
+    await user.click(screen.getByRole("button", { name: /^Retângulo$/i }))
+    expect(onSelectElement).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "shape", shape: "rectangle" })
+    )
+  })
+
+  it("filtra elementos da biblioteca pela busca", async () => {
+    const user = userEvent.setup()
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    const input = screen.getByPlaceholderText("Buscar por nome ou descrição...")
+    await user.type(input, "retângulo")
+
+    expect(screen.getByRole("button", { name: /^Retângulo$/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Bloco de texto/i })).not.toBeInTheDocument()
+  })
+
+  it("oferece os quatro controles de filtro com o tipo pré-selecionado", async () => {
+    const onAddFilter = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        onAddFilter={onAddFilter}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /^Seleção múltipla$/i }))
+    expect(onAddFilter).toHaveBeenCalledWith("multi-select")
+
+    await user.click(screen.getByRole("button", { name: /^Intervalo de datas$/i }))
+    expect(onAddFilter).toHaveBeenCalledWith("date-range")
+  })
+
+  it("mantém o item personalizado desabilitado sem executar HTML", async () => {
+    const onSelectElement = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        onSelectElement={onSelectElement}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    await user.click(screen.getByRole("button", { name: /^Personalizados$/i }))
+
+    const custom = screen.getByRole("button", { name: /HTML\/CSS restrito/i })
+    await user.click(custom)
+    expect(onSelectElement).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(/JavaScript arbitrário não será executado/i)
+    ).toBeInTheDocument()
+  })
+
+  it("informa erro de formato inválido no upload de imagem", async () => {
+    render(
+      <DashboardComponentsDrawer
+        open={true}
+        onClose={vi.fn()}
+        onSelectAnalysis={vi.fn()}
+        existingAnalysisIds={[]}
+      />
+    )
+
+    const file = new File(["texto"], "notas.txt", { type: "text/plain" })
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /PNG, JPEG ou SVG/i
+    )
   })
 })

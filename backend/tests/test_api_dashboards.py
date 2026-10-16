@@ -141,6 +141,7 @@ async def test_create_with_widgets_and_filters_round_trip(client, auth_headers):
                     "operator": "in",
                     "defaultValue": ["SP", "RJ"],
                     "scope": "dashboard",
+                    "controlType": "multi-select",
                 },
                 {
                     "column": "periodo",
@@ -169,10 +170,12 @@ async def test_create_with_widgets_and_filters_round_trip(client, auth_headers):
         "operator": "in",
         "defaultValue": ["SP", "RJ"],
         "scope": "dashboard",
+        "controlType": "multi-select",
     }
     assert data["filters"][1]["datasetId"] is None
     assert data["filters"][1]["defaultValue"] == "2024-01-01"
     assert data["filters"][1]["scope"] is None
+    assert data["filters"][1]["controlType"] == "dropdown"
 
     # persistência real: relê do banco (nova sessão)
     reread = await client.get(
@@ -192,6 +195,137 @@ async def test_widget_without_existing_analysis_is_400(client, auth_headers):
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+async def test_put_updates_filter_and_widget_style_round_trip(client, auth_headers):
+    """Etapas B/C: edição de filtro e camada persiste e recarrega intacta."""
+    analysis_id = await create_analysis(client, auth_headers)
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel editável",
+            "widgets": [
+                {
+                    **widget(analysis_id),
+                    "id": str(uuid.uuid4()),
+                    "widget": {"type": "bar"},
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "analysisId": None,
+                    "layout": {"x": 0, "y": 4, "w": 4, "h": 2},
+                    "widget": {
+                        "type": "filter",
+                        "filterId": "00000000-0000-0000-0000-000000000000",
+                    },
+                },
+            ],
+            "filters": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "datasetId": 3,
+                    "column": "municipio",
+                    "operator": "eq",
+                    "defaultValue": "",
+                    "scope": "dashboard",
+                    "controlType": "dropdown",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    dashboard_id = created.json()["id"]
+
+    updated = await client.put(
+        f"/api/dashboards/{dashboard_id}",
+        json={
+            "widgets": [
+                {
+                    **widget(analysis_id),
+                    "id": created.json()["widgets"][0]["id"],
+                    "widget": {
+                        "type": "bar",
+                        "style": {"zIndex": 5, "opacity": 0.9, "visible": True},
+                    },
+                },
+                {
+                    "id": created.json()["widgets"][1]["id"],
+                    "analysisId": None,
+                    "layout": {"x": 0, "y": 4, "w": 4, "h": 2},
+                    "widget": {
+                        "type": "filter",
+                        "filterId": "00000000-0000-0000-0000-000000000000",
+                    },
+                },
+            ],
+            "filters": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "datasetId": 3,
+                    "column": "municipio",
+                    "operator": "in",
+                    "defaultValue": ["SP", "RJ"],
+                    "scope": [analysis_id],
+                    "controlType": "multi-select",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    data = updated.json()
+    assert data["widgets"][0]["widget"]["style"] == {
+        "zIndex": 5,
+        "opacity": 0.9,
+        "visible": True,
+    }
+    assert data["filters"][0]["controlType"] == "multi-select"
+    assert data["filters"][0]["defaultValue"] == ["SP", "RJ"]
+    assert data["filters"][0]["scope"] == [analysis_id]
+
+    reread = await client.get(f"/api/dashboards/{dashboard_id}", headers=auth_headers)
+    assert reread.status_code == 200
+    assert reread.json()["filters"][0]["controlType"] == "multi-select"
+    assert reread.json()["widgets"][0]["widget"]["style"]["zIndex"] == 5
+
+
+async def test_independent_text_widget_round_trips_without_analysis(client, auth_headers):
+    widget_id = str(uuid.uuid4())
+    create = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel com texto",
+            "widgets": [
+                {
+                    "id": widget_id,
+                    "layout": {"x": 2, "y": 1, "w": 4, "h": 2},
+                    "widget": {
+                        "type": "text",
+                        "title": "Resumo",
+                        "content": "Indicadores do período",
+                    },
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+
+    assert create.status_code == 201
+    created_widget = create.json()["widgets"][0]
+    assert created_widget["id"] == widget_id
+    assert created_widget["analysisId"] is None
+    assert created_widget["widget"] == {
+        "type": "text",
+        "title": "Resumo",
+        "content": "Indicadores do período",
+    }
+
+    reread = await client.get(
+        f"/api/dashboards/{create.json()['id']}", headers=auth_headers
+    )
+    assert reread.status_code == 200
+    assert reread.json()["widgets"] == [created_widget]
 
 
 async def test_list_dashboards_returns_plain_array(client, auth_headers):

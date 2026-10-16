@@ -138,7 +138,7 @@ export default function AnaliseDetailPage({
 
   if (loadingAnalysis) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href={`/projetos/${projectId}/analises`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -156,7 +156,7 @@ export default function AnaliseDetailPage({
 
   if (analysisError) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href={`/projetos/${projectId}/analises`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -188,7 +188,7 @@ export default function AnaliseDetailPage({
 
   if (!analysis) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <Link
           href={`/projetos/${projectId}/analises`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -215,7 +215,7 @@ export default function AnaliseDetailPage({
   const Icon = chartTypeIcon[analysis.chartType]
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Navigation */}
       <Link
         href={`/projetos/${projectId}/analises`}

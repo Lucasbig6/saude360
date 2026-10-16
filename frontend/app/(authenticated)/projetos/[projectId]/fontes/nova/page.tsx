@@ -47,7 +47,7 @@ function NovaFonteContent({ projectId }: { projectId: string }) {
   const [selectedType, setSelectedType] = useState<SourceType | null>(null)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <section>
         <Link

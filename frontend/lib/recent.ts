@@ -8,14 +8,25 @@
 const PREFIX = "monisus_recent_"
 const LIMIT = 12
 
+function storage(): Storage | null {
+  try {
+    if (typeof window === "undefined") return null
+    return window.localStorage ?? null
+  } catch {
+    // acesso ao storage pode lançar (modo privado, jsdom sem URL)
+    return null
+  }
+}
+
 function key(kind: string): string {
   return `${PREFIX}${kind}`
 }
 
 function read(kind: string): string[] {
-  if (typeof window === "undefined") return []
+  const store = storage()
+  if (!store) return []
   try {
-    const raw = window.localStorage.getItem(key(kind))
+    const raw = store.getItem(key(kind))
     const parsed: unknown = raw ? JSON.parse(raw) : null
     return Array.isArray(parsed)
       ? parsed.filter((value): value is string => typeof value === "string")
@@ -31,13 +42,14 @@ export function readRecentIds(kind: string): string[] {
 }
 
 export function recordRecentId(kind: string, id: string): void {
-  if (typeof window === "undefined") return
+  const store = storage()
+  if (!store) return
   try {
     const next = [id, ...read(kind).filter((value) => value !== id)].slice(
       0,
       LIMIT
     )
-    window.localStorage.setItem(key(kind), JSON.stringify(next))
+    store.setItem(key(kind), JSON.stringify(next))
   } catch {
     // storage indisponível (modo privado/quota): a recência fica sem efeito
   }

@@ -85,7 +85,7 @@ def _widget_dto(row: DashboardWidget, include_analysis: bool = False) -> dict[st
         "widget": row.widget or {},
         "pageId": row.page_id,
     }
-    if include_analysis and row.analysis is not None:
+    if include_analysis and row.analysis_id is not None and row.analysis is not None:
         a = row.analysis
         dto["analysisData"] = {
             "id": str(a.id),
@@ -106,6 +106,7 @@ def _filter_dto(row: DashboardFilter) -> dict[str, object]:
         "datasetId": row.dataset_id,
         "column": row.column_name,
         "operator": row.operator,
+        "controlType": row.control_type,
         "defaultValue": decode_filter_value(row.default_value),
         "scope": decode_filter_value(row.scope),
     }
@@ -189,9 +190,16 @@ def _default_widget(analysis: Analysis) -> dict[str, object]:
     return config
 
 
-def _widget_payload(widget: WidgetIn, analysis: Analysis) -> dict[str, object]:
+def _widget_payload(
+    widget: WidgetIn, analysis: Analysis | None
+) -> dict[str, object]:
     """Payload do cliente (validado) ou derivação da análise para o legado."""
     if widget.widget is None:
+        if analysis is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Widget independente precisa de configuração.",
+            )
         return _default_widget(analysis)
     return widget.widget.model_dump(mode="json", exclude_none=True)
 
@@ -234,6 +242,7 @@ def _build_filter(
         dataset_id=filter_in.dataset_id,
         column_name=filter_in.column,
         operator=filter_in.operator,
+        control_type=filter_in.control_type,
         default_value=filter_in.default_value,
         scope=filter_in.scope,
         created_at=created_at,
@@ -329,14 +338,17 @@ def _sync_widgets(
     dashboard: Dashboard,
     widgets: list[WidgetIn],
 ) -> None:
-    analyses = _load_analyses(db, [w.analysis_id for w in widgets])
+    analyses = _load_analyses(
+        db, [w.analysis_id for w in widgets if w.analysis_id is not None]
+    )
     default_page_id = _default_page_id(dashboard)
 
     existing = {widget.id: widget for widget in dashboard.widgets}
     seen: set[uuid.UUID] = set()
     ordered: list[DashboardWidget] = []
     for widget, created_at in zip(widgets, _next_timestamps(len(widgets))):
-        analysis = analyses[widget.analysis_id]
+        analysis = analyses.get(widget.analysis_id) if widget.analysis_id else None
+        config = _widget_payload(widget, analysis)
         if widget.id is not None and widget.id in existing:
             row = existing[widget.id]
             row.analysis_id = widget.analysis_id
@@ -344,7 +356,7 @@ def _sync_widgets(
             row.position_y = widget.layout.y
             row.width = widget.layout.w
             row.height = widget.layout.h
-            row.widget = _widget_payload(widget, analysis)
+            row.widget = config
             # pageId ausente mantém a página atual do widget.
             if widget.page_id is not None:
                 row.page_id = widget.page_id
@@ -377,6 +389,7 @@ def _sync_filters(
             row.dataset_id = filter_in.dataset_id
             row.column_name = filter_in.column
             row.operator = filter_in.operator
+            row.control_type = filter_in.control_type
             row.default_value = filter_in.default_value
             row.scope = filter_in.scope
         else:

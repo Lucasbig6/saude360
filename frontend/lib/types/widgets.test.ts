@@ -63,6 +63,145 @@ describe("normalizeWidgetConfig", () => {
     ).toEqual({ type: "image", src: "/logo.png", alt: "Logo" })
   })
 
+  it("normaliza forma e propriedades visuais seguras", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "shape",
+        shape: "circle",
+        fill: "#fff",
+        style: {
+          backgroundColor: "#112233",
+          borderRadius: 12,
+          opacity: 0.7,
+          zIndex: 3,
+          visible: true,
+        },
+      })
+    ).toEqual({
+      type: "shape",
+      shape: "circle",
+      fill: "#fff",
+      style: {
+        backgroundColor: "#112233",
+        borderRadius: 12,
+        opacity: 0.7,
+        zIndex: 3,
+        visible: true,
+      },
+    })
+  })
+
+  it("valida texto formatável e descarta cores CSS arbitrárias", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "text",
+        content: "Resumo",
+        color: "url(javascript:alert(1))",
+        fontSize: 120,
+        alignment: "center",
+        style: { backgroundColor: "red" },
+      })
+    ).toEqual({
+      type: "text",
+      content: "Resumo",
+      fontSize: 72,
+      alignment: "center",
+    })
+  })
+
+  it("mantém filtro como widget posicionado por referência estável", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "filter",
+        filterId: "filter-1",
+        style: { visible: false },
+      })
+    ).toEqual({ type: "filter", filterId: "filter-1", style: { visible: false } })
+    expect(() => normalizeWidgetConfig({ type: "filter" })).toThrow("filterId inválido")
+  })
+
+  it("normaliza fontFamily da allowlist e descarta outras", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "text",
+        content: "Título",
+        fontFamily: "Georgia",
+      })
+    ).toEqual({ type: "text", content: "Título", fontFamily: "Georgia" })
+    expect(
+      normalizeWidgetConfig({
+        type: "text",
+        content: "Título",
+        fontFamily: "Comic Sans",
+      })
+    ).toEqual({ type: "text", content: "Título" })
+  })
+
+  it("normaliza objectPosition válido e descarta inválido", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "image",
+        src: "data:image/png;base64,aaa",
+        objectPosition: "top left",
+      })
+    ).toEqual({
+      type: "image",
+      src: "data:image/png;base64,aaa",
+      objectPosition: "top left",
+    })
+    expect(
+      normalizeWidgetConfig({
+        type: "image",
+        src: "data:image/png;base64,aaa",
+        objectPosition: "expression(alert(1))",
+      })
+    ).toEqual({ type: "image", src: "data:image/png;base64,aaa" })
+  })
+
+  it("normaliza custom-html válido com estilo", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "custom-html",
+        title: "Aviso",
+        html: "<div class='aviso'>Manutenção</div>",
+        css: ".aviso { color: #111; }",
+        style: { opacity: 0.9 },
+      })
+    ).toEqual({
+      type: "custom-html",
+      title: "Aviso",
+      html: "<div class='aviso'>Manutenção</div>",
+      css: ".aviso { color: #111; }",
+      style: { opacity: 0.9 },
+    })
+  })
+
+  it("rejeita custom-html com script, handlers e javascript:", () => {
+    for (const html of [
+      "<script>alert(1)</script>",
+      "<div onclick='x()'>oi</div>",
+      "<a href='javascript:alert(1)'>x</a>",
+      "<iframe src='https://exemplo.com'></iframe>",
+    ]) {
+      expect(() => normalizeWidgetConfig({ type: "custom-html", html })).toThrow(
+        "conteúdo personalizado inválido"
+      )
+    }
+    expect(() =>
+      normalizeWidgetConfig({
+        type: "custom-html",
+        html: "<div>ok</div>",
+        css: ".a { background: expression(alert(1)); }",
+      })
+    ).toThrow("conteúdo personalizado inválido")
+  })
+
+  it("rejeita custom-html acima do limite de tamanho", () => {
+    expect(() =>
+      normalizeWidgetConfig({ type: "custom-html", html: "x".repeat(20_001) })
+    ).toThrow("limite de tamanho")
+  })
+
   it("lança erro para entradas inválidas", () => {
     expect(() => normalizeWidgetConfig(null)).toThrow("WidgetConfig inválida")
     expect(() => normalizeWidgetConfig("bar")).toThrow("WidgetConfig inválida")
@@ -78,7 +217,7 @@ describe("normalizeWidgetConfig", () => {
 
 describe("guards de tipo", () => {
   it("isStaticWidgetType cobre os tipos estáticos", () => {
-    for (const type of ["table", "kpi", "text", "image"]) {
+    for (const type of ["table", "kpi", "text", "image", "shape"]) {
       expect(isStaticWidgetType(type)).toBe(true)
     }
     expect(isStaticWidgetType("bar")).toBe(false)

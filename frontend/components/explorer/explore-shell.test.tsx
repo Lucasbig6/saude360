@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import userEvent from "@testing-library/user-event"
+import { describe, expect, it, vi } from "vitest"
 import { ExploreShell } from "./explore-shell"
 
 describe("ExploreShell", () => {
@@ -56,9 +57,27 @@ describe("ExploreShell", () => {
 
     const grid = preview.parentElement
     expect(grid?.className).toContain(
-      "xl:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_minmax(0,1.15fr)]"
+      "xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1.3fr)_minmax(0,1fr)]"
     )
     expect(container.textContent).toContain("Prévia")
     expect(grid?.querySelectorAll("aside")).toHaveLength(2)
+  })
+
+  it("mantém o botão de expandir dentro do rail recolhido", async () => {
+    const user = userEvent.setup()
+    const onToggleLeft = vi.fn()
+    render(
+      <ExploreShell
+        left={<div>Contexto</div>}
+        leftCollapsed
+        onToggleLeft={onToggleLeft}
+      >
+        <div>Conteúdo</div>
+      </ExploreShell>
+    )
+
+    await user.click(screen.getByRole("button", { name: "Expandir fontes" }))
+    expect(onToggleLeft).toHaveBeenCalledOnce()
+    expect(screen.queryByText("Contexto")).not.toBeInTheDocument()
   })
 })

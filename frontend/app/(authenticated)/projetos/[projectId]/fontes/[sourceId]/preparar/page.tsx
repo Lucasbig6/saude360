@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
   ArrowLeft,
@@ -23,7 +23,7 @@ import { executeQuery } from "@/lib/api/queries"
 import { ApiError } from "@/lib/api"
 import { useSchemaBrowser } from "@/components/sources/use-schema-browser"
 import { ObjectBrowser } from "@/components/preparar/object-browser"
-import { QueryTabs, type QueryTab } from "@/components/preparar/query-tabs"
+import { QueryTabs } from "@/components/preparar/query-tabs"
 import { QueryEditor } from "@/components/preparar/query-editor"
 import { ResultPanel } from "@/components/preparar/result-panel"
 import { PublishDialog } from "@/components/preparar/publish-dialog"
@@ -39,6 +39,7 @@ interface QueryState {
   id: string
   label: string
   sql: string
+  executedSql: string | null
   result: Record<string, unknown>[] | null
   loading: boolean
   error: string | null
@@ -55,6 +56,7 @@ function createEmptyQuery(label?: string): QueryState {
     id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label: label ?? nextQueryLabel(),
     sql: "",
+    executedSql: null,
     result: null,
     loading: false,
     error: null,
@@ -71,7 +73,6 @@ function parseTableParam(raw: string | null): { schema: string; table: string } 
 
 export default function PrepararPage() {
   const params = useParams()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = String(params.projectId ?? "")
   const sourceId = Number(params.sourceId)
@@ -179,7 +180,7 @@ export default function PrepararPage() {
     setQueries((prev) =>
       prev.map((q) =>
         q.id === activeQueryId
-          ? { ...q, loading: true, error: null, result: null }
+          ? { ...q, loading: true, error: null, result: null, executedSql: null }
           : q
       )
     )
@@ -201,7 +202,13 @@ export default function PrepararPage() {
         setQueries((prev) =>
           prev.map((q) =>
             q.id === activeQueryId
-              ? { ...q, loading: false, result: result.data ?? [], error: null }
+                ? {
+                    ...q,
+                    loading: false,
+                    result: result.data ?? [],
+                    executedSql: sql,
+                    error: null,
+                  }
               : q
           )
         )
@@ -256,7 +263,7 @@ export default function PrepararPage() {
 
   if (error || !source) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="w-full px-4 py-8">
         <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle size={16} />
           {error || "Fonte não encontrada."}
@@ -268,6 +275,11 @@ export default function PrepararPage() {
   const typeConfig = getSourceTypeConfig(source.engine)
   const Icon = ICONS[typeConfig.icon] ?? Database
   const isFileSource = !typeConfig.needsConnection
+  const canPublish =
+    !isFileSource &&
+    !activeQuery.loading &&
+    activeQuery.executedSql === activeQuery.sql.trim() &&
+    activeQuery.result !== null
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/50">
@@ -297,6 +309,12 @@ export default function PrepararPage() {
           <Button
             size="sm"
             onClick={() => setPublishOpen(true)}
+            disabled={!canPublish}
+            title={
+              canPublish
+                ? "Publicar o resultado da consulta executada"
+                : "Execute a consulta atual com sucesso antes de publicar"
+            }
           >
             <Send size={14} />
             Publicar como Dataset
@@ -380,7 +398,8 @@ export default function PrepararPage() {
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
         sourceId={sourceId}
-        tableName={selectedTable?.table ?? ""}
+        sql={activeQuery.executedSql ?? ""}
+        defaultName={selectedTable?.table ?? activeQuery.label}
         schemaName={selectedTable?.schema ?? "public"}
         databaseName={source.database_name}
       />

@@ -57,6 +57,7 @@ export function buildDashboardAnalysisContext(
   const widgets: DashboardAnalysisContextWidget[] = []
 
   for (const widget of dashboard.widgets) {
+    if (!widget.analysisId) continue
     const analysis = byId.get(widget.analysisId)
     if (!analysis) continue
 

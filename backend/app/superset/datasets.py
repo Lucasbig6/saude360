@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -9,6 +10,22 @@ from app.superset.client import superset_client
 from app.superset.errors import extract_superset_error
 
 logger = logging.getLogger(__name__)
+
+
+def _extra_with_display_name(extra: Any, display_name: str) -> str:
+    if isinstance(extra, dict):
+        metadata = dict(extra)
+    elif isinstance(extra, str):
+        try:
+            parsed = json.loads(extra)
+        except json.JSONDecodeError:
+            parsed = {}
+        metadata = parsed if isinstance(parsed, dict) else {}
+    else:
+        metadata = {}
+
+    metadata["monisus_display_name"] = display_name
+    return json.dumps(metadata, ensure_ascii=False)
 
 
 async def list_datasets(page: int = 0, page_size: int = 50) -> dict[str, Any]:
@@ -52,6 +69,7 @@ async def create_dataset(
     table_name: str,
     schema: str | None = None,
     description: str | None = None,
+    display_name: str | None = None,
 ) -> dict[str, Any]:
     """Registra uma tabela existente como dataset no Superset.
 
@@ -72,18 +90,31 @@ async def create_dataset(
                 db = ds.get("database", {})
                 if db.get("id") == database_id:
                     ds_id = ds.get("id")
-                    if ds_id and description:
+                    metadata: dict[str, str] = {}
+                    if description:
+                        metadata["description"] = description
+                    if display_name:
+                        metadata["extra"] = _extra_with_display_name(
+                            ds.get("extra"), display_name
+                        )
+                    if ds_id and metadata:
                         try:
                             await superset_client.put(
                                 f"/api/v1/dataset/{ds_id}",
-                                json={"description": description},
+                                json=metadata,
                             )
-                        except Exception:
+                        except Exception as e:
                             logger.debug(
                                 "Não foi possível atualizar descrição no dataset %s",
                                 ds_id,
                             )
+                            if display_name:
+                                raise ValueError(
+                                    "Não foi possível salvar o nome do dataset."
+                                ) from e
                     return ds
+    except ValueError:
+        raise
     except Exception:
         logger.debug("Busca de dataset existente falhou, tentando criar")
 
@@ -97,14 +128,26 @@ async def create_dataset(
         result = response.get("data") or response.get("result") or response
         dataset_id = result.get("id") if isinstance(result, dict) else None
 
-        if dataset_id and description:
+        metadata = {}
+        if description:
+            metadata["description"] = description
+        if display_name:
+            metadata["extra"] = _extra_with_display_name(
+                result.get("extra") if isinstance(result, dict) else None,
+                display_name,
+            )
+        if dataset_id and metadata:
             try:
                 await superset_client.put(
                     f"/api/v1/dataset/{dataset_id}",
-                    json={"description": description},
+                    json=metadata,
                 )
-            except Exception:
+            except Exception as e:
                 logger.debug("Não foi possível definir descrição no dataset %s", dataset_id)
+                if display_name:
+                    raise ValueError(
+                        "Não foi possível salvar o nome do dataset."
+                    ) from e
 
         return result
     except httpx.HTTPStatusError as e:

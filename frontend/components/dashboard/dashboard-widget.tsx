@@ -3,17 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Copy,
   Gauge,
   Image as ImageIcon,
   Loader2,
   MoreVertical,
   RefreshCw,
   SlidersHorizontal,
+  Shapes,
   Table2,
   Trash2,
   Type as TypeIcon,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import type { CSSProperties } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -38,6 +43,8 @@ import {
   isChartWidgetConfig,
   kpiValue,
   legacyToWidgetConfig,
+  type FilterWidgetConfig,
+  type ShapeConfig,
   type StaticWidgetType,
 } from "@/lib/types/widgets"
 import { assertChartType, getAnalysis } from "@/lib/api/analyses"
@@ -50,6 +57,7 @@ const STATIC_ICONS: Record<StaticWidgetType, LucideIcon> = {
   kpi: Gauge,
   text: TypeIcon,
   image: ImageIcon,
+  shape: Shapes,
 }
 
 const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 })
@@ -65,9 +73,16 @@ interface DashboardWidgetViewProps {
   filterValues: Record<string, string | string[]>
   onRemove: (widgetId: string) => void
   onConfigure?: (widgetId: string) => void
+  onDuplicateWidget?: (widgetId: string) => void
+  onCopyWidget?: (widgetId: string) => void
+  onBringToFront?: (widgetId: string) => void
+  onSendToBack?: (widgetId: string) => void
   readOnly?: boolean
   /** Quando true, usa endpoints públicos (sem auth) para buscar dados. */
   publicMode?: boolean
+  distinctValues?: Record<string, string[]>
+  loadingDistinct?: boolean
+  onFilterValueChange?: (filterId: string, value: string | string[]) => void
 }
 
 function buildFilterClauses(
@@ -107,15 +122,22 @@ export function DashboardWidgetView({
   filterValues,
   onRemove,
   onConfigure,
+  onDuplicateWidget,
+  onCopyWidget,
+  onBringToFront,
+  onSendToBack,
   readOnly = false,
   publicMode = false,
+  distinctValues = {},
+  loadingDistinct = false,
+  onFilterValueChange,
 }: DashboardWidgetViewProps) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   // loading: buscando · ready: renderiza · missing: análise não existe (remove)
   //         · error: falha de rede/contrato (mantém o widget, sem remover)
   const [analysisState, setAnalysisState] = useState<
     "loading" | "ready" | "missing" | "error"
-  >("loading")
+  >(() => widget.analysisId ? "loading" : "ready")
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [analysisReload, setAnalysisReload] = useState(0)
   const [data, setData] = useState<Record<string, unknown>[] | null>(null)
@@ -125,9 +147,10 @@ export function DashboardWidgetView({
 
   // Widgets estáticos (texto/imagem) não dependem da consulta da análise;
   // sem config explícita, o comportamento é o legado (sempre consulta).
-  const needsData =
-    !widget.config ||
-    (widget.config.type !== "text" && widget.config.type !== "image")
+  const configWithoutAnalysis = widget.config
+  const needsData = !configWithoutAnalysis ||
+    configWithoutAnalysis.type === "table" || configWithoutAnalysis.type === "kpi" ||
+    isChartWidgetConfig(configWithoutAnalysis)
 
   const fetchQuery = useCallback(
     async (sql: string, databaseId: number, dbSchema: string | null) => {
@@ -137,6 +160,7 @@ export function DashboardWidgetView({
       try {
         let response
         if (publicMode) {
+            if (!widget.analysisId) throw new Error("Widget sem análise não pode executar consulta pública.")
           // Modo público: backend deriva SQL/database da análise salva.
           const filterClauses =
             filters.length > 0 && analysis
@@ -204,6 +228,9 @@ export function DashboardWidgetView({
     let cancelled = false
 
     async function load() {
+      if (!widget.analysisId) {
+        return
+      }
       // Modo público: usa os dados inline da análise (sem chamada autenticada)
       if (publicMode && widget.analysisData) {
         const ad = widget.analysisData
@@ -356,18 +383,33 @@ export function DashboardWidgetView({
     )
   }
 
-  if (!analysis) {
+  if (!analysis && !widget.config) {
     return null
   }
 
-  const config = widget.config ?? legacyToWidgetConfig(analysis)
-  const title = config.title || analysis.name
+  const config = widget.config ?? legacyToWidgetConfig(analysis!)
+  const title = config.title || analysis?.name || ""
+  const style: CSSProperties = {
+    ...(config.style?.backgroundColor ? { backgroundColor: config.style.backgroundColor } : {}),
+    ...(config.style?.borderColor ? { borderColor: config.style.borderColor } : {}),
+    ...(config.style?.borderWidth !== undefined ? { borderWidth: config.style.borderWidth } : {}),
+    ...(config.style?.borderRadius !== undefined ? { borderRadius: config.style.borderRadius } : {}),
+    ...(config.style?.opacity !== undefined ? { opacity: config.style.opacity } : {}),
+    ...(config.style?.zIndex !== undefined ? { zIndex: config.style.zIndex } : {}),
+    ...(config.style?.visible === false ? { display: "none" } : {}),
+    ...(config.style?.shadow === "sm" ? { boxShadow: "0 1px 2px rgb(0 0 0 / 0.12)" } : {}),
+    ...(config.style?.shadow === "md" ? { boxShadow: "0 4px 10px rgb(0 0 0 / 0.16)" } : {}),
+  }
   const Icon = isChartType(config.type)
     ? CHART_TYPE_META[config.type].icon
-    : STATIC_ICONS[config.type]
+    : config.type === "filter"
+      ? SlidersHorizontal
+      : config.type === "custom-html"
+        ? Shapes
+        : STATIC_ICONS[config.type as StaticWidgetType]
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-card overflow-hidden dark:border-border dark:bg-card">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-card overflow-hidden dark:border-border dark:bg-card" style={style}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5 dark:border-border">
         <div className="flex items-center gap-2 min-w-0">
@@ -378,7 +420,7 @@ export function DashboardWidgetView({
         </div>
 
         <div className="flex items-center gap-1">
-          {!loading && !error && data && (
+          {analysis && !loading && !error && data && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -405,6 +447,30 @@ export function DashboardWidgetView({
                   <DropdownMenuItem onClick={() => onConfigure(widget.id)}>
                     <SlidersHorizontal size={14} />
                     Configurar
+                  </DropdownMenuItem>
+                )}
+                {onDuplicateWidget && (
+                  <DropdownMenuItem onClick={() => onDuplicateWidget(widget.id)}>
+                    <Copy size={14} />
+                    Duplicar
+                  </DropdownMenuItem>
+                )}
+                {onCopyWidget && (
+                  <DropdownMenuItem onClick={() => onCopyWidget(widget.id)}>
+                    <Copy size={14} />
+                    Copiar
+                  </DropdownMenuItem>
+                )}
+                {onBringToFront && (
+                  <DropdownMenuItem onClick={() => onBringToFront(widget.id)}>
+                    <ArrowUp size={14} />
+                    Trazer para frente
+                  </DropdownMenuItem>
+                )}
+                {onSendToBack && (
+                  <DropdownMenuItem onClick={() => onSendToBack(widget.id)}>
+                    <ArrowDown size={14} />
+                    Enviar para trás
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => onRemove(widget.id)}>
@@ -439,8 +505,9 @@ export function DashboardWidgetView({
             <Button
               variant="outline"
               size="sm"
+              disabled={!analysis}
               onClick={() =>
-                fetchQuery(analysis.sql, analysis.databaseId, analysis.dbSchema)
+                analysis && fetchQuery(analysis.sql, analysis.databaseId, analysis.dbSchema)
               }
             >
               <RefreshCw size={13} />
@@ -450,9 +517,22 @@ export function DashboardWidgetView({
         )}
 
         {!needsData && config.type === "text" && (
-          <p className="whitespace-pre-wrap text-sm text-foreground dark:text-foreground">
+          <p className="whitespace-pre-wrap text-foreground dark:text-foreground" style={{ fontFamily: config.fontFamily ?? undefined, fontSize: config.fontSize ?? 14, fontWeight: config.fontWeight ?? 400, color: config.color ?? "", textAlign: config.alignment ?? "left" }}>
             {config.content}
           </p>
+        )}
+
+        {!needsData && config.type === "custom-html" && (
+          <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-muted/50 p-4 text-center">
+            <Shapes size={18} className="text-muted-foreground" />
+            <p className="text-xs font-medium text-foreground">
+              {config.title || "Conteúdo personalizado"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              HTML personalizado habilitado na próxima etapa — nenhum conteúdo
+              é executado neste modo.
+            </p>
+          </div>
         )}
 
         {!needsData && config.type === "image" && (
@@ -461,7 +541,8 @@ export function DashboardWidgetView({
             <img
               src={config.src}
               alt={config.alt ?? ""}
-              className="mx-auto max-h-full rounded-lg object-contain"
+              className="h-full w-full rounded-lg"
+              style={{ objectFit: config.fit ?? "contain", objectPosition: config.objectPosition ?? "center", aspectRatio: config.aspectRatio }}
             />
           ) : (
             <p className="text-center text-sm text-muted-foreground dark:text-muted-foreground">
@@ -469,6 +550,26 @@ export function DashboardWidgetView({
             </p>
           )
         )}
+
+        {!needsData && config.type === "shape" && (
+          <ShapeView config={config} />
+        )}
+
+        {!needsData && config.type === "filter" && (() => {
+          const filter = filters.find((item) => item.id === config.filterId)
+          if (!filter || !onFilterValueChange) {
+            return <p className="text-xs text-muted-foreground">Filtro não configurado.</p>
+          }
+          return (
+            <DashboardFilterControl
+              filter={filter}
+              value={filterValues[filter.id] ?? filter.defaultValue}
+              values={distinctValues[filter.id] ?? []}
+              loading={loadingDistinct}
+              onChange={(value) => onFilterValueChange(filter.id, value)}
+            />
+          )
+        })()}
 
         {needsData && !loading && !error && data && data.length === 0 && (
           <div className="flex h-full items-center justify-center">
@@ -535,5 +636,79 @@ export function DashboardWidgetView({
         )}
       </div>
     </div>
+  )
+}
+
+function ShapeView({ config }: { config: ShapeConfig }) {
+  const shapeClass = config.shape === "circle"
+    ? "rounded-full"
+    : config.shape === "line" || config.shape === "divider"
+      ? "h-px w-full"
+      : "h-full w-full rounded-sm"
+  return (
+    <div
+      aria-label={config.title ?? config.shape}
+      className={shapeClass}
+      style={{
+        backgroundColor: config.fill ?? (config.shape === "line" || config.shape === "divider" ? "transparent" : "#e2e8f0"),
+        borderColor: config.stroke ?? "#64748b",
+        borderWidth: config.strokeWidth ?? 1,
+        borderStyle: "solid",
+      }}
+    />
+  )
+}
+
+function DashboardFilterControl({
+  filter,
+  value,
+  values,
+  loading,
+  onChange,
+}: {
+  filter: DashboardFilter
+  value: string | string[]
+  values: string[]
+  loading: boolean
+  onChange: (value: string | string[]) => void
+}) {
+  if (loading) return <Loader2 size={14} className="animate-spin text-muted-foreground" />
+  if (filter.controlType === "date-range" || filter.operator === "between") {
+    const range = Array.isArray(value) ? value : ["", ""]
+    return (
+      <div className="flex items-center gap-2">
+        <input aria-label={`${filter.column} início`} type="date" value={range[0] ?? ""} onChange={(event) => onChange([event.target.value, range[1] ?? ""])} className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm" />
+        <input aria-label={`${filter.column} fim`} type="date" value={range[1] ?? ""} onChange={(event) => onChange([range[0] ?? "", event.target.value])} className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm" />
+      </div>
+    )
+  }
+  if (filter.controlType === "list" && values.length > 0) {
+    const selected = typeof value === "string" ? value : value[0] ?? ""
+    return (
+      <div role="radiogroup" aria-label={filter.column} className="space-y-1 overflow-y-auto">
+        <label className="flex items-center gap-2 text-sm"><input type="radio" name={filter.id} checked={!selected} onChange={() => onChange("")} />Todos</label>
+        {values.map((item) => <label key={item} className="flex items-center gap-2 text-sm"><input type="radio" name={filter.id} value={item} checked={selected === item} onChange={() => onChange(item)} />{item}</label>)}
+      </div>
+    )
+  }
+  if (filter.controlType === "multi-select" || filter.operator === "in") {
+    const selected = Array.isArray(value) ? value : []
+    if (values.length === 0) {
+      return <input aria-label={filter.column} value={selected.join(", ")} placeholder="Valores separados por vírgula" onChange={(event) => onChange(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm" />
+    }
+    return (
+      <select aria-label={filter.column} multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className="h-full w-full rounded-md border border-border bg-background px-2 text-sm">
+        {values.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    )
+  }
+  if (values.length === 0) {
+    return <input aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} placeholder="Valor do filtro" className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm" />
+  }
+  return (
+    <select aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} className="h-full w-full rounded-md border border-border bg-background px-2 text-sm">
+      <option value="">Todos</option>
+      {values.map((item) => <option key={item} value={item}>{item}</option>)}
+    </select>
   )
 }

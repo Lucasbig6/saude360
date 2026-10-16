@@ -37,3 +37,20 @@ def test_legacy_kpi_analysis_becomes_kpi_widget():
         "field": "total",
         "function": "sum",
     }
+
+
+def test_custom_html_widget_schema_accepts_html_css_extras():
+    """Etapa A: o discriminador aceita `custom-html` (sem 422 no PUT)."""
+    widget = TypeAdapter(WidgetConfigIn).validate_python(
+        {
+            "type": "custom-html",
+            "title": "Aviso",
+            "html": "<div>Manutenção</div>",
+            "css": ".x { color: #111; }",
+        }
+    )
+
+    assert widget.type == "custom-html"
+    dumped = widget.model_dump(mode="json", exclude_none=True)
+    assert dumped["html"] == "<div>Manutenção</div>"
+    assert dumped["css"] == ".x { color: #111; }"

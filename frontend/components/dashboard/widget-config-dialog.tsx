@@ -97,10 +97,9 @@ export function WidgetConfigDialog({
     if (!nextOpen) onOpenChange(false)
   }
 
-  const initialConfig =
-    widget && state.analysis
-      ? (widget.config ?? legacyToWidgetConfig(state.analysis))
-      : null
+  const initialConfig = widget?.config ?? (widget && state.analysis
+    ? legacyToWidgetConfig(state.analysis)
+    : null)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/empty-state"
 import { PageHeader } from "@/components/shared/page-header"
+import { ProjectTabs } from "@/components/project/project-tabs"
 import {
   listSources,
   deleteSource,
@@ -78,7 +79,8 @@ function FontesContent({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+      <ProjectTabs projectId={projectId} />
       {/* Header */}
       <PageHeader
         title="Fontes de Dados"

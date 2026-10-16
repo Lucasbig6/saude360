@@ -189,6 +189,9 @@ export function DashboardViewer({
                   dashboard={{ ...dashboard, widgets: pageWidgets }}
                   readOnly
                   filterValues={filterValues}
+                  distinctValues={distinctValues}
+                  loadingDistinct={loadingDistinct}
+                  onFilterValueChange={handleFilterValueChange}
                   refreshKey={refreshKey}
                   publicMode={publicMode}
                 />

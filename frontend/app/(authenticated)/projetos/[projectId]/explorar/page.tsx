@@ -12,6 +12,7 @@ import { useExplorationEngine } from "@/hooks/use-exploration-engine"
 import { useProjectSources } from "@/hooks/use-project-sources"
 import { WorkspaceSourcesPanel } from "@/components/workspace/workspace-sources-panel"
 import { WorkspaceStudio } from "@/components/workspace/workspace-studio"
+import { datasetDisplayName } from "@/lib/api/datasets"
 import { createEmptyStudio, studioReducer } from "@/lib/explorer/studio"
 import type { PresentationState, WorkspaceData } from "@/lib/explorer/workspace"
 import type { Analysis } from "@/lib/types/analysis"
@@ -60,7 +61,9 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       projectId={projectId}
       projectName={engine.projectName ?? "Projeto"}
       selectedDatasetId={engine.selectedDataset?.id ?? null}
-      selectedDatasetName={engine.selectedDataset?.table_name ?? null}
+      selectedDatasetName={
+        engine.selectedDataset ? datasetDisplayName(engine.selectedDataset) : null
+      }
       selectedColumns={engine.datasetColumns}
       sources={projectSources.sources}
       sourcesLoading={projectSources.loading}
@@ -71,6 +74,7 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       datasetsError={projectSources.datasetsError}
       onToggleSource={projectSources.toggleSource}
       onSelectDatasetById={selectDataset}
+      onCollapse={() => setSourcesCollapsed(true)}
       analyses={engine.analyses}
       analysesError={engine.analysesError}
     />
@@ -112,13 +116,12 @@ function ExplorarContent({ projectId }: { projectId: string }) {
       }
       left={sources}
       leftCollapsed={sourcesCollapsed}
+      onToggleLeft={() => setSourcesCollapsed(false)}
     >
       <ExplorationCenter
         engine={engine}
         preview={preview}
         sourcesContent={sources}
-        sourcesCollapsed={sourcesCollapsed}
-        onToggleSources={() => setSourcesCollapsed((collapsed) => !collapsed)}
         pinnedContent={studioNode}
         pinnedCount={studio.items.length}
         onPinResult={handlePinResult}
@@ -144,7 +147,7 @@ export default function ExplorarPage({
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center p-12">
             <Loader2 size={20} className="animate-spin text-muted-foreground" />
           </div>

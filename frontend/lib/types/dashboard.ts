@@ -1,5 +1,7 @@
 import type { WidgetConfig } from "@/lib/types/widgets"
 
+export type FilterControlType = "dropdown" | "multi-select" | "list" | "date-range"
+
 export interface DashboardFilter {
   id: string
   datasetId: number
@@ -7,6 +9,7 @@ export interface DashboardFilter {
   operator: "eq" | "in" | "gte" | "lte" | "between"
   defaultValue: string | string[]
   scope: "dashboard" | string[]
+  controlType?: FilterControlType
 }
 
 export interface WidgetAnalysisData {
@@ -22,7 +25,7 @@ export interface WidgetAnalysisData {
 
 export interface DashboardWidget {
   id: string
-  analysisId: string
+  analysisId: string | null
   layout: {
     x: number
     y: number

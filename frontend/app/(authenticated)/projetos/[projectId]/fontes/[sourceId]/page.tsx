@@ -47,6 +47,7 @@ interface DatasetItem {
   table_name: string
   schema: string
   description?: string | null
+  extra?: string | Record<string, unknown> | null
 }
 
 interface DatasetsResponse {
@@ -146,7 +147,7 @@ export default function FonteDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-center p-12">
           <Loader2 size={20} className="animate-spin text-muted-foreground" />
         </div>
@@ -156,7 +157,7 @@ export default function FonteDetailPage() {
 
   if (error || !source) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle size={16} />
           {error || "Fonte não encontrada."}
@@ -170,7 +171,7 @@ export default function FonteDetailPage() {
   const isFileSource = !typeConfig.needsConnection
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <section>
         <Link

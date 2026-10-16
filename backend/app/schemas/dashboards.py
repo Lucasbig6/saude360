@@ -115,9 +115,15 @@ class ChartWidgetIn(WidgetConfigModel):
 
 
 class StaticWidgetIn(WidgetConfigModel):
-    """table/kpi/text/image: forma livre por enquanto (validação no F3)."""
+    """table/kpi/text/image/shape/filter/custom-html: forma livre.
 
-    type: Literal["table", "kpi", "text", "image"]
+    Campos extras (html/css/fontFamily/...) são preservados pelo
+    ``extra="allow"`` da base; a validação fina de conteúdo é feita no
+    frontend (normalizadores) — aqui só garantimos que o discriminador
+    aceite o tipo para não rejeitar payloads com 422.
+    """
+
+    type: Literal["table", "kpi", "text", "image", "shape", "filter", "custom-html"]
 
 
 WidgetConfigIn = Annotated[
@@ -127,7 +133,7 @@ WidgetConfigIn = Annotated[
 
 class WidgetIn(CamelModel):
     id: uuid.UUID | None = None
-    analysis_id: uuid.UUID
+    analysis_id: uuid.UUID | None = None
     layout: LayoutIn = Field(default_factory=LayoutIn)
     widget: WidgetConfigIn | None = None
     #: Página dona do widget. Ausente/None: mantém a atual (update) ou
@@ -144,7 +150,7 @@ class LayoutOut(CamelModel):
 
 class WidgetOut(CamelModel):
     id: uuid.UUID
-    analysis_id: uuid.UUID
+    analysis_id: uuid.UUID | None = None
     layout: LayoutOut
     widget: dict[str, Any] = Field(default_factory=dict)
     #: None em dashboards legados sem páginas explícitas.
@@ -174,6 +180,7 @@ class FilterIn(CamelModel):
     operator: Annotated[str, Field(min_length=1, max_length=50)]
     default_value: str | list[str] | None = None
     scope: str | list[str] | None = None
+    control_type: Literal["dropdown", "multi-select", "list", "date-range"] = "dropdown"
 
     @field_validator("default_value", "scope", mode="before")
     @classmethod
@@ -188,6 +195,7 @@ class FilterOut(CamelModel):
     operator: str
     default_value: str | list[str] | None = None
     scope: str | list[str] | None = None
+    control_type: Literal["dropdown", "multi-select", "list", "date-range"] = "dropdown"
 
     @field_validator("default_value", "scope", mode="before")
     @classmethod

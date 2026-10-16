@@ -13,7 +13,7 @@ export type ChartType =
   | "treemap"
   | "map"
 
-export type WidgetType = ChartType | "table" | "kpi" | "text" | "image"
+export type WidgetType = ChartType | "table" | "kpi" | "text" | "image" | "shape"
 
 export type AggregationFunction = "sum" | "avg" | "count" | "min" | "max"
 
@@ -111,6 +111,7 @@ export const WIDGET_TYPES: WidgetType[] = [
   "kpi",
   "text",
   "image",
+  "shape",
 ]
 
 const AGGREGATION_FUNCTIONS: AggregationFunction[] = ["sum", "avg", "count", "min", "max"]

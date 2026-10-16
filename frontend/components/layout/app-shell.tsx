@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
 import { Header } from "./header"
 import { ProjectNav } from "./project-nav"
 
@@ -12,6 +13,9 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const mainRef = useRef<HTMLElement>(null)
   const pathname = usePathname()
+  const isExplorerRoute = /^\/projetos\/[^/]+\/explorar(?:\/|$)/.test(
+    pathname ?? ""
+  )
 
   // `main` é o scroller único do shell e persiste entre rotas; o reset de
   // scroll do Next vale para `window`, então reiniciamos manualmente.
@@ -23,7 +27,13 @@ export function AppShell({ children }: AppShellProps) {
     <div className="flex h-dvh min-w-0 flex-col overflow-hidden bg-background">
       <Header />
       <ProjectNav />
-      <main ref={mainRef} className="flex-1 overflow-y-auto">
+      <main
+        ref={mainRef}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          isExplorerRoute ? "overflow-hidden" : "overflow-y-auto"
+        )}
+      >
         {children}
       </main>
     </div>

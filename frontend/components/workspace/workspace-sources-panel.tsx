@@ -7,10 +7,12 @@ import {
 	Database,
 	FileChartColumnIncreasing,
 	FolderOpen,
+	PanelLeftClose,
 } from "lucide-react"
 import type { SourceListItem } from "@/lib/api/sources"
 import type { SourceDataset } from "@/hooks/use-project-sources"
 import type { DatasetColumn } from "@/lib/api/datasets"
+import { datasetDisplayName } from "@/lib/api/datasets"
 import type { Analysis } from "@/lib/types/analysis"
 
 interface WorkspaceSourcesPanelProps {
@@ -30,6 +32,7 @@ interface WorkspaceSourcesPanelProps {
 	onSelectDatasetById: (datasetId: number) => void
 	analyses: Analysis[] | null
 	analysesError?: string | null
+	onCollapse?: () => void
 }
 
 export function WorkspaceSourcesPanel({
@@ -49,14 +52,30 @@ export function WorkspaceSourcesPanel({
 	onSelectDatasetById,
 	analyses,
 	analysesError,
+	onCollapse,
 }: WorkspaceSourcesPanelProps) {
 	return (
-		<aside className="flex h-full min-h-0 flex-col bg-card text-card-foreground">
+		<aside className="flex h-full min-h-0 w-full min-w-0 flex-col bg-card text-card-foreground">
 			<div className="border-b border-border px-4 py-4">
-				<p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-					Sessão do projeto
-				</p>
-				<h2 className="mt-1 truncate text-sm font-semibold">{projectName}</h2>
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0">
+						<p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+							Sessão do projeto
+						</p>
+						<h2 className="mt-1 truncate text-sm font-semibold">{projectName}</h2>
+					</div>
+					{onCollapse && (
+						<button
+							type="button"
+							onClick={onCollapse}
+							aria-label="Recolher fontes"
+							title="Recolher fontes"
+							className="hidden size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:inline-flex"
+						>
+							<PanelLeftClose size={15} />
+						</button>
+					)}
+				</div>
 				<div className="mt-4 border-l-2 border-primary pl-3">
 					<p className="text-xs text-muted-foreground">Fonte ativa</p>
 					<p className="mt-0.5 truncate text-sm font-medium">
@@ -145,7 +164,7 @@ export function WorkspaceSourcesPanel({
 																>
 																	<FolderOpen size={13} className="shrink-0" />
 																	<span className="min-w-0 flex-1 truncate">
-																		{dataset.table_name}
+																		{datasetDisplayName(dataset)}
 																	</span>
 																	<span className="shrink-0 text-[10px]">
 																		{dataset.schema}

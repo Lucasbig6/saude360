@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/page-header"
+import { ProjectTabs } from "@/components/project/project-tabs"
 import { EmptyState } from "@/components/shared/empty-state"
 import type { Dashboard } from "@/lib/types/dashboard"
 import { DeleteConfirmationDialog } from "@/components/shared/delete-confirmation-dialog"
@@ -107,7 +108,8 @@ function PaineisContent({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+      <ProjectTabs projectId={projectId} />
       {/* Header */}
       <PageHeader
         title="Painéis"

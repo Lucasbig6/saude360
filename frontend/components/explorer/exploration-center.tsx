@@ -1,7 +1,7 @@
 "use client"
 
 import { ReactNode } from "react"
-import { PanelLeft, PanelLeftClose, Pin, Table2 } from "lucide-react"
+import { Pin, Table2 } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -15,14 +15,13 @@ import { ChatSessionHistory } from "./chat-session-history"
 import { InvestigationBlock } from "./investigation-block"
 import { ExplorationEmptyState } from "./exploration-empty-state"
 import { AgentViz } from "./agent-viz"
+import { datasetDisplayName } from "@/lib/api/datasets"
 import type { ExplorationEngine } from "@/hooks/use-exploration-engine"
 import type { WorkspaceData, PresentationState } from "@/lib/explorer/workspace"
 
 interface ExplorationCenterProps {
   engine: ExplorationEngine
   sourcesContent?: ReactNode
-  sourcesCollapsed?: boolean
-  onToggleSources?: () => void
   onPinResult?: (workspace: WorkspaceData, presentation: PresentationState) => void
   pinnedContent?: ReactNode
   pinnedCount?: number
@@ -38,8 +37,6 @@ interface ExplorationCenterProps {
 export function ExplorationCenter({
   engine,
   sourcesContent,
-  sourcesCollapsed = false,
-  onToggleSources,
   onPinResult,
   pinnedContent,
   pinnedCount = 0,
@@ -100,34 +97,23 @@ export function ExplorationCenter({
   return (
     <>
       <ContextHeader
-        datasetName={selectedDataset ? selectedDataset.table_name : null}
+        datasetName={selectedDataset ? datasetDisplayName(selectedDataset) : null}
         loading={loadingDatasets}
       />
 
-      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 py-4 sm:px-6">
         <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border pb-3">
           {sourcesContent && (
-            <>
-              <button
-                type="button"
-                onClick={onToggleSources}
-                aria-label={sourcesCollapsed ? "Expandir fontes" : "Recolher fontes"}
-                title={sourcesCollapsed ? "Expandir fontes" : "Recolher fontes"}
-                className="hidden size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:inline-flex"
-              >
-                {sourcesCollapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
-              </button>
-              <Sheet>
-                <SheetTrigger className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted md:hidden">
-                  <Table2 size={14} />
-                  Fontes
-                </SheetTrigger>
-                <SheetContent side="left" className="w-80 p-0">
-                  <SheetTitle className="sr-only">Fontes do projeto</SheetTitle>
-                  <div className="h-full overflow-y-auto">{sourcesContent}</div>
-                </SheetContent>
-              </Sheet>
-            </>
+            <Sheet>
+              <SheetTrigger className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted md:hidden">
+                <Table2 size={14} />
+                Fontes
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80 p-0">
+                <SheetTitle className="sr-only">Fontes do projeto</SheetTitle>
+                <div className="h-full overflow-y-auto">{sourcesContent}</div>
+              </SheetContent>
+            </Sheet>
           )}
           <ExplorationTabs
             active={tab}
@@ -168,7 +154,7 @@ export function ExplorationCenter({
               />
             ) : investigations.length === 0 ? (
               <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto py-6 pb-24">
-                <div className="my-auto w-full max-w-2xl">{agentInput}</div>
+                <div className="my-auto w-full max-w-3xl">{agentInput}</div>
               </div>
             ) : (
               <>
@@ -194,7 +180,7 @@ export function ExplorationCenter({
                   </div>
                 </div>
                 <div className="z-20 shrink-0 border-t border-border bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/80">
-                  <div className="mx-auto w-full max-w-3xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
+                  <div className="mx-auto w-full max-w-5xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
                     {agentInput}
                   </div>
                 </div>

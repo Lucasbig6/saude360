@@ -9,6 +9,7 @@ import type {
   GridStackOptions,
   GridStackWidget,
 } from "gridstack/dist/react"
+import type { WidgetConfig } from "@/lib/types/widgets"
 
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect
@@ -22,7 +23,8 @@ export interface CanvasItem {
 }
 
 export interface GridDropAnalysisData {
-  analysisId: string
+  analysisId?: string
+  config?: WidgetConfig
   x: number
   y: number
   w: number
@@ -186,6 +188,7 @@ export function GridstackCanvas({
     const plainId = dataTransfer.getData("text/plain")
 
     let analysisId: string | null = null
+    let config: WidgetConfig | undefined
     let w = 6
     let h = 4
 
@@ -196,6 +199,10 @@ export function GridstackCanvas({
           analysisId = parsed.analysisId
           w = parsed.w ?? 6
           h = parsed.h ?? 4
+        } else if (parsed?.config && typeof parsed.config.type === "string") {
+          config = parsed.config as WidgetConfig
+          w = parsed.w ?? 4
+          h = parsed.h ?? 3
         }
       } catch {
         // ignora erro de parse
@@ -206,7 +213,7 @@ export function GridstackCanvas({
       analysisId = plainId
     }
 
-    if (!analysisId) return
+    if (!analysisId && !config) return
     e.preventDefault()
 
     const container = containerRef.current
@@ -223,7 +230,8 @@ export function GridstackCanvas({
     const y = Math.max(0, Math.floor(relY / rowHeight))
 
     onDropAnalysisRef.current({
-      analysisId,
+      ...(analysisId ? { analysisId } : {}),
+      ...(config ? { config } : {}),
       x,
       y,
       w,

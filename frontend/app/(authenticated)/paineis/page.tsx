@@ -191,7 +191,7 @@ export default function PaineisPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <PageHeader
         title="Painéis"
         description="Sua biblioteca de dashboards: os seus, os compartilhados e os recentes."

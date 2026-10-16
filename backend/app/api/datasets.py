@@ -133,6 +133,7 @@ async def publish_dataset(
             table_name=table_name,
             schema=request.db_schema,
             description=request.description,
+            display_name=request.name,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

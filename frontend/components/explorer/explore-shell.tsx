@@ -1,6 +1,7 @@
 "use client"
 
 import { ReactNode } from "react"
+import { PanelLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ExploreShellProps {
@@ -15,6 +16,7 @@ interface ExploreShellProps {
    */
   right?: ReactNode
   leftCollapsed?: boolean
+  onToggleLeft?: () => void
   /** Classes extras para a coluna central (ex.: ocultar no mobile). */
   centerClassName?: string
   /** Classes extras para o container principal. */
@@ -34,6 +36,7 @@ export function ExploreShell({
   children,
   right,
   leftCollapsed = false,
+  onToggleLeft,
   centerClassName,
   className,
 }: ExploreShellProps) {
@@ -43,20 +46,37 @@ export function ExploreShell({
       <div
         className={cn(
           "grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden",
-          left && !leftCollapsed && "md:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]",
+          left && !leftCollapsed && "md:grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]",
+          left && leftCollapsed && "md:grid-cols-[2.75rem_minmax(0,1fr)]",
           right && left && !leftCollapsed &&
-            "xl:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)_minmax(0,1.15fr)]"
+            "xl:grid-cols-[minmax(14rem,18rem)_minmax(0,1.3fr)_minmax(0,1fr)]",
+          right && left && leftCollapsed &&
+            "xl:grid-cols-[2.75rem_minmax(0,1.3fr)_minmax(0,1fr)]"
         )}
       >
-        {left && !leftCollapsed && (
+        {left && (
           <aside
             className={cn(
-              "hidden border-r border-border bg-card/50 md:block",
-              "overflow-y-auto scrollbar-thin"
+              "hidden border-r border-border bg-card/50 md:flex",
+              leftCollapsed
+                ? "justify-center px-1 pt-3"
+                : "overflow-y-auto scrollbar-thin"
             )}
-            aria-label="Contexto da investigação"
+            aria-label="Fontes do projeto"
           >
-            {left}
+            {leftCollapsed ? (
+              <button
+                type="button"
+                onClick={onToggleLeft}
+                aria-label="Expandir fontes"
+                title="Expandir fontes"
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <PanelLeft size={16} />
+              </button>
+            ) : (
+              left
+            )}
           </aside>
         )}
         <div
