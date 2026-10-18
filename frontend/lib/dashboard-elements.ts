@@ -155,7 +155,7 @@ export function duplicateWidget(
         Math.max(0, widget.layout.x + 1),
         Math.max(0, columns - widget.layout.w)
       ),
-      // Infinito = "anexar abaixo" (resolvido por toDashboardPayload/GridStack).
+      // Infinito = "anexar abaixo" (resolvido antes da persistência).
       y: Number.POSITIVE_INFINITY,
     },
   }

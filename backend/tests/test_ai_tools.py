@@ -592,6 +592,7 @@ async def test_preview_analysis_returns_config_and_data_together(
             "limit": 20,
             "filters": [{"field": "ano", "operator": "eq", "value": 2025}],
             "show_values": True,
+            "number_format": "currency",
         },
     )
 
@@ -608,6 +609,7 @@ async def test_preview_analysis_returns_config_and_data_together(
         {"field": "ano", "operator": "eq", "value": 2025}
     ]
     assert config["showValues"] is True
+    assert config["numberFormat"] == "currency"
     assert data["columns"] == ["municipio", "total"]
     assert len(data["rows"]) == 2
     assert data["truncated"] is False
@@ -688,6 +690,10 @@ async def test_preview_analysis_rejects_invalid_config_args(
         )
     with pytest.raises(ToolPolicyError):
         await spec.handler(
+            context, {"sql": "SELECT 1", "number_format": "reais"}
+        )
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(
             context,
             {"filters": [{"field": "ano", "operator": "eq"}]}
         )
@@ -761,6 +767,7 @@ async def test_create_analysis_persists_extended_chart_config(db):
             "limit": 15,
             "filters": [{"field": "ano", "operator": "eq", "value": 2025}],
             "show_values": True,
+            "number_format": "currency",
         },
     )
 
@@ -782,6 +789,7 @@ async def test_create_analysis_persists_extended_chart_config(db):
         {"field": "ano", "operator": "eq", "value": 2025}
     ]
     assert analysis.chart_config["showValues"] is True
+    assert analysis.chart_config["numberFormat"] == "currency"
 
 
 async def test_create_analysis_kpi_saved_as_bar_config(db):
@@ -832,6 +840,8 @@ async def test_create_analysis_rejects_invalid_extended_args(db):
         await spec.handler(context, {"name": "X", "limit": 100000})
     with pytest.raises(ToolPolicyError):
         await spec.handler(context, {"name": "X", "show_values": "true"})
+    with pytest.raises(ToolPolicyError):
+        await spec.handler(context, {"name": "X", "number_format": "reais"})
     assert db.scalar(select(Analysis).where(Analysis.name == "X")) is None
 
 

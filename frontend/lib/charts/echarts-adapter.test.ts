@@ -270,10 +270,13 @@ describe("toEChartsOption apresentação", () => {
     })
 
     const series = seriesList(option)[0] as {
-      label?: { show?: boolean; formatter?: string }
+      label?: { show?: boolean; formatter?: unknown }
     }
     expect(series.label?.show).toBe(true)
-    expect(series.label?.formatter).toBe("{c}")
+    expect(series.label?.formatter).toBeTypeOf("function")
+    expect((series.label?.formatter as (p: { value: unknown }) => string)({ value: 1500 })).toBe(
+      "1.500"
+    )
   })
 
   it("formata data labels de pizza com nome e valor", () => {
@@ -284,8 +287,28 @@ describe("toEChartsOption apresentação", () => {
       showValues: true,
     })
 
-    const series = seriesList(option)[0] as { label?: { formatter?: string } }
-    expect(series.label?.formatter).toBe("{b}: {c}")
+    const series = seriesList(option)[0] as { label?: { formatter?: unknown } }
+    expect(series.label?.formatter).toBeTypeOf("function")
+    expect(
+      (series.label?.formatter as (p: { name: string; value: unknown }) => string)({
+        name: "Teresina",
+        value: 1500,
+      })
+    ).toBe("Teresina: 1.500")
+  })
+
+  it("aplica formatação de moeda nos data labels quando numberFormat=currency", () => {
+    const option = optionFor({
+      ...defaultChartConfig("bar"),
+      encoding: { x: "municipio", y: "total" },
+      showValues: true,
+      numberFormat: "currency",
+    })
+
+    const series = seriesList(option)[0] as { label?: { formatter?: unknown } }
+    expect(
+      (series.label?.formatter as (p: { value: unknown }) => string)({ value: 554445.31 })
+    ).toBe("R$\u00A0554.445,31")
   })
 
   it("empilha apenas quando há mais de uma série", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { PreviewChart } from "./preview-chart"
 import type { ChartConfig } from "@/lib/charts/chart-config"
+import { DEFAULT_DISPLAY_OPTIONS } from "@/lib/charts/display-options"
 
 const rendered: { config: ChartConfig; rows: Record<string, unknown>[] }[] = []
 
@@ -26,6 +27,20 @@ describe("PreviewChart", () => {
     expect(screen.getByText("30")).toBeTruthy()
     expect(screen.getByText("total · Soma")).toBeTruthy()
     expect(screen.queryByTestId("echart")).toBeNull()
+  })
+
+  it("formata o KPI como moeda quando numberFormat=currency", () => {
+    render(
+      <PreviewChart
+        data={[{ municipio: "A", total: 554445.31 }]}
+        chartType="kpi"
+        dimension={null}
+        metric="total"
+        display={{ ...DEFAULT_DISPLAY_OPTIONS, numberFormat: "currency" }}
+      />
+    )
+
+    expect(screen.getByText(/R\$\s*554\.445,31/)).toBeTruthy()
   })
 
   it("mostra estado vazio sem dimensão, métrica ou dados válidos", () => {

@@ -1,9 +1,11 @@
 import {
+  isChartNumberFormat,
   isChartType,
   legacyToChartConfig,
   normalizeChartConfig,
   type AggregationFunction,
   type ChartConfig,
+  type ChartNumberFormat,
   type LegacyAnalysisLike,
 } from "@/lib/charts/chart-config"
 
@@ -65,6 +67,8 @@ export interface KpiConfig extends PresentationalWidget {
   title?: string
   field?: string
   function?: AggregationFunction
+  /** Formatação do valor exibido (ex.: currency = R$ 1.234,56). */
+  numberFormat?: ChartNumberFormat
 }
 
 export interface TextConfig extends PresentationalWidget {
@@ -180,6 +184,9 @@ function normalizeStaticConfig(raw: Record<string, unknown>): WidgetConfig {
       if (typeof raw.field === "string" && raw.field) config.field = raw.field
       if (typeof raw.function === "string" && raw.function) {
         config.function = raw.function as AggregationFunction
+      }
+      if (isChartNumberFormat(raw.numberFormat)) {
+        config.numberFormat = raw.numberFormat
       }
       return withStyle(config)
     }
@@ -298,11 +305,15 @@ export function legacyToWidgetConfig(analysis: LegacyAnalysisLike): WidgetConfig
     return { type: "table" }
   }
   if (analysis.chartType === "kpi") {
-    return {
+    const config: KpiConfig = {
       type: "kpi",
       field: analysis.metric ?? undefined,
       function: analysis.metric ? "sum" : "count",
     }
+    if (isChartNumberFormat(analysis.chartConfig?.numberFormat)) {
+      config.numberFormat = analysis.chartConfig.numberFormat
+    }
+    return config
   }
   return legacyToChartConfig(analysis) ?? { type: "table" }
 }

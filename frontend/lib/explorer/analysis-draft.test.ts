@@ -38,6 +38,7 @@ function config(overrides: Partial<PreviewConfig> = {}): PreviewConfig {
     limit: null,
     filters: [],
     showValues: null,
+    numberFormat: null,
     ...overrides,
   }
 }
@@ -407,6 +408,7 @@ describe("analysisDraftReducer — robustez", () => {
       limit: 20,
       filters: [],
       showValues: false,
+      numberFormat: "number",
     })
   })
 
@@ -440,5 +442,37 @@ describe("analysisDraftReducer — robustez", () => {
     expect(
       configFromPresentation(off.presentation, "SELECT 1").showValues
     ).toBe(false)
+  })
+
+  it("numberFormat aplica formatação e null mantém a atual", () => {
+    const on = apply(createEmptyDraft(), {
+      type: "preview",
+      config: config({ numberFormat: "currency" }),
+      data: DATA,
+      meta: meta(),
+    })
+    expect(on.presentation.display.numberFormat).toBe("currency")
+    expect(
+      configFromPresentation(on.presentation, "SELECT 1").numberFormat
+    ).toBe("currency")
+
+    const kept = apply(on, {
+      type: "preview",
+      config: config(),
+      data: OTHER_DATA,
+      meta: meta(),
+    })
+    expect(kept.presentation.display.numberFormat).toBe("currency")
+
+    const off = apply(kept, {
+      type: "preview",
+      config: config({ numberFormat: "percent" }),
+      data: OTHER_DATA,
+      meta: meta(),
+    })
+    expect(off.presentation.display.numberFormat).toBe("percent")
+    expect(
+      configFromPresentation(off.presentation, "SELECT 1").numberFormat
+    ).toBe("percent")
   })
 })

@@ -17,6 +17,8 @@ import {
   Share2,
   Sparkles,
   StretchHorizontal,
+  Undo2,
+  Redo2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -63,7 +65,8 @@ import { WidgetConfigDialog } from "./widget-config-dialog"
 import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
 import { DashboardPropertiesPanel } from "./dashboard-properties-panel"
 import type { FilterControlType } from "@/lib/types/dashboard"
-import type { CanvasItem, GridDropAnalysisData } from "./gridstack-canvas"
+import type { CanvasItem, CanvasDropAnalysisData } from "./dashboard-canvas"
+import { layoutForWidgets, readCanvasLayout } from "@/lib/canvas-layout"
 
 const WIDTH_OPTIONS: {
   value: DashboardWidth
@@ -115,6 +118,10 @@ export function DashboardBuilder({
   const dirtyRef = useRef(false)
   const workingRef = useRef(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved")
+  const undoRef = useRef<Dashboard[]>([])
+  const redoRef = useRef<Dashboard[]>([])
+  const [, setHistoryVersion] = useState(0)
 
   // Nome do projeto do painel (exibido na biblioteca de gráficos).
   // Padrão de chave derivada: "sem resultado para a chave atual" = carregando.
@@ -153,6 +160,7 @@ export function DashboardBuilder({
         const snapshot = latestRef.current
 
         try {
+          setSaveStatus("saving")
           await updateDashboard(snapshot.id, toDashboardPayload(snapshot))
         } catch (err) {
           setSaveError(
@@ -160,6 +168,7 @@ export function DashboardBuilder({
               ? err.detail
               : "Não foi possível salvar o painel."
           )
+          setSaveStatus("error")
           return
         }
 
@@ -167,6 +176,7 @@ export function DashboardBuilder({
           dirtyRef.current = false
         }
         setSaveError(null)
+        setSaveStatus("saved")
       }
     } finally {
       workingRef.current = false
@@ -174,14 +184,36 @@ export function DashboardBuilder({
   }, [])
 
   const persist = useCallback(
-    (next: Dashboard) => {
+    (next: Dashboard, recordHistory = true) => {
+      if (recordHistory && latestRef.current !== next) {
+        undoRef.current = [...undoRef.current.slice(-49), latestRef.current]
+        redoRef.current = []
+        setHistoryVersion((version) => version + 1)
+      }
       latestRef.current = next
       dirtyRef.current = true
+      setSaveStatus("saving")
       onDashboardChange(next)
       void pump()
     },
     [onDashboardChange, pump]
   )
+
+  const handleUndo = useCallback(() => {
+    const previous = undoRef.current.pop()
+    if (!previous) return
+    redoRef.current = [...redoRef.current, latestRef.current]
+    setHistoryVersion((version) => version + 1)
+    persist(previous, false)
+  }, [persist])
+
+  const handleRedo = useCallback(() => {
+    const next = redoRef.current.pop()
+    if (!next) return
+    undoRef.current = [...undoRef.current, latestRef.current]
+    setHistoryVersion((version) => version + 1)
+    persist(next, false)
+  }, [persist])
 
   const [filterValues, setFilterValues] = useState<Record<string, string | string[]>>(
     () => {
@@ -268,7 +300,21 @@ export function DashboardBuilder({
       })
 
       if (!changed) return
-      persist({ ...dashboard, widgets: updatedWidgets })
+      const baseDocument = layoutForWidgets(
+        updatedWidgets,
+        dashboard.pages.map((page) => page.id),
+        readCanvasLayout(dashboard.appearance?.layoutDocument)
+      )
+      const objects = { ...baseDocument.objects }
+      for (const item of layout) {
+        const current = objects[item.id]
+        if (current) objects[item.id] = { ...current, ...item }
+      }
+      persist({
+        ...dashboard,
+        widgets: updatedWidgets,
+        appearance: { ...dashboard.appearance, layoutDocument: { ...baseDocument, objects } },
+      })
     },
     [dashboard, persist]
   )
@@ -344,7 +390,7 @@ export function DashboardBuilder({
   )
 
   const handleDropAnalysis = useCallback(
-    async (data: GridDropAnalysisData) => {
+    async (data: CanvasDropAnalysisData) => {
       if (data.config) {
         handleAddElement(data.config, data)
         return
@@ -365,49 +411,6 @@ export function DashboardBuilder({
       }
     },
     [handleAddAnalysis, handleAddElement]
-  )
-
-  const handleEmptyCanvasDragOver = useCallback((event: React.DragEvent) => {
-    if (!event.dataTransfer) return
-    if (
-      event.dataTransfer.types.includes("application/json") ||
-      event.dataTransfer.types.includes("text/plain")
-    ) {
-      event.preventDefault()
-      event.dataTransfer.dropEffect = "copy"
-    }
-  }, [])
-
-  const handleEmptyCanvasDrop = useCallback(
-    (event: React.DragEvent) => {
-      const dataTransfer = event.dataTransfer
-      if (!dataTransfer) return
-
-      let analysisId = dataTransfer.getData("text/plain")
-      const json = dataTransfer.getData("application/json")
-      let config: WidgetConfig | undefined
-      if (json) {
-        try {
-          const parsed = JSON.parse(json)
-          analysisId = parsed?.analysisId ?? analysisId
-          config = parsed?.config
-        } catch {
-          // Mantém o id do formato text/plain como fallback.
-        }
-      }
-
-      if (!analysisId && !config) return
-      event.preventDefault()
-      void handleDropAnalysis({
-        ...(analysisId ? { analysisId } : {}),
-        ...(config ? { config } : {}),
-        x: 0,
-        y: 0,
-        w: config ? 4 : 6,
-        h: config ? 3 : 4,
-      })
-    },
-    [handleDropAnalysis]
   )
 
   const handleRemoveWidget = useCallback(
@@ -452,7 +455,25 @@ export function DashboardBuilder({
       const next = current.widgets.map((w) =>
         w.id === widgetId ? { ...w, layout } : w
       )
-      persist({ ...current, widgets: next })
+      const baseDocument = layoutForWidgets(
+        next,
+        current.pages.map((page) => page.id),
+        readCanvasLayout(current.appearance?.layoutDocument)
+      )
+      const object = baseDocument.objects[widgetId]
+      persist({
+        ...current,
+        widgets: next,
+        appearance: {
+          ...current.appearance,
+          layoutDocument: {
+            ...baseDocument,
+            objects: object
+              ? { ...baseDocument.objects, [widgetId]: { ...object, ...layout } }
+              : baseDocument.objects,
+          },
+        },
+      })
     },
     [persist]
   )
@@ -801,7 +822,7 @@ export function DashboardBuilder({
       className={cn(
         dashboardWidthClass(dashboard.appearance),
         "px-4 sm:px-6 lg:px-8 pt-8 pb-20 transition-all duration-300",
-        editing && drawerOpen && "xl:pr-[440px]"
+        editing && drawerOpen && "sm:pr-[390px] lg:pr-[460px]"
       )}
     >
       {/* Navigation */}
@@ -817,11 +838,12 @@ export function DashboardBuilder({
         Painéis
       </Link>
 
-      {/* Header */}
-      <section className="mt-3">
+      {/* Command bar: report identity, persistence and primary actions. */}
+      <section className="mt-3 rounded-xl border border-border bg-card/85 px-4 py-3 shadow-sm backdrop-blur">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Relatório</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
               {dashboard.name}
             </h1>
             {dashboard.description && (
@@ -837,6 +859,14 @@ export function DashboardBuilder({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {editing && <>
+              <span className={cn("hidden items-center gap-1.5 text-xs sm:inline-flex", saveStatus === "error" ? "text-destructive" : "text-muted-foreground")}>
+                <span className={cn("h-1.5 w-1.5 rounded-full", saveStatus === "saving" ? "animate-pulse bg-amber-500" : saveStatus === "error" ? "bg-destructive" : "bg-emerald-500")} />
+                {saveStatus === "saving" ? "Salvando" : saveStatus === "error" ? "Erro ao salvar" : "Salvo"}
+              </span>
+              <Button variant="ghost" size="icon-sm" title="Desfazer" aria-label="Desfazer" disabled={undoRef.current.length === 0} onClick={handleUndo}><Undo2 size={15}/></Button>
+              <Button variant="ghost" size="icon-sm" title="Refazer" aria-label="Refazer" disabled={redoRef.current.length === 0} onClick={handleRedo}><Redo2 size={15}/></Button>
+            </>}
             <Button
               variant="outline"
               size="sm"
@@ -976,8 +1006,9 @@ export function DashboardBuilder({
         </section>
       )}
 
-      {/* Filters */}
-      {(dashboard.filters.length > 0 || editing) && (
+      {/* Global filters remain available in viewing mode. In edit mode filters are
+          report objects, added from the library and placed on the canvas. */}
+      {!editing && dashboard.filters.length > 0 && (
         <section className="mt-4">
           <div className="rounded-lg border border-border bg-card px-4 py-3">
             <div className="flex items-center gap-2">
@@ -1002,22 +1033,11 @@ export function DashboardBuilder({
         </section>
       )}
 
-      {/* Grid */}
+      {/* Report workspace */}
       <section className="mt-6">
-        <div
-          className={editing && pageWidgets.length > 0 ? "dashboard-edit-grid" : ""}
-        >
-          {pageWidgets.length === 0 ? (
-            <div
-              onDragOver={handleEmptyCanvasDragOver}
-              onDrop={handleEmptyCanvasDrop}
-              className={cn(
-                "flex flex-col items-center justify-center rounded-lg border p-12 text-center transition-colors",
-                editing
-                  ? "border-dashed border-primary/35 bg-primary/3"
-                  : "border-dashed border-border bg-card"
-              )}
-            >
+        <div>
+          {pageWidgets.length === 0 && !editing ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-12 text-center">
               <div
                 className={cn(
                   "flex h-12 w-12 items-center justify-center rounded-full",
@@ -1135,6 +1155,7 @@ export function DashboardBuilder({
         pages={dashboard.pages}
         activePageId={activePageId}
         editing={editing}
+        drawerOpen={editing && drawerOpen}
         onSelect={handleSelectPage}
         onAdd={handleAddPage}
         onRename={handleRenamePage}
@@ -1164,75 +1185,84 @@ export function DashboardBuilder({
       />
 
       {/* Lateral direita: Biblioteca | Propriedades (Etapa C). A biblioteca
-          segue montada na aba oculta para preservar busca e categoria. */}
+          segue montada na aba oculta para preservar busca e categoria.
+          Em telas estreitas a gaveta vira overlay com scrim (fechar devolve
+          a área do canvas); a partir de sm o canvas reserva a largura. */}
       {editing && drawerOpen && (
-        <div className="fixed inset-y-0 right-0 top-16 z-40 flex flex-col">
+        <>
           <div
-            role="tablist"
-            aria-label="Alternar biblioteca e propriedades"
-            className="flex shrink-0 gap-1 border-b border-l border-border bg-card px-3 pt-2"
-          >
-            {(
-              [
-                { id: "library", label: "Biblioteca" },
-                { id: "props", label: "Propriedades" },
-              ] as const
-            ).map((tab) => {
-              const disabled = tab.id === "props" && selectedWidget === null
-              const active =
-                tab.id === drawerTab && !(tab.id === "props" && selectedWidget === null)
-              return (
-                <button
-                  key={tab.id}
-                  role="tab"
-                  aria-selected={active}
-                  disabled={disabled}
-                  onClick={() => setDrawerTab(tab.id)}
-                  className={cn(
-                    "rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted",
-                    disabled && "cursor-not-allowed opacity-50"
-                  )}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className="flex min-h-0 flex-1">
-            <div className={cn("min-h-0", drawerTab === "library" || selectedWidget === null ? "flex" : "hidden")}>
-              <DashboardComponentsDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
-                onSelectElement={(config) => handleAddElement(config)}
-                onAddFilter={handleOpenAddFilter}
-                existingAnalysisIds={excludeAnalysisIds}
-                projectId={dashboard.projectId}
-                projectName={projectName}
-              />
+            className="fixed inset-0 top-16 z-30 bg-background/40 sm:hidden"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden
+          />
+          <div className="fixed inset-y-0 right-0 top-16 z-40 flex flex-col">
+            <div
+              role="tablist"
+              aria-label="Alternar biblioteca e propriedades"
+              className="flex shrink-0 gap-1 border-b border-l border-border bg-card px-3 pt-2"
+            >
+              {(
+                [
+                  { id: "library", label: "Biblioteca" },
+                  { id: "props", label: "Propriedades" },
+                ] as const
+              ).map((tab) => {
+                const disabled = tab.id === "props" && selectedWidget === null
+                const active =
+                  tab.id === drawerTab && !(tab.id === "props" && selectedWidget === null)
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={active}
+                    disabled={disabled}
+                    onClick={() => setDrawerTab(tab.id)}
+                    className={cn(
+                      "rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                      disabled && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
             </div>
-            {drawerTab === "props" && selectedWidget !== null && (
-              <DashboardPropertiesPanel
-                widget={selectedWidget}
-                filters={dashboard.filters}
-                dashboardAnalysisIds={dashboardAnalysisIds}
-                linkedCards={selectedFilterLinkedCards}
-                filterValues={filterValues}
-                onSaveLayout={handleSaveWidgetLayout}
-                onSaveConfig={handleSaveWidgetConfig}
-                onSaveFilter={handleSaveFilter}
-                onClearFilterValue={handleClearFilterValue}
-                onBringToFront={handleBringToFront}
-                onSendToBack={handleSendToBack}
-                onRemoveWidget={handleRemoveWidget}
-                onClose={() => setDrawerTab("library")}
-              />
-            )}
+            <div className="flex min-h-0 flex-1">
+              <div className={cn("min-h-0", drawerTab === "library" || selectedWidget === null ? "flex" : "hidden")}>
+                <DashboardComponentsDrawer
+                  open={drawerOpen}
+                  onClose={() => setDrawerOpen(false)}
+                  onSelectAnalysis={(analysis, pos) => handleAddAnalysis(analysis, pos)}
+                  onSelectElement={(config) => handleAddElement(config)}
+                  onAddFilter={handleOpenAddFilter}
+                  existingAnalysisIds={excludeAnalysisIds}
+                  projectId={dashboard.projectId}
+                  projectName={projectName}
+                />
+              </div>
+              {drawerTab === "props" && selectedWidget !== null && (
+                <DashboardPropertiesPanel
+                  widget={selectedWidget}
+                  filters={dashboard.filters}
+                  dashboardAnalysisIds={dashboardAnalysisIds}
+                  linkedCards={selectedFilterLinkedCards}
+                  filterValues={filterValues}
+                  onSaveLayout={handleSaveWidgetLayout}
+                  onSaveConfig={handleSaveWidgetConfig}
+                  onSaveFilter={handleSaveFilter}
+                  onClearFilterValue={handleClearFilterValue}
+                  onBringToFront={handleBringToFront}
+                  onSendToBack={handleSendToBack}
+                  onRemoveWidget={handleRemoveWidget}
+                  onClose={() => setDrawerTab("library")}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

@@ -43,30 +43,6 @@ export function Header() {
         <Link href="/inicio" className="flex items-center gap-2.5">
           <BrandMark />
         </Link>
-
-        <span className="flex h-4 w-px bg-border flex-shrink-0"></span>
-
-        <nav className="md:items-center md:flex gap-8">
-          <Link
-            href="/projetos"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Projetos
-          </Link>
-          <Link
-            href="/fontes"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Fontes
-          </Link>
-          <Link
-            href="/explorar"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Explorar
-          </Link>
-        </nav>
-
       </div>
 
       <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>

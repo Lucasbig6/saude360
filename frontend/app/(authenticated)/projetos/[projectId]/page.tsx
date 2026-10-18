@@ -251,7 +251,7 @@ export default function ProjetoDetalhePage({
   ]
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+    <div className="w-full px-5 sm:px-6 lg:px-8 py-4">
       <ProjectTabs projectId={projectId} />
 
       <section className="flex flex-wrap items-start justify-between gap-3">

@@ -89,10 +89,10 @@ function ExplorarContent({ projectId }: { projectId: string }) {
             aria-label="Voltar"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <ArrowLeft size={17} />
+            <ArrowLeft size={12} />
           </Link>
-          <Hospital size={16} className="text-primary" />
-          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+          <Hospital size={16} className="ml-2 text-primary" />
+          <h1 className="min-w-2 flex-1 truncate text-sm font-semibold text-foreground ml-3">
             {engine.projectName ?? "Projeto"}
           </h1>
           <button

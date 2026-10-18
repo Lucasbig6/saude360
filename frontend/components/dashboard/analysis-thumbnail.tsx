@@ -12,6 +12,8 @@ import {
 } from "@/lib/types/widgets"
 import { executeQuery } from "@/lib/api/queries"
 import { EChartRenderer } from "@/components/charts/EChartRenderer"
+import type { ChartNumberFormat } from "@/lib/charts/chart-config"
+import { formatChartValue } from "@/lib/charts/format"
 import type { Row } from "@/lib/charts/transform"
 
 /** Linhas buscadas por miniatura: amostra suficiente para pré-visualizar. */
@@ -202,7 +204,7 @@ function ThumbnailContent({
   if (config.type === "kpi") {
     return (
       <span className="text-xl font-semibold text-primary">
-        {formatKpi(kpiValue(state.rows, config))}
+        {formatKpi(kpiValue(state.rows, config), config.numberFormat)}
       </span>
     )
   }
@@ -230,11 +232,11 @@ function ThumbnailContent({
   return null
 }
 
-const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 })
-
-function formatKpi(value: number | null): string {
-  if (value === null) return "—"
-  return numberFormat.format(value)
+function formatKpi(
+  value: number | null,
+  format: ChartNumberFormat = "number"
+): string {
+  return formatChartValue(value, format)
 }
 
 const MINI_TABLE_ROWS = 5

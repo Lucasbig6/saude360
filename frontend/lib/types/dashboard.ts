@@ -1,4 +1,5 @@
 import type { WidgetConfig } from "@/lib/types/widgets"
+import type { CanvasLayoutDocument } from "@/lib/canvas-layout"
 
 export type FilterControlType = "dropdown" | "multi-select" | "list" | "date-range"
 
@@ -61,6 +62,8 @@ export interface DashboardAppearance {
   theme?: "light" | "dark"
   showBrand?: boolean
   width?: DashboardWidth
+  /** v2 report geometry; config/query data remain on each widget. */
+  layoutDocument?: CanvasLayoutDocument
 }
 
 export interface Dashboard {

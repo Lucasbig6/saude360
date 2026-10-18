@@ -95,15 +95,15 @@ function LayoutSection({
   const { draft, error } = shown
 
   function commit(next: typeof draft) {
-    const x = parseIntInRange(next.x, 0, 11)
-    const y = parseIntInRange(next.y, 0, 999)
-    const w = parseIntInRange(next.w, 1, 12)
-    const h = parseIntInRange(next.h, 1, 12)
+    const x = parseIntInRange(next.x, 0, 1280)
+    const y = parseIntInRange(next.y, 0, 720)
+    const w = parseIntInRange(next.w, 24, 1280)
+    const h = parseIntInRange(next.h, 24, 720)
     if (x === null || y === null || w === null || h === null) {
       setState({
         key: layoutKey,
         draft: next,
-        error: "Use números inteiros: X 0–11, Y 0–999, largura/altura 1–12.",
+        error: "Use pixels da página: X 0–1280, Y 0–720, largura 24–1280 e altura 24–720.",
       })
       return
     }
@@ -120,7 +120,7 @@ function LayoutSection({
   }
 
   return (
-    <Section title="Posição e tamanho">
+    <Section title="Dimensões e posicionamento">
       <div className="grid grid-cols-4 gap-2">
         {(["x", "y", "w", "h"] as const).map((key) => (
           <Field key={key} label={key.toUpperCase()}>
@@ -128,8 +128,8 @@ function LayoutSection({
               type="number"
               className="h-8 text-xs"
               value={draft[key]}
-              min={key === "w" || key === "h" ? 1 : 0}
-              max={key === "x" ? 11 : key === "y" ? 999 : 12}
+              min={key === "w" || key === "h" ? 24 : 0}
+              max={key === "x" || key === "w" ? 1280 : 720}
               onChange={(event) => commit({ ...draft, [key]: event.target.value })}
             />
           </Field>
@@ -156,7 +156,7 @@ function StyleSection({
   }
 
   return (
-    <Section title="Fundo e borda">
+    <Section title="Aparência">
       <div className="grid grid-cols-2 gap-2">
         <Field label="Fundo">
           <Input
@@ -254,7 +254,7 @@ function LayerSection({
   onSendToBack: () => void
 }) {
   return (
-    <Section title="Camada">
+    <Section title="Camadas">
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onBringToFront}>
           <ArrowUp size={13} />
@@ -671,31 +671,17 @@ export function DashboardPropertiesPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <LayoutSection
-          widget={widget}
-          onSave={(layout) => onSaveLayout(widget.id, layout)}
-        />
-
-        {config && (
-          <LayerSection
-            onBringToFront={() => onBringToFront(widget.id)}
-            onSendToBack={() => onSendToBack(widget.id)}
-          />
-        )}
-
+        {/* Conteúdo */}
         {config?.type === "filter" &&
           (filter ? (
-            <>
-              <FilterSection
-                filter={filter}
-                linkedCards={linkedCards}
-                scopeOptions={scopeOptions}
-                runtimeValue={filterValues[filter.id] ?? filter.defaultValue}
-                onSave={(patch) => onSaveFilter(filter.id, patch)}
-                onClearValue={() => onClearFilterValue(filter.id)}
-              />
-              <StyleSection config={config} onSave={handleSaveConfig} />
-            </>
+            <FilterSection
+              filter={filter}
+              linkedCards={linkedCards}
+              scopeOptions={scopeOptions}
+              runtimeValue={filterValues[filter.id] ?? filter.defaultValue}
+              onSave={(patch) => onSaveFilter(filter.id, patch)}
+              onClearValue={() => onClearFilterValue(filter.id)}
+            />
           ) : (
             <Section title="Filtro">
               <p className="text-xs text-muted-foreground">
@@ -706,15 +692,12 @@ export function DashboardPropertiesPanel({
           ))}
 
         {config?.type === "custom-html" && (
-          <>
-            <Section title="Conteúdo personalizado">
-              <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                Conteúdo HTML/CSS restrito ainda não está habilitado. Nenhum
-                conteúdo é executado nesta etapa.
-              </p>
-            </Section>
-            <StyleSection config={config} onSave={handleSaveConfig} />
-          </>
+          <Section title="Conteúdo personalizado">
+            <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
+              Conteúdo HTML/CSS restrito ainda não está habilitado. Nenhum
+              conteúdo é executado nesta etapa.
+            </p>
+          </Section>
         )}
 
         {config &&
@@ -730,6 +713,25 @@ export function DashboardPropertiesPanel({
               menu do cartão para definir tipo e campos.
             </p>
           </Section>
+        )}
+
+        {/* Aparência */}
+        {config && (
+          <StyleSection config={config} onSave={handleSaveConfig} />
+        )}
+
+        {/* Dimensões e posicionamento */}
+        <LayoutSection
+          widget={widget}
+          onSave={(layout) => onSaveLayout(widget.id, layout)}
+        />
+
+        {/* Camadas */}
+        {config && (
+          <LayerSection
+            onBringToFront={() => onBringToFront(widget.id)}
+            onSendToBack={() => onSendToBack(widget.id)}
+          />
         )}
 
         <div className="px-4 py-3">

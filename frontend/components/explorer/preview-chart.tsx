@@ -12,6 +12,7 @@ import {
   paletteColors,
   type ChartDisplayOptions,
 } from "@/lib/charts/display-options"
+import { formatChartValue } from "@/lib/charts/format"
 import { kpiValue } from "@/lib/types/widgets"
 import type { VisualizationType } from "./visualization-panel"
 
@@ -125,9 +126,7 @@ export function PreviewChart({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2">
         <span className="text-2xl font-semibold tabular-nums text-foreground">
-          {kpi === null
-            ? "—"
-            : new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(kpi)}
+          {kpi === null ? "—" : formatChartValue(kpi, options.numberFormat)}
         </span>
         <span className="text-sm text-muted-foreground">
           {metric ?? "Registros"} · {metric ? "Soma" : "Contagem"}

@@ -52,6 +52,9 @@ FILTER_OPERATORS = frozenset(
     }
 )
 
+#: Formatos numéricos do gráfico (ChartNumberFormat do frontend).
+NUMBER_FORMATS = frozenset({"number", "currency", "percent", "compact"})
+
 
 async def preview_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     """Executa a análise atual e devolve config estruturada + dados atômicos.
@@ -84,6 +87,7 @@ async def preview_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, 
         "limit": parse_limit(args.get("limit")),
         "filters": parse_filters(args.get("filters")),
         "showValues": parse_optional_bool(args.get("show_values")),
+        "numberFormat": parse_number_format(args.get("number_format")),
     }
 
     database_id = ctx.policy.enforce_database(_optional_int(args.get("database_id")))
@@ -156,6 +160,18 @@ def parse_optional_bool(value: Any) -> bool | None:
     return value
 
 
+def parse_number_format(value: Any) -> str | None:
+    """Formato numérico (``number_format``): ``None`` = manter o atual."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in NUMBER_FORMATS:
+        raise ToolPolicyError(
+            f"Argumento 'number_format' inválido: {value!r}. "
+            f"Use um de: {sorted(NUMBER_FORMATS)}."
+        )
+    return value
+
+
 def parse_filters(value: Any) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -222,10 +238,11 @@ def preview_analysis_spec() -> ToolSpec:
         description=(
             "Executa a análise atual e retorna a configuração estruturada "
             "(tipo de gráfico, dimensão, métrica, cor, ordenação, limite, "
-            "filtros e rótulos de valor) junto dos dados. Use para CRIAR uma "
-            "análise ou MODIFICAR a que está em edição: envie a configuração "
-            "completa alterando somente o que o usuário pediu e preserve os "
-            "demais atributos. Somente leitura; não pede confirmação."
+            "filtros, rótulos de valor e formatação numérica) junto dos "
+            "dados. Use para CRIAR uma análise ou MODIFICAR a que está em "
+            "edição: envie a configuração completa alterando somente o que o "
+            "usuário pediu e preserve os demais atributos. Somente leitura; "
+            "não pede confirmação."
         ),
         input_schema={
             "type": "object",
@@ -296,6 +313,18 @@ def preview_analysis_spec() -> ToolSpec:
                         "description": (
                             "Exibe rótulos de valor nas barras/pizza "
                             "(omitir/null = manter os atuais)."
+                        ),
+                    }
+                ),
+                "number_format": nullable(
+                    {
+                        "type": "string",
+                        "enum": sorted(NUMBER_FORMATS),
+                        "description": (
+                            "Formatação dos números no gráfico (eixo, tooltip "
+                            "e rótulos): 'currency' = R$ 1.234,56; "
+                            "'percent' = 42%; 'compact' = 1,5 mil; "
+                            "'number' = 1.234,56. Omitir/null = manter os atuais."
                         ),
                     }
                 ),

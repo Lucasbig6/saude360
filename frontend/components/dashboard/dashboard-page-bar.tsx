@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import type { DashboardPage } from "@/lib/types/dashboard"
 import { DashboardPageTabs } from "./dashboard-page-tabs"
 
@@ -10,6 +11,8 @@ interface DashboardPageBarProps {
   activePageId: string
   /** Gestão de páginas (renomear/mover/excluir/nova) só em modo edição. */
   editing?: boolean
+  /** Quando a gaveta de edição está aberta, reserva a largura dela. */
+  drawerOpen?: boolean
   onSelect: (pageId: string) => void
   onAdd?: () => void
   onRename?: (pageId: string, name: string) => void
@@ -26,6 +29,7 @@ export function DashboardPageBar({
   pages,
   activePageId,
   editing = false,
+  drawerOpen = false,
   onSelect,
   onAdd,
   onRename,
@@ -35,7 +39,10 @@ export function DashboardPageBar({
   return (
     <footer
       data-testid="dashboard-page-bar"
-      className="fixed inset-x-0 bottom-0 z-[45] border-t border-border bg-card"
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-[45] border-t border-border bg-card transition-[right] duration-300",
+        drawerOpen && "sm:right-[390px] lg:right-[460px]"
+      )}
     >
       <div className="flex h-12 items-center gap-2 px-3 sm:px-4">
         <span className="hidden shrink-0 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase sm:block">

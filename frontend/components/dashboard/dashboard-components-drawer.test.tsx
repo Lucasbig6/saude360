@@ -93,8 +93,8 @@ describe("DashboardComponentsDrawer", () => {
     // Analise 1 já está no painel
     expect(screen.getByText("No painel")).toBeInTheDocument()
 
-    // Elemento arrastável com classe do GridStack
-    const item1 = screen.getByText("Internações por Município").closest(".grid-stack-item-drag-in")
+    // Elemento arrastável com payload HTML5 para o canvas.
+    const item1 = screen.getByText("Internações por Município").closest("[data-analysis-id]")
     expect(item1).toHaveAttribute("data-analysis-id", "analise-1")
     expect(item1).toHaveAttribute("draggable", "true")
   })

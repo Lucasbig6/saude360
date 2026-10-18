@@ -47,6 +47,25 @@ describe("normalizeWidgetConfig", () => {
     ).toEqual({ type: "kpi", title: "Total", field: "total", function: "avg" })
   })
 
+  it("normaliza kpi preservando numberFormat válido e descartando inválido", () => {
+    expect(
+      normalizeWidgetConfig({
+        type: "kpi",
+        field: "custo_total",
+        function: "sum",
+        numberFormat: "currency",
+      })
+    ).toEqual({
+      type: "kpi",
+      field: "custo_total",
+      function: "sum",
+      numberFormat: "currency",
+    })
+    expect(
+      normalizeWidgetConfig({ type: "kpi", numberFormat: "reais" })
+    ).toEqual({ type: "kpi" })
+  })
+
   it("normaliza text com conteúdo ausente como string vazia", () => {
     expect(normalizeWidgetConfig({ type: "text" })).toEqual({
       type: "text",
@@ -242,6 +261,21 @@ describe("legacyToWidgetConfig", () => {
     expect(
       legacyToWidgetConfig({ chartType: "kpi", metric: "total" })
     ).toEqual({ type: "kpi", field: "total", function: "sum" })
+  })
+
+  it("KPI legado herda numberFormat do chartConfig salvo", () => {
+    expect(
+      legacyToWidgetConfig({
+        chartType: "kpi",
+        metric: "custo_total",
+        chartConfig: { type: "bar", numberFormat: "currency" },
+      })
+    ).toEqual({
+      type: "kpi",
+      field: "custo_total",
+      function: "sum",
+      numberFormat: "currency",
+    })
   })
 
   it("mapa legado preserva os campos de longitude e latitude", () => {

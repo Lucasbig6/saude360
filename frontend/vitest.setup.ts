@@ -5,7 +5,7 @@ import { afterEach } from "vitest"
 // RTL só registra o auto-cleanup quando existem globals de teste.
 afterEach(cleanup)
 
-// APIs de browser ausentes no jsdom — necessárias ao GridStack.
+// APIs de browser ausentes no jsdom — necessárias ao canvas responsivo.
 class ResizeObserverStub {
   observe() {}
   unobserve() {}

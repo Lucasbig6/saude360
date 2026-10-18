@@ -36,16 +36,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { EChartRenderer } from "@/components/charts/EChartRenderer"
 import { CHART_TYPE_META } from "@/components/charts/chart-types"
-import { isChartType } from "@/lib/charts/chart-config"
+import { isChartType, type ChartNumberFormat } from "@/lib/charts/chart-config"
+import { formatChartValue } from "@/lib/charts/format"
 import type { Analysis } from "@/lib/types/analysis"
 import type { DashboardFilter, DashboardWidget } from "@/lib/types/dashboard"
 import {
   isChartWidgetConfig,
   kpiValue,
   legacyToWidgetConfig,
-  type FilterWidgetConfig,
   type ShapeConfig,
   type StaticWidgetType,
+  type WidgetConfig,
 } from "@/lib/types/widgets"
 import { assertChartType, getAnalysis } from "@/lib/api/analyses"
 import { executeQuery, executeQueryFiltered, executePublicQuery } from "@/lib/api/queries"
@@ -60,11 +61,116 @@ const STATIC_ICONS: Record<StaticWidgetType, LucideIcon> = {
   shape: Shapes,
 }
 
-const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 })
+function formatKpi(
+  value: number | null,
+  format: ChartNumberFormat = "number"
+): string {
+  return formatChartValue(value, format)
+}
 
-function formatKpi(value: number | null): string {
-  if (value === null) return "—"
-  return numberFormat.format(value)
+/** Tipos apresentacionais: renderizam direto no canvas, sem card/header. */
+const PRESENTATION_TYPES: ReadonlySet<string> = new Set(["text", "shape", "image"])
+
+function isPresentationWidget(config: WidgetConfig): boolean {
+  return PRESENTATION_TYPES.has(config.type)
+}
+
+/**
+ * `WidgetStyle` do usuário no wrapper de apresentação: sem moldura de card
+ * (borderColor/borderWidth são ignorados). `shape` recebe só camada —
+ * preenchimento/contorno são os do `ShapeView`.
+ */
+function presentationStyle(config: WidgetConfig): CSSProperties {
+  const style = config.style
+  if (!style) return {}
+  const layer: CSSProperties = {
+    ...(style.opacity !== undefined ? { opacity: style.opacity } : {}),
+    ...(style.zIndex !== undefined ? { zIndex: style.zIndex } : {}),
+    ...(style.visible === false ? { display: "none" } : {}),
+  }
+  if (config.type === "shape") return layer
+  return {
+    ...layer,
+    ...(style.backgroundColor ? { backgroundColor: style.backgroundColor } : {}),
+    ...(style.borderRadius !== undefined ? { borderRadius: style.borderRadius } : {}),
+    ...(style.shadow === "sm" ? { boxShadow: "0 1px 2px rgb(0 0 0 / 0.12)" } : {}),
+    ...(style.shadow === "md" ? { boxShadow: "0 4px 10px rgb(0 0 0 / 0.16)" } : {}),
+  }
+}
+
+interface WidgetActionsMenuProps {
+  widgetId: string
+  onRemove: (widgetId: string) => void
+  onConfigure?: (widgetId: string) => void
+  onDuplicateWidget?: (widgetId: string) => void
+  onCopyWidget?: (widgetId: string) => void
+  onBringToFront?: (widgetId: string) => void
+  onSendToBack?: (widgetId: string) => void
+  className?: string
+}
+
+/** Menu de ações do widget — compartilhado pelo header do card e pelo overlay. */
+function WidgetActionsMenu({
+  widgetId,
+  onRemove,
+  onConfigure,
+  onDuplicateWidget,
+  onCopyWidget,
+  onBringToFront,
+  onSendToBack,
+  className,
+}: WidgetActionsMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Ações do widget"
+        title="Ações do widget"
+        className={
+          className ??
+          "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer dark:hover:bg-muted"
+        }
+        onClick={(e) => e.stopPropagation()}
+      >
+        <MoreVertical size={14} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {onConfigure && (
+          <DropdownMenuItem onClick={() => onConfigure(widgetId)}>
+            <SlidersHorizontal size={14} />
+            Configurar
+          </DropdownMenuItem>
+        )}
+        {onDuplicateWidget && (
+          <DropdownMenuItem onClick={() => onDuplicateWidget(widgetId)}>
+            <Copy size={14} />
+            Duplicar
+          </DropdownMenuItem>
+        )}
+        {onCopyWidget && (
+          <DropdownMenuItem onClick={() => onCopyWidget(widgetId)}>
+            <Copy size={14} />
+            Copiar
+          </DropdownMenuItem>
+        )}
+        {onBringToFront && (
+          <DropdownMenuItem onClick={() => onBringToFront(widgetId)}>
+            <ArrowUp size={14} />
+            Trazer para frente
+          </DropdownMenuItem>
+        )}
+        {onSendToBack && (
+          <DropdownMenuItem onClick={() => onSendToBack(widgetId)}>
+            <ArrowDown size={14} />
+            Enviar para trás
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => onRemove(widgetId)}>
+          <Trash2 size={14} />
+          Remover
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 interface DashboardWidgetViewProps {
@@ -400,13 +506,128 @@ export function DashboardWidgetView({
     ...(config.style?.shadow === "sm" ? { boxShadow: "0 1px 2px rgb(0 0 0 / 0.12)" } : {}),
     ...(config.style?.shadow === "md" ? { boxShadow: "0 4px 10px rgb(0 0 0 / 0.16)" } : {}),
   }
+
+  // Filtros no canvas: compactos, sem cabeçalho genérico de card. O controle
+  // e o rótulo da coluna ficam em uma linha; ações de edição são overlay.
+  if (config.type === "filter") {
+    const filter = filters.find((item) => item.id === config.filterId)
+    return (
+      <div
+        className="group relative h-full overflow-hidden rounded-lg border border-border bg-card dark:border-border dark:bg-card"
+        style={style}
+      >
+        {!readOnly && (
+          <div className="pointer-events-none absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+            <WidgetActionsMenu
+              widgetId={widget.id}
+              onRemove={onRemove}
+              onConfigure={onConfigure}
+              onDuplicateWidget={onDuplicateWidget}
+              onCopyWidget={onCopyWidget}
+              onBringToFront={onBringToFront}
+              onSendToBack={onSendToBack}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-background/80 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground cursor-pointer dark:bg-background/80 dark:hover:bg-muted"
+            />
+          </div>
+        )}
+        <div className="flex h-full min-w-0 flex-col justify-center gap-1.5 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-1.5 pr-7">
+            <SlidersHorizontal size={13} className="shrink-0 text-primary dark:text-primary" />
+            <h3 className="truncate text-xs font-semibold text-foreground dark:text-foreground">
+              {title || filter?.column || "Filtro"}
+            </h3>
+          </div>
+          <div className="min-w-0">
+            {!filter || !onFilterValueChange ? (
+              <p className="text-xs text-muted-foreground">Filtro não configurado.</p>
+            ) : (
+              <DashboardFilterControl
+                filter={filter}
+                value={filterValues[filter.id] ?? filter.defaultValue}
+                values={distinctValues[filter.id] ?? []}
+                loading={loadingDistinct}
+                onChange={(value) => onFilterValueChange(filter.id, value)}
+                compact
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Elementos apresentacionais (texto/forma/imagem): direto no canvas,
+  // sem card, header ou padding. Ações de edição viram overlay no hover.
+  if (isPresentationWidget(config)) {
+    return (
+      <div className="group relative h-full" style={presentationStyle(config)}>
+        {!readOnly && (
+          <div className="pointer-events-none absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+            <WidgetActionsMenu
+              widgetId={widget.id}
+              onRemove={onRemove}
+              onConfigure={onConfigure}
+              onDuplicateWidget={onDuplicateWidget}
+              onCopyWidget={onCopyWidget}
+              onBringToFront={onBringToFront}
+              onSendToBack={onSendToBack}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-background/80 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground cursor-pointer dark:bg-background/80 dark:hover:bg-muted"
+            />
+          </div>
+        )}
+
+        {config.type === "text" && (
+          <p
+            className="h-full whitespace-pre-wrap text-foreground dark:text-foreground"
+            style={{
+              fontFamily: config.fontFamily ?? undefined,
+              fontSize: config.fontSize ?? 14,
+              fontWeight: config.fontWeight ?? 400,
+              color: config.color ?? "",
+              textAlign: config.alignment ?? "left",
+            }}
+          >
+            {config.content}
+          </p>
+        )}
+
+        {config.type === "image" &&
+          (config.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={config.src}
+              alt={config.alt ?? ""}
+              className="h-full w-full"
+              style={{
+                objectFit: config.fit ?? "contain",
+                objectPosition: config.objectPosition ?? "center",
+                aspectRatio: config.aspectRatio,
+                borderRadius: config.style?.borderRadius,
+              }}
+            />
+          ) : (
+            <p className="flex h-full items-center justify-center text-center text-sm text-muted-foreground dark:text-muted-foreground">
+              Imagem sem URL.
+            </p>
+          ))}
+
+        {config.type === "shape" &&
+          (config.shape === "line" || config.shape === "divider" ? (
+            <div className="flex h-full w-full items-center">
+              <ShapeView config={config} />
+            </div>
+          ) : (
+            <ShapeView config={config} />
+          ))}
+      </div>
+    )
+  }
+
   const Icon = isChartType(config.type)
     ? CHART_TYPE_META[config.type].icon
-    : config.type === "filter"
-      ? SlidersHorizontal
-      : config.type === "custom-html"
-        ? Shapes
-        : STATIC_ICONS[config.type as StaticWidgetType]
+    : config.type === "custom-html"
+      ? Shapes
+      : STATIC_ICONS[config.type as StaticWidgetType]
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-card overflow-hidden dark:border-border dark:bg-card" style={style}>
@@ -435,50 +656,15 @@ export function DashboardWidgetView({
           )}
 
           {!readOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer dark:hover:bg-muted"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical size={14} />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onConfigure && (
-                  <DropdownMenuItem onClick={() => onConfigure(widget.id)}>
-                    <SlidersHorizontal size={14} />
-                    Configurar
-                  </DropdownMenuItem>
-                )}
-                {onDuplicateWidget && (
-                  <DropdownMenuItem onClick={() => onDuplicateWidget(widget.id)}>
-                    <Copy size={14} />
-                    Duplicar
-                  </DropdownMenuItem>
-                )}
-                {onCopyWidget && (
-                  <DropdownMenuItem onClick={() => onCopyWidget(widget.id)}>
-                    <Copy size={14} />
-                    Copiar
-                  </DropdownMenuItem>
-                )}
-                {onBringToFront && (
-                  <DropdownMenuItem onClick={() => onBringToFront(widget.id)}>
-                    <ArrowUp size={14} />
-                    Trazer para frente
-                  </DropdownMenuItem>
-                )}
-                {onSendToBack && (
-                  <DropdownMenuItem onClick={() => onSendToBack(widget.id)}>
-                    <ArrowDown size={14} />
-                    Enviar para trás
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => onRemove(widget.id)}>
-                  <Trash2 size={14} />
-                  Remover
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <WidgetActionsMenu
+              widgetId={widget.id}
+              onRemove={onRemove}
+              onConfigure={onConfigure}
+              onDuplicateWidget={onDuplicateWidget}
+              onCopyWidget={onCopyWidget}
+              onBringToFront={onBringToFront}
+              onSendToBack={onSendToBack}
+            />
           )}
         </div>
       </div>
@@ -516,12 +702,6 @@ export function DashboardWidgetView({
           </div>
         )}
 
-        {!needsData && config.type === "text" && (
-          <p className="whitespace-pre-wrap text-foreground dark:text-foreground" style={{ fontFamily: config.fontFamily ?? undefined, fontSize: config.fontSize ?? 14, fontWeight: config.fontWeight ?? 400, color: config.color ?? "", textAlign: config.alignment ?? "left" }}>
-            {config.content}
-          </p>
-        )}
-
         {!needsData && config.type === "custom-html" && (
           <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-muted/50 p-4 text-center">
             <Shapes size={18} className="text-muted-foreground" />
@@ -534,42 +714,6 @@ export function DashboardWidgetView({
             </p>
           </div>
         )}
-
-        {!needsData && config.type === "image" && (
-          config.src ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={config.src}
-              alt={config.alt ?? ""}
-              className="h-full w-full rounded-lg"
-              style={{ objectFit: config.fit ?? "contain", objectPosition: config.objectPosition ?? "center", aspectRatio: config.aspectRatio }}
-            />
-          ) : (
-            <p className="text-center text-sm text-muted-foreground dark:text-muted-foreground">
-              Imagem sem URL.
-            </p>
-          )
-        )}
-
-        {!needsData && config.type === "shape" && (
-          <ShapeView config={config} />
-        )}
-
-        {!needsData && config.type === "filter" && (() => {
-          const filter = filters.find((item) => item.id === config.filterId)
-          if (!filter || !onFilterValueChange) {
-            return <p className="text-xs text-muted-foreground">Filtro não configurado.</p>
-          }
-          return (
-            <DashboardFilterControl
-              filter={filter}
-              value={filterValues[filter.id] ?? filter.defaultValue}
-              values={distinctValues[filter.id] ?? []}
-              loading={loadingDistinct}
-              onChange={(value) => onFilterValueChange(filter.id, value)}
-            />
-          )
-        })()}
 
         {needsData && !loading && !error && data && data.length === 0 && (
           <div className="flex h-full items-center justify-center">
@@ -622,7 +766,7 @@ export function DashboardWidgetView({
             {config.type === "kpi" && (
               <div className="flex h-full flex-col items-center justify-center gap-1">
                 <span className="text-2xl font-semibold text-foreground">
-                  {formatKpi(kpiValue(data, config))}
+                  {formatKpi(kpiValue(data, config), config.numberFormat)}
                 </span>
               </div>
             )}
@@ -665,20 +809,25 @@ function DashboardFilterControl({
   values,
   loading,
   onChange,
+  compact = false,
 }: {
   filter: DashboardFilter
   value: string | string[]
   values: string[]
   loading: boolean
   onChange: (value: string | string[]) => void
+  compact?: boolean
 }) {
+  const controlClass = compact
+    ? "h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs"
+    : "h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
   if (loading) return <Loader2 size={14} className="animate-spin text-muted-foreground" />
   if (filter.controlType === "date-range" || filter.operator === "between") {
     const range = Array.isArray(value) ? value : ["", ""]
     return (
       <div className="flex items-center gap-2">
-        <input aria-label={`${filter.column} início`} type="date" value={range[0] ?? ""} onChange={(event) => onChange([event.target.value, range[1] ?? ""])} className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm" />
-        <input aria-label={`${filter.column} fim`} type="date" value={range[1] ?? ""} onChange={(event) => onChange([range[0] ?? "", event.target.value])} className="h-9 min-w-0 rounded-md border border-border bg-background px-2 text-sm" />
+        <input aria-label={`${filter.column} início`} type="date" value={range[0] ?? ""} onChange={(event) => onChange([event.target.value, range[1] ?? ""])} className={controlClass} />
+        <input aria-label={`${filter.column} fim`} type="date" value={range[1] ?? ""} onChange={(event) => onChange([range[0] ?? "", event.target.value])} className={controlClass} />
       </div>
     )
   }
@@ -686,27 +835,27 @@ function DashboardFilterControl({
     const selected = typeof value === "string" ? value : value[0] ?? ""
     return (
       <div role="radiogroup" aria-label={filter.column} className="space-y-1 overflow-y-auto">
-        <label className="flex items-center gap-2 text-sm"><input type="radio" name={filter.id} checked={!selected} onChange={() => onChange("")} />Todos</label>
-        {values.map((item) => <label key={item} className="flex items-center gap-2 text-sm"><input type="radio" name={filter.id} value={item} checked={selected === item} onChange={() => onChange(item)} />{item}</label>)}
+        <label className="flex items-center gap-2 text-xs"><input type="radio" name={filter.id} checked={!selected} onChange={() => onChange("")} />Todos</label>
+        {values.map((item) => <label key={item} className="flex items-center gap-2 text-xs"><input type="radio" name={filter.id} value={item} checked={selected === item} onChange={() => onChange(item)} />{item}</label>)}
       </div>
     )
   }
   if (filter.controlType === "multi-select" || filter.operator === "in") {
     const selected = Array.isArray(value) ? value : []
     if (values.length === 0) {
-      return <input aria-label={filter.column} value={selected.join(", ")} placeholder="Valores separados por vírgula" onChange={(event) => onChange(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm" />
+      return <input aria-label={filter.column} value={selected.join(", ")} placeholder="Valores separados por vírgula" onChange={(event) => onChange(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} className={controlClass} />
     }
     return (
-      <select aria-label={filter.column} multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className="h-full w-full rounded-md border border-border bg-background px-2 text-sm">
+      <select aria-label={filter.column} multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className={controlClass}>
         {values.map((item) => <option key={item} value={item}>{item}</option>)}
       </select>
     )
   }
   if (values.length === 0) {
-    return <input aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} placeholder="Valor do filtro" className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm" />
+    return <input aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} placeholder="Valor do filtro" className={controlClass} />
   }
   return (
-    <select aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} className="h-full w-full rounded-md border border-border bg-background px-2 text-sm">
+    <select aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} className={controlClass}>
       <option value="">Todos</option>
       {values.map((item) => <option key={item} value={item}>{item}</option>)}
     </select>

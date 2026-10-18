@@ -1,6 +1,6 @@
 import type { ExplorerQueryData } from "@/hooks/use-explorer-agent"
-import type { AnalysisFilter } from "@/lib/charts/chart-config"
-import { isChartType } from "@/lib/charts/chart-config"
+import type { AnalysisFilter, ChartNumberFormat } from "@/lib/charts/chart-config"
+import { isChartNumberFormat, isChartType } from "@/lib/charts/chart-config"
 import type { ChartDisplayOptions } from "@/lib/charts/display-options"
 import type { VisualizationType } from "@/lib/types/charts"
 import {
@@ -32,6 +32,8 @@ export interface PreviewConfig {
   filters: AnalysisFilter[]
   /** Rótulos de valor nas barras — null = manter os atuais. */
   showValues: boolean | null
+  /** Formatação dos números (moeda/percent/compact) — null = manter a atual. */
+  numberFormat: ChartNumberFormat | null
 }
 
 /** Contexto do resultado (ações salvar/publicar, subtítulo, insight). */
@@ -174,6 +176,9 @@ export function normalizePreviewConfig(raw: unknown): PreviewConfig | null {
     filters: normalizeFilters(record.filters),
     showValues:
       typeof record.showValues === "boolean" ? record.showValues : null,
+    numberFormat: isChartNumberFormat(record.numberFormat)
+      ? record.numberFormat
+      : null,
   }
 }
 
@@ -246,6 +251,7 @@ function presentationFromPreview(
     sortDirection: config.sort?.direction ?? previous.display.sortDirection,
     limit: config.limit,
     showValues: config.showValues ?? previous.display.showValues,
+    numberFormat: config.numberFormat ?? previous.display.numberFormat,
   }
   const presentation: PresentationState = {
     chartType: config.chartType,
@@ -339,6 +345,7 @@ export function configFromPresentation(
     limit: presentation.display.limit,
     filters: presentation.filters,
     showValues: presentation.display.showValues,
+    numberFormat: presentation.display.numberFormat,
   }
 }
 

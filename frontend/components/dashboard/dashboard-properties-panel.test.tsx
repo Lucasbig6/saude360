@@ -13,7 +13,7 @@ function textWidget(): DashboardWidget {
   return {
     id: "w1",
     analysisId: null,
-    layout: { x: 0, y: 2, w: 4, h: 2 },
+    layout: { x: 0, y: 120, w: 400, h: 200 },
     config: { type: "text", title: "Nota", content: "Olá" },
     pageId: "p1",
   }
@@ -23,7 +23,7 @@ function filterWidget(): DashboardWidget {
   return {
     id: "w2",
     analysisId: null,
-    layout: { x: 0, y: 0, w: 4, h: 2 },
+    layout: { x: 0, y: 0, w: 400, h: 160 },
     config: { type: "filter", filterId: "f1", title: "Filtro" },
     pageId: "p1",
   }
@@ -75,13 +75,13 @@ describe("DashboardPropertiesPanel", () => {
     const xInput = screen.getByLabelText("X") as HTMLInputElement
     expect(xInput.value).toBe("0")
 
-    fireEvent.change(xInput, { target: { value: "14" } })
-    expect(await screen.findByRole("alert")).toHaveTextContent(/X 0–11/)
+    fireEvent.change(xInput, { target: { value: "1400" } })
+    expect(await screen.findByRole("alert")).toHaveTextContent(/X 0–1280/)
     expect(onSaveLayout).not.toHaveBeenCalled()
 
     fireEvent.change(xInput, { target: { value: "3" } })
     await waitFor(() => {
-      expect(onSaveLayout).toHaveBeenCalledWith("w1", { x: 3, y: 2, w: 4, h: 2 })
+      expect(onSaveLayout).toHaveBeenCalledWith("w1", { x: 3, y: 120, w: 400, h: 200 })
     })
   })
 
@@ -270,5 +270,30 @@ describe("DashboardPropertiesPanel", () => {
 
     await user.click(screen.getByTitle("Voltar para a biblioteca"))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("ordena as seções por finalidade: conteúdo → aparência → dimensões → camadas", () => {
+    render(
+      <DashboardPropertiesPanel
+        {...baseProps({
+          widget: filterWidget(),
+          filters: [baseFilter],
+        })}
+      />
+    )
+
+    const headings = Array.from(
+      document.querySelectorAll("aside h3")
+    ).map((el) => el.textContent?.trim())
+
+    const filtroIdx = headings.findIndex((h) => h === "Filtro")
+    const aparenciaIdx = headings.findIndex((h) => h === "Aparência")
+    const dimensoesIdx = headings.findIndex((h) => h === "Dimensões e posicionamento")
+    const camadasIdx = headings.findIndex((h) => h === "Camadas")
+
+    expect(filtroIdx).toBeGreaterThanOrEqual(0)
+    expect(aparenciaIdx).toBeGreaterThan(filtroIdx)
+    expect(dimensoesIdx).toBeGreaterThan(aparenciaIdx)
+    expect(camadasIdx).toBeGreaterThan(dimensoesIdx)
   })
 })

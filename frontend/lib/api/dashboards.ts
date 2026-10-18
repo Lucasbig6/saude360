@@ -7,6 +7,7 @@ import type {
   DashboardWidget,
 } from "@/lib/types/dashboard"
 import { normalizeWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
+import { applyGeometry, readCanvasLayout } from "@/lib/canvas-layout"
 
 /**
  * Payload cru de `GET/POST/PUT /api/dashboards` (camelCase do backend).
@@ -257,6 +258,8 @@ function toPages(raw: unknown): DashboardPage[] {
 
 export function toDashboard(raw: unknown): Dashboard {
   const value = assertApiDashboard(raw)
+  const appearance = toAppearance(value.appearance)
+  const layoutDocument = readCanvasLayout(appearance.layoutDocument)
   const apiPages = toPages(value.pages)
 
   let pages: DashboardPage[]
@@ -294,9 +297,9 @@ export function toDashboard(raw: unknown): Dashboard {
     name: value.name,
     description: value.description ?? "",
     slug: value.slug,
-    widgets,
+    widgets: layoutDocument ? applyGeometry(widgets, layoutDocument) : widgets,
     filters: toFilters(value.filters),
-    appearance: toAppearance(value.appearance),
+    appearance,
     projectId: typeof value.projectId === "string" ? value.projectId : null,
     createdBy: typeof value.createdBy === "string" ? value.createdBy : null,
     createdAt: value.createdAt,

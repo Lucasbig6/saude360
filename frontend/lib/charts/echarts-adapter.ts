@@ -104,11 +104,19 @@ function applyPresentation(option: EChartsOption, config: ChartConfig): EChartsO
     for (const series of seriesList) {
       const item = series as Record<string, unknown>
       const isPieLike = item.type === "pie" || item.type === "funnel"
+      // Função (não template "{c}") para os rótulos passarem pelo
+      // valueFormatter — moeda/percent/compact valem também nos data labels.
       item.label = {
         show: true,
         ...(isPieLike
-          ? { formatter: "{b}: {c}" }
-          : { position: horizontalLabelPosition(config.type), formatter: "{c}" }),
+          ? {
+              formatter: (params: { name?: unknown; value?: unknown }) =>
+                `${String(params.name ?? "")}: ${valueFormatter(params.value)}`,
+            }
+          : {
+              position: horizontalLabelPosition(config.type),
+              formatter: (params: { value?: unknown }) => valueFormatter(params.value),
+            }),
       }
       item.labelLine = { show: isPieLike }
     }

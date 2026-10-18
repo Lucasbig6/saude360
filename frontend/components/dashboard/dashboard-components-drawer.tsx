@@ -416,19 +416,11 @@ export function DashboardComponentsDrawer({
               key={analysis.id}
               draggable
               data-analysis-id={analysis.id}
-              data-gs-width="6"
-              data-gs-height="4"
-              data-gs-widget={JSON.stringify({
-                w: 6,
-                h: 4,
-                analysisId: analysis.id,
-              })}
               onDragStart={(e) => {
                 suppressClickRef.current = true
                 setDraggingId(analysis.id)
-                // Alguns navegadores e o adaptador de drag do GridStack podem
-                // disparar um DragEvent sem DataTransfer. Os data-attributes
-                // acima continuam disponíveis para o GridStack nesse caso.
+                // Alguns navegadores disparam DragEvent sem DataTransfer;
+                // nesse caso o canvas apenas ignora o drop com segurança.
                 const dataTransfer = e.dataTransfer
                 if (!dataTransfer) return
 

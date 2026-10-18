@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.ai.policies import ToolPolicyError
 from app.ai.tools.analysis_preview import (
+    NUMBER_FORMATS,
     parse_filters,
     parse_limit,
+    parse_number_format,
     parse_optional_bool,
     parse_sort,
 )
@@ -55,6 +57,7 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
     limit = parse_limit(args.get("limit"))
     filters = parse_filters(args.get("filters"))
     show_values = parse_optional_bool(args.get("show_values"))
+    number_format = parse_number_format(args.get("number_format"))
 
     chart_config = _build_chart_config(
         chart_type=chart_type,
@@ -65,6 +68,7 @@ async def create_analysis(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
         limit=limit,
         filters=filters,
         show_values=show_values,
+        number_format=number_format,
     )
 
     if ctx.db is None:
@@ -105,6 +109,7 @@ def _build_chart_config(
     limit: int | None,
     filters: list[dict[str, Any]],
     show_values: bool | None = None,
+    number_format: str | None = None,
 ) -> dict[str, Any] | None:
     """Monta o ``chart_config`` no shape do frontend (lib/charts/chart-config).
 
@@ -119,6 +124,7 @@ def _build_chart_config(
             and limit is None
             and not filters
             and not show_values
+            and number_format is None
         ):
             return None
 
@@ -147,6 +153,8 @@ def _build_chart_config(
         config["filters"] = filters
     if show_values:
         config["showValues"] = True
+    if number_format is not None:
+        config["numberFormat"] = number_format
     return config
 
 
@@ -246,6 +254,17 @@ def create_analysis_spec() -> ToolSpec:
                 "dataset_id": nullable({"type": "integer"}),
                 "database_id": nullable({"type": "integer"}),
                 "show_values": nullable({"type": "boolean"}),
+                "number_format": nullable(
+                    {
+                        "type": "string",
+                        "enum": sorted(NUMBER_FORMATS),
+                        "description": (
+                            "Formatação dos números no gráfico: 'currency' = "
+                            "R$ 1.234,56; 'percent' = 42%; 'compact' = 1,5 mil; "
+                            "'number' = 1.234,56."
+                        ),
+                    }
+                ),
                 "project_id": nullable({"type": "string"}),
             },
             "required": ["name"],

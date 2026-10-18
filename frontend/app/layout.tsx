@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import localFont from "next/font/local"
-import "gridstack/dist/gridstack.min.css"
 import "./globals.css"
 
 const inter = Inter({
