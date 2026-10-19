@@ -188,18 +188,28 @@
 }
 
 /* Dashboard edit mode grid background.
-   outline (não border): indicação visual sem alterar a geometria do grid —
-   edição e visualização mantêm a mesma largura de área. Pontos mais
-   discretos para não dominar o canvas; some no modo visualização/público. */
+   Só as linhas guia pontilhadas — a borda do quadro vem do wrapper
+   (rounded-xl border border-dashed) para valer também na visualização. */
 .dashboard-edit-grid {
   background-image:
     radial-gradient(circle, oklch(0.92 0 0 / 55%) 1px, transparent 1px);
   background-size: 24px 24px;
-  border-radius: 0.75rem;
-  outline: 1px dashed oklch(0.9 0 0);
-  outline-offset: -1px;
-  transition: background-color 200ms ease;
 }
-.dashboard-edit-grid:hover {
-  background-color: oklch(0.98 0 0 / 35%);
+
+/* GridStack placeholder — borda tracejada discreta, sem sombra */
+.grid-stack > .grid-stack-placeholder > .placeholder-content {
+  border: 1px dashed color-mix(in oklch, var(--primary) 45%, transparent) !important;
+  background-color: color-mix(in oklch, var(--primary) 6%, transparent) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: none !important;
+  transition: all 150ms ease;
+}
+
+/* Elemento arrastado externo — elevação mínima, só para leitura do arraste */
+.grid-stack-item-drag-in.ui-draggable-dragging {
+  opacity: 0.95 !important;
+  cursor: grabbing !important;
+  z-index: 9999 !important;
+  box-shadow: 0 6px 16px -6px oklch(0 0 0 / 0.25) !important;
+  border-color: var(--primary) !important;
 }

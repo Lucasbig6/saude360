@@ -2,8 +2,11 @@ import type { DashboardWidget } from "@/lib/types/dashboard"
 
 /** Coordinates are CSS pixels in a fixed report page, never viewport pixels. */
 export const CANVAS_LAYOUT_VERSION = 2
-export const DEFAULT_REPORT_PAGE = { width: 1280, height: 720 }
+export const DEFAULT_REPORT_PAGE = { width: 1920, height: 1080 }
 const LEGACY_CELL = { width: 100, height: 80 }
+
+export type CanvasLayer = "background" | "data" | "foreground"
+
 
 export interface CanvasGeometry {
   x: number
@@ -12,6 +15,7 @@ export interface CanvasGeometry {
   h: number
   zIndex: number
   visible: boolean
+  layer: CanvasLayer
 }
 
 export interface CanvasPageLayout {
@@ -37,10 +41,13 @@ function geometry(value: unknown, index: number): CanvasGeometry | null {
   const w = finite(raw.w, 0)
   const h = finite(raw.h, 0)
   if (w <= 0 || h <= 0) return null
+  const layer: CanvasLayer =
+    raw.layer === "background" || raw.layer === "foreground" ? raw.layer : "data"
   return {
     x: Math.max(0, finite(raw.x, 0)), y: Math.max(0, finite(raw.y, 0)),
     w: Math.max(24, w), h: Math.max(24, h), zIndex: Math.max(0, finite(raw.zIndex, index)),
     visible: raw.visible !== false,
+    layer,
   }
 }
 
@@ -57,7 +64,10 @@ export function readCanvasLayout(value: unknown): CanvasLayoutDocument | null {
   Object.entries(raw.pages).forEach(([id, page]) => {
     if (!page || typeof page !== "object") return
     const candidate = page as Partial<CanvasPageLayout>
-    pages[id] = { width: Math.max(320, finite(candidate.width, DEFAULT_REPORT_PAGE.width)), height: Math.max(240, finite(candidate.height, DEFAULT_REPORT_PAGE.height)), ...(typeof candidate.background === "string" ? { background: candidate.background } : {}) }
+    const background = typeof candidate.background === "string" ? candidate.background : undefined
+    const normalized: CanvasPageLayout = { ...DEFAULT_REPORT_PAGE }
+    if (background) normalized.background = background
+    pages[id] = normalized
   })
   return { version: CANVAS_LAYOUT_VERSION, pages, objects }
 }
@@ -67,7 +77,7 @@ export function legacyGeometry(widget: DashboardWidget, index: number): CanvasGe
   // Drops from the free canvas already arrive in page pixels before their
   // first save creates v2. Legacy GridStack widths never exceed 12 columns.
   if (finite(widget.layout.w, 0) > 24 || finite(widget.layout.h, 0) > 24) {
-    return { x: Math.max(0, finite(widget.layout.x, 0)), y: Math.max(0, finite(widget.layout.y, 0)), w: Math.max(80, finite(widget.layout.w, 320)), h: Math.max(64, finite(widget.layout.h, 180)), zIndex: index, visible: true }
+    return { x: Math.max(0, finite(widget.layout.x, 0)), y: Math.max(0, finite(widget.layout.y, 0)), w: Math.max(80, finite(widget.layout.w, 320)), h: Math.max(64, finite(widget.layout.h, 180)), zIndex: index, visible: true, layer: "data" }
   }
   return {
     x: Math.max(0, finite(widget.layout.x, 0)) * LEGACY_CELL.width,
@@ -76,7 +86,17 @@ export function legacyGeometry(widget: DashboardWidget, index: number): CanvasGe
     h: Math.max(80, finite(widget.layout.h, 4) * LEGACY_CELL.height - 16),
     zIndex: index,
     visible: true,
+    layer: "data",
   }
+}
+
+export function defaultLayerForConfig(
+  config: { type: string } | null | undefined
+): CanvasLayer {
+  if (!config) return "data"
+  if (config.type === "shape") return "background"
+  if (config.type === "text" || config.type === "image") return "foreground"
+  return "data"
 }
 
 export function layoutForWidgets(
@@ -85,7 +105,12 @@ export function layoutForWidgets(
   existing?: CanvasLayoutDocument | null
 ): CanvasLayoutDocument {
   const pages = Object.fromEntries(pageIds.map((id) => [id, existing?.pages[id] ?? DEFAULT_REPORT_PAGE]))
-  const objects = Object.fromEntries(widgets.map((widget, index) => [widget.id, existing?.objects[widget.id] ?? legacyGeometry(widget, index)]))
+  const objects = Object.fromEntries(widgets.map((widget, index) => {
+    const existingGeometry = existing?.objects[widget.id]
+    if (existingGeometry) return [widget.id, existingGeometry]
+    const base = legacyGeometry(widget, index)
+    return [widget.id, { ...base, layer: defaultLayerForConfig(widget.config) }]
+  }))
   return { version: CANVAS_LAYOUT_VERSION, pages, objects }
 }
 

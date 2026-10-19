@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { cn, dashboardWidthClass } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
 import { getDistinctValues } from "@/lib/api/datasets"
 import { resolveActivePageId, widgetsForPage } from "@/lib/dashboard-pages"
@@ -108,39 +108,43 @@ export function DashboardViewer({
         isDark ? "dark bg-background text-foreground" : "bg-muted/50 text-foreground"
       )}
     >
-      {/* Área de visualização: rola abaixo do cabeçalho e acima da footer */}
+      {/* Área de visualização: rola acima da footer */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin">
         <div
           className={cn(
-            dashboardWidthClass(dashboard.appearance),
-            "px-4 sm:px-6 lg:px-8 py-6 sm:py-8 transition-[padding-right] duration-200",
+            enableCopilot
+              ? "px-4 sm:px-6 lg:px-8 py-6 sm:py-8"
+              : "p-2 sm:p-3",
+            "transition-[padding-right] duration-200",
             copilotOpen && "lg:pr-[24rem] xl:pr-[26rem]"
           )}
         >
-          {/* Presentation header — marca, ações e filtros vivem na footer */}
-          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h1
-                className={cn(
-                  "text-2xl font-semibold text-inherit",
-                  "text-foreground"
-                )}
-              >
-                {dashboard.name}
-              </h1>
-              {dashboard.description && (
-                <p
+          {/* Cabeçalho de apresentação só quando o copiloto está habilitado
+              (viewer autenticado). Na página compartilhada o canvas é a
+              página inteira — padrão Power BI — e a footer fica abaixo. */}
+          {enableCopilot && (
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h1
                   className={cn(
-                    "mt-1 max-w-2xl text-sm",
-                    "text-muted-foreground"
+                    "text-2xl font-semibold text-inherit",
+                    "text-foreground"
                   )}
                 >
-                  {dashboard.description}
-                </p>
-              )}
-            </div>
+                  {dashboard.name}
+                </h1>
+                {dashboard.description && (
+                  <p
+                    className={cn(
+                      "mt-1 max-w-2xl text-sm",
+                      "text-muted-foreground"
+                    )}
+                  >
+                    {dashboard.description}
+                  </p>
+                )}
+              </div>
 
-            {enableCopilot && (
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
@@ -159,11 +163,11 @@ export function DashboardViewer({
                   Copiloto
                 </Button>
               </div>
-            )}
-          </header>
+            </header>
+          )}
 
           {/* Grid — no drag/resize, no edit controls */}
-          <section className="mt-6">
+          <section className={enableCopilot ? "mt-6" : undefined}>
             <div>
               {pageWidgets.length === 0 ? (
                 <div
@@ -206,11 +210,6 @@ export function DashboardViewer({
         pages={dashboard.pages}
         activePageId={effectivePageId}
         onSelectPage={setActivePageId}
-        filters={dashboard.filters}
-        filterValues={filterValues}
-        onFilterValueChange={handleFilterValueChange}
-        loadingDistinct={loadingDistinct}
-        distinctValues={distinctValues}
         showBrand={showBrand}
         canEdit={canEdit}
         editHref={editHref}

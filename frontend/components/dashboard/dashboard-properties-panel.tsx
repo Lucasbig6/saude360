@@ -25,6 +25,7 @@ import {
 } from "@/lib/types/widgets"
 import { getAnalysis, getAnalyses } from "@/lib/api/analyses"
 import { getDataset, type DatasetColumn } from "@/lib/api/datasets"
+import { DEFAULT_REPORT_PAGE } from "@/lib/canvas-layout"
 import type { Analysis } from "@/lib/types/analysis"
 import { ChartConfigPanel } from "./chart-config-panel"
 
@@ -95,15 +96,15 @@ function LayoutSection({
   const { draft, error } = shown
 
   function commit(next: typeof draft) {
-    const x = parseIntInRange(next.x, 0, 1280)
-    const y = parseIntInRange(next.y, 0, 720)
-    const w = parseIntInRange(next.w, 24, 1280)
-    const h = parseIntInRange(next.h, 24, 720)
+    const x = parseIntInRange(next.x, 0, DEFAULT_REPORT_PAGE.width)
+    const y = parseIntInRange(next.y, 0, DEFAULT_REPORT_PAGE.height)
+    const w = parseIntInRange(next.w, 24, DEFAULT_REPORT_PAGE.width)
+    const h = parseIntInRange(next.h, 24, DEFAULT_REPORT_PAGE.height)
     if (x === null || y === null || w === null || h === null) {
       setState({
         key: layoutKey,
         draft: next,
-        error: "Use pixels da página: X 0–1280, Y 0–720, largura 24–1280 e altura 24–720.",
+        error: `Use pixels da página: X 0–${DEFAULT_REPORT_PAGE.width}, Y 0–${DEFAULT_REPORT_PAGE.height}, largura 24–${DEFAULT_REPORT_PAGE.width} e altura 24–${DEFAULT_REPORT_PAGE.height}.`,
       })
       return
     }
@@ -129,7 +130,7 @@ function LayoutSection({
               className="h-8 text-xs"
               value={draft[key]}
               min={key === "w" || key === "h" ? 24 : 0}
-              max={key === "x" || key === "w" ? 1280 : 720}
+              max={key === "x" || key === "w" ? DEFAULT_REPORT_PAGE.width : DEFAULT_REPORT_PAGE.height}
               onChange={(event) => commit({ ...draft, [key]: event.target.value })}
             />
           </Field>
@@ -249,9 +250,13 @@ function StyleSection({
 function LayerSection({
   onBringToFront,
   onSendToBack,
+  onChangeLayer,
+  currentLayer,
 }: {
   onBringToFront: () => void
   onSendToBack: () => void
+  onChangeLayer?: (layer: "background" | "data" | "foreground") => void
+  currentLayer?: "background" | "data" | "foreground"
 }) {
   return (
     <Section title="Camadas">
@@ -265,9 +270,22 @@ function LayerSection({
           Enviar para trás
         </Button>
       </div>
+      {onChangeLayer && currentLayer && (
+        <Field label="Camada">
+          <select
+            className={SELECT_CLASS}
+            value={currentLayer}
+            onChange={(e) => onChangeLayer(e.target.value as "background" | "data" | "foreground")}
+          >
+            <option value="background">Fundo</option>
+            <option value="data">Dados</option>
+            <option value="foreground">Frente</option>
+          </select>
+        </Field>
+      )}
       <p className="text-xs text-muted-foreground">
-        A grade organiza os cartões lado a lado; a camada vale para o conteúdo
-        do cartão.
+        A camada controla a ordem visual. Elementos de fundo ficam atrás dos
+        gráficos; elementos de frente ficam acima.
       </p>
     </Section>
   )
@@ -559,6 +577,8 @@ export interface DashboardPropertiesPanelProps {
   onBringToFront: (widgetId: string) => void
   onSendToBack: (widgetId: string) => void
   onRemoveWidget: (widgetId: string) => void
+  onChangeLayer?: (widgetId: string, layer: "background" | "data" | "foreground") => void
+  currentLayer?: "background" | "data" | "foreground"
   /** Volta para a aba Biblioteca sem perder a seleção. */
   onClose: () => void
   className?: string
@@ -587,6 +607,8 @@ export function DashboardPropertiesPanel({
   onBringToFront,
   onSendToBack,
   onRemoveWidget,
+  onChangeLayer,
+  currentLayer,
   onClose,
   className,
 }: DashboardPropertiesPanelProps) {
@@ -640,7 +662,7 @@ export function DashboardPropertiesPanel({
     <aside
       aria-label="Propriedades do elemento selecionado"
       className={cn(
-        "flex flex-col w-full sm:w-[390px] lg:w-[460px] shrink-0 border-l border-border bg-card shadow-lg z-20",
+        "flex flex-col w-full h-full shrink-0 bg-card",
         className
       )}
     >
@@ -731,6 +753,8 @@ export function DashboardPropertiesPanel({
           <LayerSection
             onBringToFront={() => onBringToFront(widget.id)}
             onSendToBack={() => onSendToBack(widget.id)}
+            onChangeLayer={onChangeLayer ? (layer) => onChangeLayer(widget.id, layer) : undefined}
+            currentLayer={currentLayer}
           />
         )}
 

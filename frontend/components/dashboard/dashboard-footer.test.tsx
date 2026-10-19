@@ -1,23 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { DashboardFooter } from "./dashboard-footer"
-import type { DashboardFilter, DashboardPage } from "@/lib/types/dashboard"
+import type { DashboardPage } from "@/lib/types/dashboard"
 
 const pages: DashboardPage[] = [
   { id: "p1", name: "Visão geral" },
   { id: "p2", name: "Detalhes" },
 ]
-
-function filterFixture(): DashboardFilter {
-  return {
-    id: "f1",
-    datasetId: 7,
-    column: "regiao",
-    operator: "eq",
-    defaultValue: "Norte",
-    scope: "dashboard",
-  }
-}
 
 function renderFooter(
   props: Partial<React.ComponentProps<typeof DashboardFooter>> = {}
@@ -27,9 +16,6 @@ function renderFooter(
       pages={pages}
       activePageId="p1"
       onSelectPage={vi.fn()}
-      filters={[]}
-      filterValues={{}}
-      onFilterValueChange={vi.fn()}
       {...props}
     />
   )
@@ -134,19 +120,13 @@ describe("DashboardFooter", () => {
     }
   })
 
-  it("renderiza filtros interativos e reporta mudanças de valor", () => {
-    const onFilterValueChange = vi.fn()
-    renderFooter({
-      filters: [filterFixture()],
-      filterValues: { f1: "Norte" },
-      onFilterValueChange,
-    })
+  it("não renderiza controles de filtro (filtros vivem no canvas)", () => {
+    renderFooter()
 
-    const input = screen.getByPlaceholderText("Valor")
-    expect(input).toHaveValue("Norte")
-
-    fireEvent.change(input, { target: { value: "Sul" } })
-    expect(onFilterValueChange).toHaveBeenCalledWith("f1", "Sul")
+    expect(screen.queryByPlaceholderText("Valor")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Filtros do painel" })
+    ).not.toBeInTheDocument()
   })
 
   it("exibe o link de edição apenas quando há permissão", () => {
@@ -160,9 +140,6 @@ describe("DashboardFooter", () => {
         pages={pages}
         activePageId="p1"
         onSelectPage={vi.fn()}
-        filters={[]}
-        filterValues={{}}
-        onFilterValueChange={vi.fn()}
         canEdit
         editHref="/paineis/d1"
       />

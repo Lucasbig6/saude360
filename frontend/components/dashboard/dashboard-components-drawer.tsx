@@ -201,7 +201,7 @@ export function DashboardComponentsDrawer({
     <aside
       aria-label="Biblioteca de componentes do painel"
       className={cn(
-        "flex flex-col w-full sm:w-[390px] lg:w-[460px] shrink-0 border-l border-border bg-card shadow-lg z-20 transition-all",
+        "flex flex-col w-full h-full shrink-0 bg-card transition-all",
         className
       )}
     >

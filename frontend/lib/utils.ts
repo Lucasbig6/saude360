@@ -1,4 +1,4 @@
-import type { Dashboard, DashboardAppearance } from "@/lib/types/dashboard"
+import type { Dashboard } from "@/lib/types/dashboard"
 
 export { cn } from "cn"
 
@@ -19,17 +19,4 @@ function slugifyDashboardName(name: string): string {
 export function getDashboardSharePath(dashboard: Dashboard): string {
   const slug = dashboard.slug?.trim() || slugifyDashboardName(dashboard.name)
   return `/painel/${slug}`
-}
-
-// Classe do container do painel: o grid mede o container (useContainerWidth),
-// então trocar a largura aqui escala widgets e breakpoints automaticamente.
-export function dashboardWidthClass(appearance?: DashboardAppearance): string {
-  switch (appearance?.width) {
-    case "wide":
-      return "mx-auto max-w-screen-2xl"
-    case "full":
-      return ""
-    default:
-      return "mx-auto max-w-7xl"
-  }
 }

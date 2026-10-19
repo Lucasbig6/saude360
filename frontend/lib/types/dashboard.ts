@@ -56,12 +56,9 @@ export interface DashboardPage {
   name: string
 }
 
-export type DashboardWidth = "default" | "wide" | "full"
-
 export interface DashboardAppearance {
   theme?: "light" | "dark"
   showBrand?: boolean
-  width?: DashboardWidth
   /** v2 report geometry; config/query data remain on each widget. */
   layoutDocument?: CanvasLayoutDocument
 }

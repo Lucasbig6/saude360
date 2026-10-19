@@ -16,6 +16,7 @@ vi.mock("./dashboard-canvas", () => ({
     dashboard: { widgets: { id: string }[] }
     refreshKey?: number
     filterValues: Record<string, string | string[]>
+    onFilterValueChange?: (filterId: string, value: string | string[]) => void
     publicMode?: boolean
     readOnly?: boolean
   }) => (
@@ -26,7 +27,13 @@ vi.mock("./dashboard-canvas", () => ({
       data-public-mode={String(Boolean(props.publicMode))}
       data-read-only={String(Boolean(props.readOnly))}
       data-filter-values={JSON.stringify(props.filterValues)}
-    />
+    >
+      <button
+        onClick={() => props.onFilterValueChange?.("f1", "Sul")}
+      >
+        mudar filtro
+      </button>
+    </div>
   ),
 }))
 
@@ -99,7 +106,7 @@ describe("DashboardViewer", () => {
     expect(root.lastElementChild).toBe(footer)
   })
 
-  it("exibe o logo e as ações globais na footer, não no cabeçalho", () => {
+  it("exibe o logo e as ações globais na footer, sem cabeçalho acima do canvas", () => {
     render(<DashboardViewer dashboard={dashboardFixture()} />)
 
     const footer = screen.getByTestId("dashboard-footer")
@@ -111,20 +118,12 @@ describe("DashboardViewer", () => {
       within(footer).getByRole("button", { name: "Compartilhar painel" })
     ).toBeInTheDocument()
 
-    const header = screen
-      .getByRole("heading", { level: 1, name: "Painel compartilhado" })
-      .closest("header")
-    expect(header).not.toBeNull()
+    // Página compartilhada estilo Power BI: o canvas é a página, sem
+    // título/descrição acima (padrão Power BI).
     expect(
-      within(header as HTMLElement).queryByRole("button", {
-        name: "Atualizar dados",
-      })
+      screen.queryByRole("heading", { level: 1 })
     ).not.toBeInTheDocument()
-    expect(
-      within(header as HTMLElement).queryByRole("button", {
-        name: "Compartilhar painel",
-      })
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText("Descrição do painel")).not.toBeInTheDocument()
   })
 
   it("não exibe o logo quando a marca está desativada", () => {
@@ -191,9 +190,7 @@ describe("DashboardViewer", () => {
       expect.stringContaining('"f1":"Norte"')
     )
 
-    // Valores distintos carregados (modo autenticado) → o filtro vira select.
-    const select = await screen.findByRole("combobox")
-    fireEvent.change(select, { target: { value: "Sul" } })
+    fireEvent.click(screen.getByRole("button", { name: "mudar filtro" }))
 
     await waitFor(() => {
       expect(screen.getByTestId("canvas")).toHaveAttribute(

@@ -75,8 +75,8 @@ describe("DashboardPropertiesPanel", () => {
     const xInput = screen.getByLabelText("X") as HTMLInputElement
     expect(xInput.value).toBe("0")
 
-    fireEvent.change(xInput, { target: { value: "1400" } })
-    expect(await screen.findByRole("alert")).toHaveTextContent(/X 0–1280/)
+    fireEvent.change(xInput, { target: { value: "2000" } })
+    expect(await screen.findByRole("alert")).toHaveTextContent(/X 0–1920/)
     expect(onSaveLayout).not.toHaveBeenCalled()
 
     fireEvent.change(xInput, { target: { value: "3" } })
