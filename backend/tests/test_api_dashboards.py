@@ -384,6 +384,86 @@ async def test_get_by_unknown_slug_is_404(client):
     assert response.status_code == 404
 
 
+async def test_get_filter_distinct_is_public(client, auth_headers, mock_superset_client):
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel com filtro",
+            "filters": [
+                {
+                    "datasetId": 3,
+                    "column": "municipio",
+                    "operator": "in",
+                    "defaultValue": [],
+                    "scope": "dashboard",
+                    "controlType": "multi-select",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    slug = created.json()["slug"]
+    filter_id = created.json()["filters"][0]["id"]
+
+    mock_superset_client.get.return_value = {"result": ["SP", "RJ", "MG"]}
+    # sem headers de autenticação: o link compartilhado precisa abrir
+    response = await client.get(
+        f"/api/dashboards/by-slug/{slug}/filters/{filter_id}/distinct"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"result": ["SP", "RJ", "MG"]}
+    mock_superset_client.get.assert_awaited_once()
+    assert "/api/v1/dataset/distinct/municipio" in mock_superset_client.get.await_args.args[0]
+
+
+async def test_get_filter_distinct_unknown_slug_or_filter_is_404(client, auth_headers):
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel filtro 404",
+            "filters": [
+                {"datasetId": 3, "column": "uf", "operator": "eq", "scope": "dashboard"}
+            ],
+        },
+        headers=auth_headers,
+    )
+    slug = created.json()["slug"]
+    filter_id = created.json()["filters"][0]["id"]
+
+    unknown_slug = await client.get(
+        f"/api/dashboards/by-slug/nao-existe/filters/{filter_id}/distinct"
+    )
+    assert unknown_slug.status_code == 404
+
+    unknown_filter = await client.get(
+        f"/api/dashboards/by-slug/{slug}/filters/{uuid.uuid4()}/distinct"
+    )
+    assert unknown_filter.status_code == 404
+
+
+async def test_get_filter_distinct_without_dataset_returns_empty(
+    client, auth_headers, mock_superset_client
+):
+    created = await client.post(
+        "/api/dashboards",
+        json={
+            "name": "Painel filtro sem dataset",
+            "filters": [{"column": "uf", "operator": "eq", "scope": "dashboard"}],
+        },
+        headers=auth_headers,
+    )
+    slug = created.json()["slug"]
+    filter_id = created.json()["filters"][0]["id"]
+
+    response = await client.get(
+        f"/api/dashboards/by-slug/{slug}/filters/{filter_id}/distinct"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"result": []}
+    mock_superset_client.get.assert_not_awaited()
+
+
 async def test_put_full_update_preserves_widget_ids(client, auth_headers):
     analysis_id = await create_analysis(client, auth_headers)
     created = await client.post(

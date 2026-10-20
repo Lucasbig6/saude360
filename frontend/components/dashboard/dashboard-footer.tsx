@@ -86,13 +86,21 @@ export function DashboardFooter({
         )}
       >
         {showBrand && (
-          <Image
-            src="/Logo principal.svg"
-            alt="SIGDATA"
-            width={283}
-            height={90}
-            className="h-auto w-[85px] shrink-0 sm:w-[150px]"
-          />
+          <>
+            <Image
+              src="/Logo principal.svg"
+              alt="SIGDATA"
+              width={283}
+              height={90}
+              className="h-auto w-[85px] shrink-0 sm:w-[150px]"
+            />
+            {/* Divider vertical entre a marca e as abas de página. */}
+            <div
+              aria-hidden
+              data-testid="footer-brand-divider"
+              className="h-8 w-px shrink-0 bg-border"
+            />
+          </>
         )}
 
         <DashboardPageTabs

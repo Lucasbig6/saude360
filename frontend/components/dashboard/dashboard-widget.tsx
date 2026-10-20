@@ -821,7 +821,25 @@ function DashboardFilterControl({
   const controlClass = compact
     ? "h-7 w-full rounded-md border border-border bg-background px-1.5 text-xs"
     : "h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-  if (loading) return <Loader2 size={14} className="animate-spin text-muted-foreground" />
+  // Derived options: include already-selected values + visible distinct options,
+  // avoiding duplicates. This ensures options persist across filter changes.
+  const [queryState, setQueryState] = useState<{ filterId: string; text: string }>({
+    filterId: "",
+    text: "",
+  })
+  const query = queryState.filterId === filter.id ? queryState.text : ""
+  const setQuery = (text: string) => setQueryState({ filterId: filter.id, text })
+  const selectedMulti = Array.isArray(value) ? value : value ? [value] : []
+  const withSelected = [
+    ...values,
+    ...selectedMulti.filter((item) => !values.includes(item)),
+  ]
+  const visibleOptions = withSelected.filter(
+    (item) => !query || optionMatches(query, item) || selectedMulti.includes(item)
+  )
+
+  const optionMatches = (query: string, item: string) =>
+    item.toString().toLowerCase().includes(query.toLowerCase())
   if (filter.controlType === "date-range" || filter.operator === "between") {
     const range = Array.isArray(value) ? value : ["", ""]
     return (
@@ -831,33 +849,39 @@ function DashboardFilterControl({
       </div>
     )
   }
-  if (filter.controlType === "list" && values.length > 0) {
+  if (filter.controlType === "list" && visibleOptions.length > 0) {
     const selected = typeof value === "string" ? value : value[0] ?? ""
     return (
       <div role="radiogroup" aria-label={filter.column} className="space-y-1 overflow-y-auto">
         <label className="flex items-center gap-2 text-xs"><input type="radio" name={filter.id} checked={!selected} onChange={() => onChange("")} />Todos</label>
-        {values.map((item) => <label key={item} className="flex items-center gap-2 text-xs"><input type="radio" name={filter.id} value={item} checked={selected === item} onChange={() => onChange(item)} />{item}</label>)}
+        {visibleOptions.map((item) => <label key={item} className="flex items-center gap-2 text-xs"><input type="radio" name={filter.id} value={item} checked={selected === item} onChange={() => onChange(item)} />{item}</label>)}
       </div>
     )
   }
   if (filter.controlType === "multi-select" || filter.operator === "in") {
     const selected = Array.isArray(value) ? value : []
-    if (values.length === 0) {
-      return <input aria-label={filter.column} value={selected.join(", ")} placeholder="Valores separados por vírgula" onChange={(event) => onChange(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} className={controlClass} />
+    if (visibleOptions.length === 0) {
+      return <div className="space-y-1">
+        <select aria-label={filter.column} multiple disabled className={controlClass}>
+          <option>Nenhuma opção disponível</option>
+        </select>
+      </div>
     }
     return (
-      <select aria-label={filter.column} multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className={controlClass}>
-        {values.map((item) => <option key={item} value={item}>{item}</option>)}
-      </select>
+      <div className="space-y-1">
+        <select aria-label={filter.column} multiple value={selected} onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value))} className={`${controlClass} ${compact ? "h-14" : "h-24"}`}>
+          {visibleOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </div>
     )
   }
-  if (values.length === 0) {
+  if (visibleOptions.length === 0) {
     return <input aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} placeholder="Valor do filtro" className={controlClass} />
   }
   return (
     <select aria-label={filter.column} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} className={controlClass}>
       <option value="">Todos</option>
-      {values.map((item) => <option key={item} value={item}>{item}</option>)}
+      {visibleOptions.map((item) => <option key={item} value={item}>{item}</option>)}
     </select>
   )
 }

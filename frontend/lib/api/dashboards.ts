@@ -7,7 +7,8 @@ import type {
   DashboardWidget,
 } from "@/lib/types/dashboard"
 import { normalizeWidgetConfig, type WidgetConfig } from "@/lib/types/widgets"
-import { applyGeometry, readCanvasLayout } from "@/lib/canvas-layout"
+import { normalizeGridLayout } from "@/lib/canvas-layout"
+import type { DistinctValuesResponse } from "./datasets"
 
 /**
  * Payload cru de `GET/POST/PUT /api/dashboards` (camelCase do backend).
@@ -135,12 +136,14 @@ function finite(value: unknown, fallback: number): number {
 }
 
 function toLayout(layout: ApiLayout | null | undefined): DashboardWidget["layout"] {
-  return {
+  // Repara resíduos da era pixel (painel em pixels/canvas Konva) gravados nas
+  // colunas do banco; a grade GridStack é a fonte da verdade.
+  return normalizeGridLayout({
     x: finite(layout?.x, 0),
     y: finite(layout?.y, 0),
     w: finite(layout?.w, 4),
     h: finite(layout?.h, 4),
-  }
+  })
 }
 
 function toConfig(raw: unknown): WidgetConfig | undefined {
@@ -259,7 +262,6 @@ function toPages(raw: unknown): DashboardPage[] {
 export function toDashboard(raw: unknown): Dashboard {
   const value = assertApiDashboard(raw)
   const appearance = toAppearance(value.appearance)
-  const layoutDocument = readCanvasLayout(appearance.layoutDocument)
   const apiPages = toPages(value.pages)
 
   let pages: DashboardPage[]
@@ -297,7 +299,7 @@ export function toDashboard(raw: unknown): Dashboard {
     name: value.name,
     description: value.description ?? "",
     slug: value.slug,
-    widgets: layoutDocument ? applyGeometry(widgets, layoutDocument) : widgets,
+    widgets,
     filters: toFilters(value.filters),
     appearance,
     projectId: typeof value.projectId === "string" ? value.projectId : null,
@@ -434,6 +436,19 @@ export async function getDashboardBySlug(slug: string): Promise<Dashboard | null
     if (err instanceof ApiError && err.status === 404) return null
     throw err
   }
+}
+
+/**
+ * Opções de um filtro no link compartilhado (sem auth). O backend só expõe
+ * datasets referenciados pelos filtros do próprio painel.
+ */
+export async function getPublicFilterDistinct(
+  slug: string,
+  filterId: string
+): Promise<DistinctValuesResponse> {
+  return apiGet<DistinctValuesResponse>(
+    `/api/dashboards/by-slug/${encodeURIComponent(slug)}/filters/${encodeURIComponent(filterId)}/distinct`
+  )
 }
 
 export async function createDashboard(data: DashboardInput): Promise<Dashboard> {

@@ -4,8 +4,9 @@ import { useGridStackItem } from "gridstack/dist/react"
 import { GridstackCanvas } from "./gridstack-canvas"
 import type { CanvasItem } from "./gridstack-canvas"
 
-// jsdom nasce com 1024px, o que dispara o breakpoint de 10 colunas e escala
-// as coordenadas do motor; fixa uma largura de desktop para testar em 12.
+// jsdom nasce com 1024px; em modo leitura não há breakpoint, mas o editor
+// (editable) reduz para 10 colunas abaixo de 1024px — fixa largura de desktop
+// para testar o editor em 12.
 const DESKTOP_WIDTH = 1440
 
 beforeAll(() => {
@@ -103,6 +104,39 @@ describe("GridstackCanvas", () => {
         ])
       )
     })
+  })
+
+  it("mantém 12 colunas em modo leitura mesmo em janela estreita (share)", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 600,
+    })
+    try {
+      const { container } = render(
+        <GridstackCanvas
+          items={[
+            { id: "a", x: 0, y: 0, w: 6, h: 4 },
+            { id: "b", x: 6, y: 0, w: 6, h: 4 },
+          ]}
+          components={COMPONENTS}
+        />
+      )
+
+      await waitFor(() => {
+        const nodes = getGrid(container).engine.nodes
+        expect(nodes).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: "a", x: 0, y: 0, w: 6, h: 4 }),
+            expect.objectContaining({ id: "b", x: 6, y: 0, w: 6, h: 4 }),
+          ])
+        )
+      })
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        value: DESKTOP_WIDTH,
+      })
+    }
   })
 
   it("adiciona e remove itens conforme o array muda (sem remontar o grid)", async () => {

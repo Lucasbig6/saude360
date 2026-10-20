@@ -1,23 +1,21 @@
 "use client"
 
-import { createContext, useContext, useEffect, useMemo, useRef } from "react"
-import type { PointerEvent } from "react"
-import { useGridStack, useGridStackItem } from "gridstack/dist/react"
-import type { ComponentMap } from "gridstack/dist/react"
+import { createContext, useContext, useMemo } from "react"
 import type { Dashboard, DashboardFilter } from "@/lib/types/dashboard"
 import { DashboardWidgetView } from "./dashboard-widget"
-import { GridstackCanvas } from "./gridstack-canvas"
-import type { CanvasItem } from "./gridstack-canvas"
+import {
+  CanvasStage,
+  type CanvasStageDropData,
+  type CanvasStageItem,
+} from "./canvas-stage"
+import {
+  DEFAULT_REPORT_PAGE,
+  defaultLayerForConfig,
+  geometryForCanvas,
+  readCanvasLayout,
+} from "@/lib/canvas-layout"
 
-export type { CanvasItem } from "./gridstack-canvas"
-export interface CanvasDropAnalysisData {
-  analysisId?: string
-  config?: import("@/lib/types/widgets").WidgetConfig
-  x: number
-  y: number
-  w: number
-  h: number
-}
+export type { CanvasStageDropData as CanvasDropAnalysisData }
 
 interface DashboardCanvasValue {
   widgets: Dashboard["widgets"]
@@ -26,7 +24,7 @@ interface DashboardCanvasValue {
   readOnly: boolean
   filterValues: Record<string, string | string[]>
   distinctValues: Record<string, string[]>
-  loadingDistinct: boolean
+  loadingDistinct: Record<string, boolean>
   onFilterValueChange?: (filterId: string, value: string | string[]) => void
   refreshKey: number
   publicMode: boolean
@@ -42,98 +40,34 @@ interface DashboardCanvasValue {
 
 const DashboardCanvasContext = createContext<DashboardCanvasValue | null>(null)
 
-function WidgetPortal() {
+function WidgetContent({ widgetId }: { widgetId: string }) {
   const ctx = useContext(DashboardCanvasContext)
-  const { grid } = useGridStack()
-  const { id } = useGridStackItem()
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // O handle de arrasto vive dentro do conteúdo React: re-scan após cada
-  // render para o GridStack conseguir anexar os listeners.
-  useEffect(() => {
-    const itemEl = rootRef.current?.closest(".grid-stack-item") as HTMLElement | null
-    if (itemEl) grid?.refreshDragHandles(itemEl)
-  })
-
   if (!ctx) return null
-  const widget = ctx.widgets.find((w) => w.id === id)
+  const widget = ctx.widgets.find((w) => w.id === widgetId)
   if (!widget) return null
 
-  const isSelected = ctx.selectedWidgetId === widget.id
-
   return (
-    <div
-      ref={rootRef}
-      className="relative h-full"
-      data-widget-id={widget.id}
-      aria-selected={ctx.editing ? isSelected : undefined}
-      onClick={() => ctx.onSelectWidget?.(widget.id)}
-    >
-      {ctx.editing && (
-        <>
-          {/* Barra de arrasto */}
-          <div className="grid-drag-handle absolute left-0 right-0 top-0 z-20 flex h-6 cursor-grab items-center justify-center rounded-t-xl bg-slate-100/80 hover:bg-slate-200/80 active:cursor-grabbing">
-            <div className="flex gap-0.5">
-              <span className="block h-0.5 w-4 rounded-full bg-slate-400" />
-            </div>
-          </div>
-          {/* Botões de camada no hover */}
-          {ctx.onBringToFront && ctx.onSendToBack && (
-            <div className="absolute right-1 top-7 z-20 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-              <button
-                type="button"
-                title="Trazer para frente"
-                className="rounded bg-white/90 p-1 text-xs shadow-sm hover:bg-white"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  ctx.onBringToFront?.(widget.id)
-                }}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                title="Enviar para trás"
-                className="rounded bg-white/90 p-1 text-xs shadow-sm hover:bg-white"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  ctx.onSendToBack?.(widget.id)
-                }}
-              >
-                ↓
-              </button>
-            </div>
-          )}
-        </>
-      )}
-      {/* Borda de seleção */}
-      {isSelected && (
-        <div className="pointer-events-none absolute inset-0 z-10 rounded-lg ring-2 ring-primary" />
-      )}
-      <div className={ctx.editing ? "pt-6 h-full" : "h-full"}>
-        <DashboardWidgetView
-          key={`${widget.id}-${ctx.refreshKey}`}
-          widget={widget}
-          filters={ctx.filters}
-          filterValues={ctx.filterValues}
-          onRemove={ctx.onRemove}
-          onConfigure={ctx.onConfigure}
-          onDuplicateWidget={ctx.onDuplicateWidget}
-          onCopyWidget={ctx.onCopyWidget}
-          onBringToFront={ctx.onBringToFront}
-          onSendToBack={ctx.onSendToBack}
-          readOnly={ctx.readOnly}
-          publicMode={ctx.publicMode}
-          distinctValues={ctx.distinctValues}
-          loadingDistinct={ctx.loadingDistinct}
-          onFilterValueChange={ctx.onFilterValueChange}
-        />
-      </div>
+    <div className="relative h-full" data-widget-id={widget.id}>
+      <DashboardWidgetView
+        key={`${widget.id}-${ctx.refreshKey}`}
+        widget={widget}
+        filters={ctx.filters}
+        filterValues={ctx.filterValues}
+        onRemove={ctx.onRemove}
+        onConfigure={ctx.onConfigure}
+        onDuplicateWidget={ctx.onDuplicateWidget}
+        onCopyWidget={ctx.onCopyWidget}
+        onBringToFront={ctx.onBringToFront}
+        onSendToBack={ctx.onSendToBack}
+        readOnly={ctx.readOnly}
+        publicMode={ctx.publicMode}
+        distinctValues={ctx.distinctValues}
+        loadingDistinct={ctx.loadingDistinct}
+        onFilterValueChange={ctx.onFilterValueChange}
+      />
     </div>
   )
 }
-
-const PORTAL_COMPONENTS: ComponentMap = { widget: WidgetPortal }
 
 function noop() {
   /* remoção desativada em modo somente leitura */
@@ -145,7 +79,7 @@ interface DashboardCanvasProps {
   readOnly?: boolean
   filterValues: Record<string, string | string[]>
   distinctValues?: Record<string, string[]>
-  loadingDistinct?: boolean
+  loadingDistinct?: Record<string, boolean>
   onFilterValueChange?: (filterId: string, value: string | string[]) => void
   refreshKey?: number
   publicMode?: boolean
@@ -157,8 +91,12 @@ interface DashboardCanvasProps {
   onCopyWidget?: (widgetId: string) => void
   onBringToFront?: (widgetId: string) => void
   onSendToBack?: (widgetId: string) => void
-  onLayoutChange?: (items: CanvasItem[]) => void
-  onDropAnalysis?: (data: CanvasDropAnalysisData) => void
+  /** Geometria em pixels commitada pelo stage (move/resize). */
+  onWidgetGeometryChange?: (
+    widgetId: string,
+    pixel: { x: number; y: number; w: number; h: number }
+  ) => void
+  onDropAnalysis?: (data: CanvasStageDropData) => void
   className?: string
 }
 
@@ -168,7 +106,7 @@ export function DashboardCanvas({
   readOnly = false,
   filterValues,
   distinctValues = {},
-  loadingDistinct = false,
+  loadingDistinct = {},
   onFilterValueChange,
   refreshKey = 0,
   publicMode = false,
@@ -180,22 +118,34 @@ export function DashboardCanvas({
   onCopyWidget,
   onBringToFront,
   onSendToBack,
-  onLayoutChange,
+  onWidgetGeometryChange,
   onDropAnalysis,
   className,
 }: DashboardCanvasProps) {
-  // GridStack usa coordenadas de grade (12 colunas, 80px cell height).
-  // widget.layout armazena essas coordenadas diretamente.
-  const items = useMemo<CanvasItem[]>(
+  const layoutDocument = useMemo(
+    () => readCanvasLayout(dashboard.appearance?.layoutDocument),
+    [dashboard.appearance?.layoutDocument]
+  )
+
+  const pageId = dashboard.activePageId ?? dashboard.pages[0]?.id ?? ""
+  const page = layoutDocument?.pages[pageId] ?? DEFAULT_REPORT_PAGE
+
+  // Geometria pixel-authoritative do documento; widgets sem objeto pixel
+  // derivam da grade (layouts v2 antigos — mesma posição visual).
+  const items = useMemo<CanvasStageItem[]>(
     () =>
-      dashboard.widgets.map((w) => ({
-        id: w.id,
-        x: w.layout.x,
-        y: w.layout.y,
-        w: w.layout.w,
-        h: w.layout.h,
-      })),
-    [dashboard.widgets]
+      dashboard.widgets.map((widget) => {
+        const object = layoutDocument?.objects[widget.id]
+        return {
+          id: widget.id,
+          pixel: geometryForCanvas(widget, layoutDocument, page),
+          zIndex: object?.zIndex,
+          layer: object?.layer ?? defaultLayerForConfig(widget.config),
+          visible: object?.visible ?? true,
+          styleZIndex: widget.config?.style?.zIndex,
+        }
+      }),
+    [dashboard.widgets, layoutDocument, page]
   )
 
   const value = useMemo<DashboardCanvasValue>(
@@ -241,27 +191,20 @@ export function DashboardCanvas({
     ]
   )
 
-  // Clique no fundo do canvas (fora de qualquer item do grid) desseleciona.
-  function handleBackgroundPointerDown(event: PointerEvent) {
-    if (!editing || !onSelectWidget) return
-    if (selectedWidgetId === null) return
-    const target = event.target as HTMLElement | null
-    if (target?.closest?.(".grid-stack-item")) return
-    onSelectWidget(null)
-  }
-
   return (
     <DashboardCanvasContext.Provider value={value}>
-      <div onPointerDown={handleBackgroundPointerDown}>
-        <GridstackCanvas
-          items={items}
-          editable={editing && !readOnly}
-          components={PORTAL_COMPONENTS}
-          onLayoutChange={onLayoutChange}
-          onDropAnalysis={onDropAnalysis}
-          className={className}
-        />
-      </div>
+      <CanvasStage
+        page={page}
+        items={items}
+        editable={editing && !readOnly}
+        selectedId={selectedWidgetId}
+        onSelect={onSelectWidget}
+        onGeometryChange={onWidgetGeometryChange}
+        onDropAnalysis={onDropAnalysis}
+        className={className}
+      >
+        {(item) => <WidgetContent widgetId={item.id} />}
+      </CanvasStage>
     </DashboardCanvasContext.Provider>
   )
 }

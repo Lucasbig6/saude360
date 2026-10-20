@@ -27,6 +27,7 @@ export interface WidgetAnalysisData {
 export interface DashboardWidget {
   id: string
   analysisId: string | null
+  /** Unidades de grade GridStack (12 colunas, cellHeight 80) — fonte da verdade do layout. */
   layout: {
     x: number
     y: number
@@ -59,7 +60,7 @@ export interface DashboardPage {
 export interface DashboardAppearance {
   theme?: "light" | "dark"
   showBrand?: boolean
-  /** v2 report geometry; config/query data remain on each widget. */
+  /** Metadados de página/camadas; a geometria em `objects` espelha a grade. */
   layoutDocument?: CanvasLayoutDocument
 }
 

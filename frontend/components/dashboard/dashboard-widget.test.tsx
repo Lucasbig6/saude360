@@ -315,4 +315,115 @@ describe("DashboardWidgetView — filtros compactos no canvas", () => {
 
     expect(screen.getByText("Filtro não configurado.")).toBeTruthy()
   })
+
+  it("dropdown sem valores distintos continua sendo um select (nunca texto)", () => {
+    render(
+      <DashboardWidgetView
+        widget={widget(filterConfig)}
+        filters={[filterDef]}
+        filterValues={{ f1: "" }}
+        onRemove={noop}
+        onFilterValueChange={vi.fn()}
+        distinctValues={{}}
+      />
+    )
+
+    const select = screen.getByLabelText("municipio") as HTMLSelectElement
+    expect(select.tagName).toBe("SELECT")
+    expect(screen.queryByPlaceholderText("Valor do filtro")).toBeNull()
+    expect(screen.getByText("Nenhuma opção disponível")).toBeTruthy()
+  })
+
+  it("multi-select sem distinct usa select multiple com a seleção atual", () => {
+    render(
+      <DashboardWidgetView
+        widget={widget(filterConfig)}
+        filters={[
+          {
+            ...filterDef,
+            operator: "in" as const,
+            controlType: "multi-select" as const,
+            defaultValue: ["São Paulo"],
+          },
+        ]}
+        filterValues={{ f1: ["São Paulo"] }}
+        onRemove={noop}
+        onFilterValueChange={vi.fn()}
+        distinctValues={{}}
+      />
+    )
+
+    const select = screen.getByLabelText("municipio") as HTMLSelectElement
+    expect(select.multiple).toBe(true)
+    expect(
+      Array.from(select.options).map((option) => option.value)
+    ).toEqual(["São Paulo"])
+    expect(screen.queryByPlaceholderText("Valores separados por vírgula")).toBeNull()
+  })
+
+  it("lista de opções sem distinct mantém o radiogroup", () => {
+    render(
+      <DashboardWidgetView
+        widget={widget(filterConfig)}
+        filters={[
+          {
+            ...filterDef,
+            controlType: "list" as const,
+            defaultValue: "São Paulo",
+          },
+        ]}
+        filterValues={{ f1: "São Paulo" }}
+        onRemove={noop}
+        onFilterValueChange={vi.fn()}
+        distinctValues={{}}
+      />
+    )
+
+    expect(screen.getByRole("radiogroup", { name: "municipio" })).toBeTruthy()
+    expect(screen.queryByPlaceholderText("Valor do filtro")).toBeNull()
+  })
+
+  it("intervalo de datas renderiza os dois campos de data", () => {
+    render(
+      <DashboardWidgetView
+        widget={widget(filterConfig)}
+        filters={[
+          {
+            ...filterDef,
+            operator: "between" as const,
+            controlType: "date-range" as const,
+            defaultValue: ["2024-01-01", "2024-12-31"],
+          },
+        ]}
+        filterValues={{ f1: ["2024-01-01", "2024-12-31"] }}
+        onRemove={noop}
+        onFilterValueChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByLabelText("municipio início")).toBeTruthy()
+    expect(screen.getByLabelText("municipio fim")).toBeTruthy()
+  })
+
+  it("oferece busca quando há muitas opções e filtra o select", async () => {
+    const many = Array.from({ length: 12 }, (_, index) => `Município ${index}`)
+    const user = userEvent.setup()
+    render(
+      <DashboardWidgetView
+        widget={widget(filterConfig)}
+        filters={[filterDef]}
+        filterValues={{ f1: "" }}
+        onRemove={noop}
+        onFilterValueChange={vi.fn()}
+        distinctValues={{ f1: many }}
+      />
+    )
+
+    const search = screen.getByLabelText("Buscar em municipio")
+    await user.type(search, "Município 1")
+    const select = screen.getByLabelText("municipio") as HTMLSelectElement
+    const options = Array.from(select.options).map((option) => option.value)
+    // "Município 1" e "Município 10" a casam
+    expect(options).toEqual(["", "Município 1", "Município 10", "Município 11"])
+  })
 })

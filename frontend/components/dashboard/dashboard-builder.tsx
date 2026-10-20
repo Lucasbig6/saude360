@@ -60,12 +60,55 @@ import { WidgetConfigDialog } from "./widget-config-dialog"
 import { DashboardComponentsDrawer } from "./dashboard-components-drawer"
 import { DashboardPropertiesPanel } from "./dashboard-properties-panel"
 import type { FilterControlType } from "@/lib/types/dashboard"
-import type { CanvasItem, CanvasDropAnalysisData } from "./dashboard-canvas"
-import { defaultLayerForConfig, layoutForWidgets, readCanvasLayout } from "@/lib/canvas-layout"
+import type { CanvasDropAnalysisData } from "./dashboard-canvas"
+import { clampStageRect, type PageAlignEdge } from "./canvas-stage"
+import {
+  DEFAULT_REPORT_PAGE,
+  defaultLayerForConfig,
+  geometryForCanvas,
+  gridSize,
+  layoutForWidgets,
+  pixelToGridGeometry,
+  readCanvasLayout,
+  withPixelGeometry,
+  type CanvasLayoutDocument,
+  type CanvasPageLayout,
+  type PixelRect,
+} from "@/lib/canvas-layout"
 
 interface DashboardBuilderProps {
   dashboard: Dashboard
   onDashboardChange: (dashboard: Dashboard) => void
+}
+
+/** Página ativa + documento completo (espelhos de grade para widgets sem pixel). */
+function pageContext(target: Dashboard): {
+  pageId: string
+  page: CanvasPageLayout
+  doc: CanvasLayoutDocument
+} {
+  const pageId = resolveActivePageId(target)
+  const doc = layoutForWidgets(
+    target.widgets,
+    target.pages.map((p) => p.id),
+    readCanvasLayout(target.appearance?.layoutDocument)
+  )
+  const page = doc.pages[pageId] ?? DEFAULT_REPORT_PAGE
+  return { pageId, page, doc }
+}
+
+/** Primeira faixa livre abaixo dos widgets da página, em pixels. */
+function appendPixelY(
+  widgets: DashboardWidget[],
+  doc: CanvasLayoutDocument,
+  page: CanvasPageLayout
+): number {
+  let appendY = 0
+  for (const widget of widgets) {
+    const rect = geometryForCanvas(widget, doc, page)
+    appendY = Math.max(appendY, rect.y + rect.h)
+  }
+  return appendY
 }
 
 export function DashboardBuilder({
@@ -212,7 +255,8 @@ export function DashboardBuilder({
   )
 
   const [distinctValues, setDistinctValues] = useState<Record<string, string[]>>({})
-  const [loadingDistinct, setLoadingDistinct] = useState(false)
+  // Loading por filterId: um filtro carregando não congela os demais.
+  const [loadingDistinct, setLoadingDistinct] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -228,32 +272,32 @@ export function DashboardBuilder({
 
   useEffect(() => {
     if (dashboard.filters.length === 0) {
-      requestAnimationFrame(() => setDistinctValues({}))
+      requestAnimationFrame(() => {
+        setDistinctValues({})
+        setLoadingDistinct({})
+      })
       return
     }
 
     let cancelled = false
     async function load() {
-      setLoadingDistinct(true)
-      const newDistinct: Record<string, string[]> = {}
+      setLoadingDistinct((prev) => {
+        const next = { ...prev }
+        for (const f of dashboard.filters) next[f.id] = true
+        return next
+      })
 
       for (const f of dashboard.filters) {
-        if (newDistinct[f.id]) continue
+        let values: string[] = []
         try {
           const res = await getDistinctValues(f.datasetId, f.column)
-          if (!cancelled) {
-            newDistinct[f.id] = res.result ?? []
-          }
+          values = res.result ?? []
         } catch {
-          if (!cancelled) {
-            newDistinct[f.id] = []
-          }
+          values = []
         }
-      }
-
-      if (!cancelled) {
-        setDistinctValues((prev) => ({ ...prev, ...newDistinct }))
-        setLoadingDistinct(false)
+        if (cancelled) return
+        setDistinctValues((prev) => ({ ...prev, [f.id]: values }))
+        setLoadingDistinct((prev) => ({ ...prev, [f.id]: false }))
       }
     }
     load()
@@ -262,115 +306,105 @@ export function DashboardBuilder({
     }
   }, [dashboard.filters])
 
-  const handleLayoutChange = useCallback(
-    (layout: CanvasItem[]) => {
-      const layoutById = new Map(layout.map((item) => [item.id, item]))
-      let changed = false
-
-      const updatedWidgets = dashboard.widgets.map((w) => {
-        const next = layoutById.get(w.id)
-        if (!next) return w
-        if (
-          w.layout.x === next.x &&
-          w.layout.y === next.y &&
-          w.layout.w === next.w &&
-          w.layout.h === next.h
-        ) {
-          return w
-        }
-        changed = true
-        return {
-          ...w,
-          layout: { x: next.x, y: next.y, w: next.w, h: next.h },
-        }
-      })
-
-      if (!changed) return
-      const baseDocument = layoutForWidgets(
-        updatedWidgets,
-        dashboard.pages.map((page) => page.id),
-        readCanvasLayout(dashboard.appearance?.layoutDocument)
+  // Geometria pixel-authoritative no documento + espelho grade em
+  // widget.layout (contrato da API permanece em unidades de grade).
+  const handleWidgetGeometryChange = useCallback(
+    (widgetId: string, pixel: PixelRect) => {
+      const current = latestRef.current
+      const target = current.widgets.find((w) => w.id === widgetId)
+      if (!target) return
+      const { page, doc } = pageContext(current)
+      const nextDoc = withPixelGeometry(doc, target, pixel)
+      const mirror = pixelToGridGeometry(pixel, page)
+      const nextWidgets = current.widgets.map((w) =>
+        w.id === widgetId ? { ...w, layout: mirror } : w
       )
-      const objects = { ...baseDocument.objects }
-      for (const item of layout) {
-        const current = objects[item.id]
-        if (current) objects[item.id] = { ...current, ...item }
-      }
       persist({
-        ...dashboard,
-        widgets: updatedWidgets,
-        appearance: { ...dashboard.appearance, layoutDocument: { ...baseDocument, objects } },
+        ...current,
+        widgets: nextWidgets,
+        appearance: { ...current.appearance, layoutDocument: nextDoc },
       })
     },
-    [dashboard, persist]
+    [persist]
   )
 
   const handleAddAnalysis = useCallback(
-    (
-      analysis: Analysis,
-      position?: { x?: number; y?: number; w?: number; h?: number }
-    ) => {
-      const pageId = resolveActivePageId(latestRef.current)
-      const pageWidgets = widgetsForPage(latestRef.current.widgets, pageId)
+    (analysis: Analysis, position?: PixelRect) => {
+      const current = latestRef.current
+      const { pageId, page, doc } = pageContext(current)
+      const pageWidgets = widgetsForPage(current.widgets, pageId)
 
       // mesmo gráfico pode existir em páginas diferentes (uma por página)
       if (pageWidgets.some((widget) => widget.analysisId === analysis.id)) {
         return
       }
 
-      // anexa na primeira linha livre da PÁGINA quando não houver coordenada
-      const appendY = pageWidgets.reduce(
-        (max, w) => Math.max(max, w.layout.y + w.layout.h),
-        0
+      const { colWidth, rowHeight } = gridSize(page)
+      const rect = clampStageRect(
+        position ?? {
+          x: 0,
+          y: appendPixelY(pageWidgets, doc, page),
+          w: colWidth * 6,
+          h: rowHeight * 4,
+        },
+        page
       )
       const newWidget: DashboardWidget = {
         id: crypto.randomUUID(),
         analysisId: analysis.id,
-        layout: {
-          x: position?.x ?? 0,
-          y: position?.y !== undefined ? position.y : appendY,
-          w: position?.w ?? 6,
-          h: position?.h ?? 4,
-        },
+        layout: pixelToGridGeometry(rect, page),
         config: legacyToWidgetConfig(analysis),
         pageId,
       }
 
-      const updated = {
-        ...latestRef.current,
-        widgets: [...latestRef.current.widgets, newWidget],
-      }
-
-      persist(updated)
+      const updated = [...current.widgets, newWidget]
+      const nextDoc = withPixelGeometry(
+        layoutForWidgets(updated, current.pages.map((p) => p.id), doc),
+        newWidget,
+        rect
+      )
+      persist({
+        ...current,
+        widgets: updated,
+        appearance: { ...current.appearance, layoutDocument: nextDoc },
+      })
     },
     [persist]
   )
 
   const handleAddElement = useCallback(
-    (
-      config: WidgetConfig,
-      position?: { x?: number; y?: number; w?: number; h?: number }
-    ) => {
+    (config: WidgetConfig, position?: PixelRect) => {
       const current = latestRef.current
-      const pageId = resolveActivePageId(current)
+      const { pageId, page, doc } = pageContext(current)
       const pageWidgets = widgetsForPage(current.widgets, pageId)
-      const appendY = pageWidgets.reduce(
-        (max, widget) => Math.max(max, widget.layout.y + widget.layout.h),
-        0
+      const { colWidth, rowHeight } = gridSize(page)
+      const rect = clampStageRect(
+        position ?? {
+          x: 0,
+          y: appendPixelY(pageWidgets, doc, page),
+          w: colWidth * 4,
+          h: rowHeight * (config.type === "text" ? 2 : 3),
+        },
+        page
       )
       const widget: DashboardWidget = {
         id: crypto.randomUUID(),
         analysisId: null,
         config,
-        layout: {
-          x: position?.x ?? 0,
-          y: position?.y ?? appendY,
-          w: position?.w ?? 4,
-          h: position?.h ?? (config.type === "text" ? 2 : 3),
-        },
+        layout: pixelToGridGeometry(rect, page),
         pageId,
       }
-      persist({ ...current, widgets: [...current.widgets, widget] })
+      const updated = [...current.widgets, widget]
+      const nextDoc = withPixelGeometry(
+        layoutForWidgets(updated, current.pages.map((p) => p.id), doc),
+        widget,
+        rect
+      )
+      persist({
+        ...current,
+        widgets: updated,
+        appearance: { ...current.appearance, layoutDocument: nextDoc },
+      })
     },
     [persist]
   )
@@ -462,36 +496,6 @@ export function DashboardBuilder({
     setAddFilterOpen(true)
   }, [])
 
-  const handleSaveWidgetLayout = useCallback(
-    (widgetId: string, layout: DashboardWidget["layout"]) => {
-      const current = latestRef.current
-      if (!current.widgets.some((w) => w.id === widgetId)) return
-      const next = current.widgets.map((w) =>
-        w.id === widgetId ? { ...w, layout } : w
-      )
-      const baseDocument = layoutForWidgets(
-        next,
-        current.pages.map((page) => page.id),
-        readCanvasLayout(current.appearance?.layoutDocument)
-      )
-      const object = baseDocument.objects[widgetId]
-      persist({
-        ...current,
-        widgets: next,
-        appearance: {
-          ...current.appearance,
-          layoutDocument: {
-            ...baseDocument,
-            objects: object
-              ? { ...baseDocument.objects, [widgetId]: { ...object, ...layout } }
-              : baseDocument.objects,
-          },
-        },
-      })
-    },
-    [persist]
-  )
-
   const handleSaveWidgetConfig = useCallback(
     (widgetId: string, config: WidgetConfig) => {
       const current = latestRef.current
@@ -536,8 +540,38 @@ export function DashboardBuilder({
       const source = current.widgets.find((w) => w.id === widgetId)
       if (!source) return
       const copy = duplicateWidget(source)
-      persist({ ...current, widgets: [...current.widgets, copy] })
-      setSelectedWidgetId(copy.id)
+      const { pageId, page, doc } = pageContext(current)
+      const { colWidth } = gridSize(page)
+      const sourcePixel = geometryForCanvas(source, doc, page)
+      const rect = clampStageRect(
+        {
+          x: Math.min(
+            sourcePixel.x + colWidth,
+            Math.max(0, page.width - sourcePixel.w)
+          ),
+          y: appendPixelY(widgetsForPage(current.widgets, pageId), doc, page),
+          w: sourcePixel.w,
+          h: sourcePixel.h,
+        },
+        page
+      )
+      const resolved: DashboardWidget = {
+        ...copy,
+        layout: pixelToGridGeometry(rect, page),
+        pageId,
+      }
+      const updated = [...current.widgets, resolved]
+      const nextDoc = withPixelGeometry(
+        layoutForWidgets(updated, current.pages.map((p) => p.id), doc),
+        resolved,
+        rect
+      )
+      persist({
+        ...current,
+        widgets: updated,
+        appearance: { ...current.appearance, layoutDocument: nextDoc },
+      })
+      setSelectedWidgetId(resolved.id)
     },
     [persist]
   )
@@ -553,10 +587,34 @@ export function DashboardBuilder({
     const payload = clipboardRef.current
     if (!payload) return
     const current = latestRef.current
-    const pageId = resolveActivePageId(current)
+    const { pageId, page, doc } = pageContext(current)
     const pasted = pasteWidgetPayload(payload, pageId)
-    persist({ ...current, widgets: [...current.widgets, pasted] })
-    setSelectedWidgetId(pasted.id)
+    const { colWidth, rowHeight } = gridSize(page)
+    const rect = clampStageRect(
+      {
+        x: 0,
+        y: appendPixelY(widgetsForPage(current.widgets, pageId), doc, page),
+        w: pasted.layout.w * colWidth,
+        h: pasted.layout.h * rowHeight,
+      },
+      page
+    )
+    const resolved: DashboardWidget = {
+      ...pasted,
+      layout: pixelToGridGeometry(rect, page),
+    }
+    const updated = [...current.widgets, resolved]
+    const nextDoc = withPixelGeometry(
+      layoutForWidgets(updated, current.pages.map((p) => p.id), doc),
+      resolved,
+      rect
+    )
+    persist({
+      ...current,
+      widgets: updated,
+      appearance: { ...current.appearance, layoutDocument: nextDoc },
+    })
+    setSelectedWidgetId(resolved.id)
   }, [persist])
 
   const handleBringToFront = useCallback(
@@ -608,6 +666,57 @@ export function DashboardBuilder({
     configuringWidgetId !== null ||
     pagePendingDelete !== null
 
+  // Nudge por setas: 1px, 10px com Shift — posicionamento livre, sem grade.
+  const handleNudgeSelected = useCallback(
+    (widgetId: string, dx: number, dy: number) => {
+      const current = latestRef.current
+      const target = current.widgets.find((w) => w.id === widgetId)
+      if (!target) return
+      const { page, doc } = pageContext(current)
+      const pixel = geometryForCanvas(target, doc, page)
+      handleWidgetGeometryChange(widgetId, {
+        ...pixel,
+        x: pixel.x + dx,
+        y: pixel.y + dy,
+      })
+    },
+    [handleWidgetGeometryChange]
+  )
+
+  // Alinhamento à página (Power BI-style): reposiciona sem redimensionar.
+  const handleAlignToPage = useCallback(
+    (widgetId: string, edge: PageAlignEdge) => {
+      const current = latestRef.current
+      const target = current.widgets.find((w) => w.id === widgetId)
+      if (!target) return
+      const { page, doc } = pageContext(current)
+      const pixel = geometryForCanvas(target, doc, page)
+      let next: PixelRect = pixel
+      switch (edge) {
+        case "left":
+          next = { ...pixel, x: 0 }
+          break
+        case "center-h":
+          next = { ...pixel, x: Math.round((page.width - pixel.w) / 2) }
+          break
+        case "right":
+          next = { ...pixel, x: page.width - pixel.w }
+          break
+        case "top":
+          next = { ...pixel, y: 0 }
+          break
+        case "middle":
+          next = { ...pixel, y: Math.round((page.height - pixel.h) / 2) }
+          break
+        case "bottom":
+          next = { ...pixel, y: page.height - pixel.h }
+          break
+      }
+      handleWidgetGeometryChange(widgetId, clampStageRect(next, page))
+    },
+    [handleWidgetGeometryChange]
+  )
+
   useEffect(() => {
     if (!editing || anyDialogOpen) return
 
@@ -627,6 +736,17 @@ export function DashboardBuilder({
       if ((event.key === "Delete" || event.key === "Backspace") && selected !== null) {
         event.preventDefault()
         handleRemoveWidget(selected)
+        return
+      }
+
+      if (selected !== null && event.key.startsWith("Arrow")) {
+        event.preventDefault()
+        const step = event.shiftKey ? 10 : 1
+        const dx =
+          event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0
+        const dy =
+          event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0
+        if (dx !== 0 || dy !== 0) handleNudgeSelected(selected, dx, dy)
         return
       }
 
@@ -663,6 +783,7 @@ export function DashboardBuilder({
     handlePasteWidget,
     handleBringToFront,
     handleSendToBack,
+    handleNudgeSelected,
   ])
 
   const handleConfigure = useCallback((widgetId: string) => {
@@ -693,23 +814,36 @@ export function DashboardBuilder({
       }
 
       const current = latestRef.current
-      const pageId = resolveActivePageId(current)
+      const { pageId, page, doc } = pageContext(current)
       const pageWidgets = widgetsForPage(current.widgets, pageId)
-      const appendY = pageWidgets.reduce(
-        (max, widget) => Math.max(max, widget.layout.y + widget.layout.h),
-        0
+      const { colWidth, rowHeight } = gridSize(page)
+      const rect = clampStageRect(
+        {
+          x: 0,
+          y: appendPixelY(pageWidgets, doc, page),
+          w: colWidth * 4,
+          h: rowHeight * 2,
+        },
+        page
       )
       const filterWidget: DashboardWidget = {
         id: crypto.randomUUID(),
         analysisId: null,
         config: { type: "filter", filterId: newFilter.id, title: newFilter.column },
-        layout: { x: 0, y: appendY, w: 4, h: 2 },
+        layout: pixelToGridGeometry(rect, page),
         pageId,
       }
+      const updatedWidgets = [...current.widgets, filterWidget]
+      const nextDoc = withPixelGeometry(
+        layoutForWidgets(updatedWidgets, current.pages.map((p) => p.id), doc),
+        filterWidget,
+        rect
+      )
       const updated = {
         ...current,
-        widgets: [...current.widgets, filterWidget],
+        widgets: updatedWidgets,
         filters: [...current.filters, newFilter],
+        appearance: { ...current.appearance, layoutDocument: nextDoc },
       }
 
       persist(updated)
@@ -719,7 +853,7 @@ export function DashboardBuilder({
         [newFilter.id]: newFilter.defaultValue,
       }))
 
-      setLoadingDistinct(true)
+      setLoadingDistinct((prev) => ({ ...prev, [newFilter.id]: true }))
       getDistinctValues(newFilter.datasetId, newFilter.column)
         .then((res) => {
           setDistinctValues((prev) => ({
@@ -730,7 +864,9 @@ export function DashboardBuilder({
         .catch(() => {
           setDistinctValues((prev) => ({ ...prev, [newFilter.id]: [] }))
         })
-        .finally(() => setLoadingDistinct(false))
+        .finally(() =>
+          setLoadingDistinct((prev) => ({ ...prev, [newFilter.id]: false }))
+        )
     },
     [persist]
   )
@@ -762,6 +898,15 @@ export function DashboardBuilder({
     if (!doc) return undefined
     return doc.objects[selectedWidgetId]?.layer ?? defaultLayerForConfig(selectedWidget?.config)
   }, [dashboard.appearance, selectedWidgetId])
+
+  // Geometria pixel + página para o painel de propriedades (X/Y/L/A em px).
+  const selectedGeometry = useMemo(() => {
+    if (!selectedWidget) return null
+    const doc = readCanvasLayout(dashboard.appearance?.layoutDocument)
+    const pageId = resolveActivePageId(dashboard)
+    const page = doc?.pages[pageId] ?? DEFAULT_REPORT_PAGE
+    return { pixel: geometryForCanvas(selectedWidget, doc, page), page }
+  }, [dashboard, selectedWidget])
 
   // Escopo por página: a biblioteca só esconde análises já usadas na aba atual.
   const excludeAnalysisIds = useMemo(
@@ -1133,7 +1278,7 @@ export function DashboardBuilder({
                 onCopyWidget={handleCopyWidget}
                 onBringToFront={handleBringToFront}
                 onSendToBack={handleSendToBack}
-                onLayoutChange={handleLayoutChange}
+                onWidgetGeometryChange={handleWidgetGeometryChange}
                 onDropAnalysis={handleDropAnalysis}
               />
             </div>
@@ -1185,11 +1330,13 @@ export function DashboardBuilder({
                   {selectedWidget !== null ? (
                     <DashboardPropertiesPanel
                       widget={selectedWidget}
+                      pixel={selectedGeometry?.pixel}
+                      page={selectedGeometry?.page}
                       filters={dashboard.filters}
                       dashboardAnalysisIds={dashboardAnalysisIds}
                       linkedCards={selectedFilterLinkedCards}
                       filterValues={filterValues}
-                      onSaveLayout={handleSaveWidgetLayout}
+                      onSavePixelLayout={handleWidgetGeometryChange}
                       onSaveConfig={handleSaveWidgetConfig}
                       onSaveFilter={handleSaveFilter}
                       onClearFilterValue={handleClearFilterValue}
@@ -1197,6 +1344,7 @@ export function DashboardBuilder({
                       onSendToBack={handleSendToBack}
                       onRemoveWidget={handleRemoveWidget}
                       onChangeLayer={handleChangeLayer}
+                      onAlignToPage={handleAlignToPage}
                       currentLayer={currentLayer}
                       onClose={() => setSelectedWidgetId(null)}
                     />

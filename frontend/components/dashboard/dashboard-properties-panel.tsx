@@ -25,7 +25,16 @@ import {
 } from "@/lib/types/widgets"
 import { getAnalysis, getAnalyses } from "@/lib/api/analyses"
 import { getDataset, type DatasetColumn } from "@/lib/api/datasets"
-import { DEFAULT_REPORT_PAGE } from "@/lib/canvas-layout"
+import {
+  DEFAULT_REPORT_PAGE,
+  type CanvasPageLayout,
+  type PixelRect,
+} from "@/lib/canvas-layout"
+import { STAGE_MIN_HEIGHT, STAGE_MIN_WIDTH, type PageAlignEdge } from "./canvas-stage"
+import {
+  coerceFilterValue,
+  operatorForControlType,
+} from "@/lib/dashboard-filters"
 import type { Analysis } from "@/lib/types/analysis"
 import { ChartConfigPanel } from "./chart-config-panel"
 
@@ -70,77 +79,143 @@ function parseIntInRange(
 }
 
 function LayoutSection({
-  widget,
+  pixel,
+  page,
   onSave,
 }: {
-  widget: DashboardWidget
-  onSave: (layout: DashboardWidget["layout"]) => void
+  pixel?: PixelRect
+  page?: CanvasPageLayout
+  onSave: (pixel: PixelRect) => void
 }) {
-  // Chave derivada (padrão do editor): movimentos vindos do canvas
-  // (arrastar/redimensionar) mudam a chave e o rascunho acompanha sem
-  // setState síncrono em efeito.
-  const layoutKey = `${widget.id}:${widget.layout.x},${widget.layout.y},${widget.layout.w},${widget.layout.h}`
+  // Editor livre: coordenadas em pixels da página (1920×1080 por padrão).
+  const bounds = page ?? DEFAULT_REPORT_PAGE
+  const layoutKey = pixel
+    ? `${Math.round(pixel.x)},${Math.round(pixel.y)},${Math.round(pixel.w)},${Math.round(pixel.h)}`
+    : "none"
   const [state, setState] = useState<{ key: string; draft: Record<"x" | "y" | "w" | "h", string>; error: string | null } | null>(null)
   const shown = state?.key === layoutKey
     ? state
     : {
         key: layoutKey,
         draft: {
-          x: String(widget.layout.x),
-          y: String(widget.layout.y),
-          w: String(widget.layout.w),
-          h: String(widget.layout.h),
+          x: String(pixel ? Math.round(pixel.x) : 0),
+          y: String(pixel ? Math.round(pixel.y) : 0),
+          w: String(pixel ? Math.round(pixel.w) : 0),
+          h: String(pixel ? Math.round(pixel.h) : 0),
         },
         error: null as string | null,
       }
   const { draft, error } = shown
 
+  const maxX = Math.max(0, Math.round(bounds.width) - STAGE_MIN_WIDTH)
+  const maxY = Math.max(0, Math.round(bounds.height) - STAGE_MIN_HEIGHT)
+
   function commit(next: typeof draft) {
-    const x = parseIntInRange(next.x, 0, DEFAULT_REPORT_PAGE.width)
-    const y = parseIntInRange(next.y, 0, DEFAULT_REPORT_PAGE.height)
-    const w = parseIntInRange(next.w, 24, DEFAULT_REPORT_PAGE.width)
-    const h = parseIntInRange(next.h, 24, DEFAULT_REPORT_PAGE.height)
+    if (!pixel) return
+    const x = parseIntInRange(next.x, 0, maxX)
+    const y = parseIntInRange(next.y, 0, maxY)
+    const w = parseIntInRange(next.w, STAGE_MIN_WIDTH, Math.round(bounds.width))
+    const h = parseIntInRange(next.h, STAGE_MIN_HEIGHT, Math.round(bounds.height))
     if (x === null || y === null || w === null || h === null) {
       setState({
         key: layoutKey,
         draft: next,
-        error: `Use pixels da página: X 0–${DEFAULT_REPORT_PAGE.width}, Y 0–${DEFAULT_REPORT_PAGE.height}, largura 24–${DEFAULT_REPORT_PAGE.width} e altura 24–${DEFAULT_REPORT_PAGE.height}.`,
+        error: `Use pixels dentro da página (${Math.round(bounds.width)}×${Math.round(bounds.height)}): X 0–${maxX}, Y 0–${maxY}, largura ${STAGE_MIN_WIDTH}–${Math.round(bounds.width)} e altura ${STAGE_MIN_HEIGHT}–${Math.round(bounds.height)}.`,
       })
       return
     }
     setState({ key: layoutKey, draft: next, error: null })
     if (
-      x === widget.layout.x &&
-      y === widget.layout.y &&
-      w === widget.layout.w &&
-      h === widget.layout.h
+      x === Math.round(pixel.x) &&
+      y === Math.round(pixel.y) &&
+      w === Math.round(pixel.w) &&
+      h === Math.round(pixel.h)
     ) {
       return
     }
     onSave({ x, y, w, h })
   }
 
+  if (!pixel) return null
+
   return (
-    <Section title="Dimensões e posicionamento">
+    <Section title="Dimensões e posicionamento (px)">
       <div className="grid grid-cols-4 gap-2">
-        {(["x", "y", "w", "h"] as const).map((key) => (
-          <Field key={key} label={key.toUpperCase()}>
-            <Input
-              type="number"
-              className="h-8 text-xs"
-              value={draft[key]}
-              min={key === "w" || key === "h" ? 24 : 0}
-              max={key === "x" || key === "w" ? DEFAULT_REPORT_PAGE.width : DEFAULT_REPORT_PAGE.height}
-              onChange={(event) => commit({ ...draft, [key]: event.target.value })}
-            />
-          </Field>
-        ))}
+        <Field label="X">
+          <Input
+            type="number"
+            className="h-8 text-xs"
+            value={draft.x}
+            min={0}
+            max={maxX}
+            onChange={(event) => commit({ ...draft, x: event.target.value })}
+          />
+        </Field>
+        <Field label="Y">
+          <Input
+            type="number"
+            className="h-8 text-xs"
+            value={draft.y}
+            min={0}
+            max={maxY}
+            onChange={(event) => commit({ ...draft, y: event.target.value })}
+          />
+        </Field>
+        <Field label="Largura">
+          <Input
+            type="number"
+            className="h-8 text-xs"
+            value={draft.w}
+            min={STAGE_MIN_WIDTH}
+            max={Math.round(bounds.width)}
+            onChange={(event) => commit({ ...draft, w: event.target.value })}
+          />
+        </Field>
+        <Field label="Altura">
+          <Input
+            type="number"
+            className="h-8 text-xs"
+            value={draft.h}
+            min={STAGE_MIN_HEIGHT}
+            max={Math.round(bounds.height)}
+            onChange={(event) => commit({ ...draft, h: event.target.value })}
+          />
+        </Field>
       </div>
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
         </p>
       )}
+    </Section>
+  )
+}
+
+function AlignSection({ onAlign }: { onAlign: (edge: PageAlignEdge) => void }) {
+  const actions: { edge: PageAlignEdge; label: string; title: string }[] = [
+    { edge: "left", label: "Esq", title: "Alinhar à esquerda" },
+    { edge: "center-h", label: "Centro", title: "Centralizar horizontalmente" },
+    { edge: "right", label: "Dir", title: "Alinhar à direita" },
+    { edge: "top", label: "Topo", title: "Alinhar ao topo" },
+    { edge: "middle", label: "Meio", title: "Centralizar verticalmente" },
+    { edge: "bottom", label: "Base", title: "Alinhar à base" },
+  ]
+  return (
+    <Section title="Alinhar à página">
+      <div className="grid grid-cols-3 gap-2">
+        {actions.map((action) => (
+          <Button
+            key={action.edge}
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            title={action.title}
+            onClick={() => onAlign(action.edge)}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
     </Section>
   )
 }
@@ -355,11 +430,18 @@ function FilterSection({
         <select
           className={SELECT_CLASS}
           value={filter.controlType ?? "dropdown"}
-          onChange={(event) =>
+          onChange={(event) => {
+            // Tipo e operador andam juntos (multi-select ↔ in etc.) e o
+            // valor padrão é re-coerido para a forma do novo operador.
+            const controlType = event.target
+              .value as NonNullable<DashboardFilter["controlType"]>
+            const operator = operatorForControlType(controlType)
             onSave({
-              controlType: event.target.value as DashboardFilter["controlType"],
+              controlType,
+              operator,
+              defaultValue: coerceFilterValue(operator, filter.defaultValue),
             })
-          }
+          }}
         >
           <option value="dropdown">Lista suspensa</option>
           <option value="multi-select">Seleção múltipla</option>
@@ -564,13 +646,17 @@ function ChartSection({
 
 export interface DashboardPropertiesPanelProps {
   widget: DashboardWidget
+  /** Geometria pixel do elemento no stage (editor livre). */
+  pixel?: PixelRect
+  /** Página do relatório — limites para clamp dos campos. */
+  page?: CanvasPageLayout
   /** Todos os filtros do painel (para resolver o filtro do cartão). */
   filters: DashboardFilter[]
   /** Análises presentes no painel, para edição de escopo. */
   dashboardAnalysisIds: string[]
   linkedCards: number
   filterValues: Record<string, string | string[]>
-  onSaveLayout: (widgetId: string, layout: DashboardWidget["layout"]) => void
+  onSavePixelLayout?: (widgetId: string, pixel: PixelRect) => void
   onSaveConfig: (widgetId: string, config: WidgetConfig) => void
   onSaveFilter: (filterId: string, patch: Partial<DashboardFilter>) => void
   onClearFilterValue: (filterId: string) => void
@@ -578,6 +664,7 @@ export interface DashboardPropertiesPanelProps {
   onSendToBack: (widgetId: string) => void
   onRemoveWidget: (widgetId: string) => void
   onChangeLayer?: (widgetId: string, layer: "background" | "data" | "foreground") => void
+  onAlignToPage?: (widgetId: string, edge: PageAlignEdge) => void
   currentLayer?: "background" | "data" | "foreground"
   /** Volta para a aba Biblioteca sem perder a seleção. */
   onClose: () => void
@@ -596,11 +683,13 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function DashboardPropertiesPanel({
   widget,
+  pixel,
+  page,
   filters,
   dashboardAnalysisIds,
   linkedCards,
   filterValues,
-  onSaveLayout,
+  onSavePixelLayout,
   onSaveConfig,
   onSaveFilter,
   onClearFilterValue,
@@ -608,6 +697,7 @@ export function DashboardPropertiesPanel({
   onSendToBack,
   onRemoveWidget,
   onChangeLayer,
+  onAlignToPage,
   currentLayer,
   onClose,
   className,
@@ -742,11 +832,17 @@ export function DashboardPropertiesPanel({
           <StyleSection config={config} onSave={handleSaveConfig} />
         )}
 
-        {/* Dimensões e posicionamento */}
+        {/* Dimensões e posicionamento (pixels do stage) */}
         <LayoutSection
-          widget={widget}
-          onSave={(layout) => onSaveLayout(widget.id, layout)}
+          pixel={pixel}
+          page={page}
+          onSave={(rect) => onSavePixelLayout?.(widget.id, rect)}
         />
+
+        {/* Alinhamento à página */}
+        {onAlignToPage && (
+          <AlignSection onAlign={(edge) => onAlignToPage(widget.id, edge)} />
+        )}
 
         {/* Camadas */}
         {config && (

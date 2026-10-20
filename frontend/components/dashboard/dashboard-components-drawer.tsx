@@ -46,7 +46,7 @@ export interface DashboardComponentsDrawerProps {
   onClose: () => void
   onSelectAnalysis: (
     analysis: Analysis,
-    position?: { x?: number; y?: number; w?: number; h?: number }
+    position?: import("@/lib/canvas-layout").PixelRect
   ) => void
   onSelectElement?: (config: WidgetConfig) => void
   /** Abre o diálogo de filtro, com o controle pré-selecionado quando dado. */

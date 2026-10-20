@@ -37,6 +37,21 @@ describe("DashboardFooter", () => {
     expect(screen.queryByAltText("SIGDATA")).not.toBeInTheDocument()
   })
 
+  it("renderiza o divider entre a marca e as abas apenas com a marca visível", () => {
+    const { rerender } = renderFooter()
+    expect(screen.getByTestId("footer-brand-divider")).toBeInTheDocument()
+
+    rerender(
+      <DashboardFooter
+        pages={pages}
+        activePageId="p1"
+        onSelectPage={vi.fn()}
+        showBrand={false}
+      />
+    )
+    expect(screen.queryByTestId("footer-brand-divider")).not.toBeInTheDocument()
+  })
+
   it("renderiza as abas de página e notifica a seleção", () => {
     const onSelectPage = vi.fn()
     renderFooter({ onSelectPage })

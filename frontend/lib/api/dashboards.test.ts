@@ -107,6 +107,37 @@ describe("toDashboard (widget v2)", () => {
       function: "sum",
     })
   })
+
+  it("mantém a grade do banco e ignora geometria em pixels do layoutDocument", () => {
+    const raw = rawDashboard()
+    raw.appearance = {
+      layoutDocument: {
+        version: 2,
+        pages: { synthesized: { width: 1920, height: 1080 } },
+        objects: {
+          w1: { x: 0, y: 0, w: 584, h: 304, zIndex: 0, visible: true, layer: "data" },
+          w2: { x: 584, y: 0, w: 584, h: 304, zIndex: 1, visible: true, layer: "data" },
+        },
+      },
+    }
+
+    const dashboard = toDashboard(raw)
+    expect(dashboard.widgets.map((w) => w.layout)).toEqual([
+      { x: 0, y: 0, w: 6, h: 4 },
+      { x: 6, y: 0, w: 6, h: 4 },
+      { x: 0, y: 4, w: 4, h: 4 },
+    ])
+  })
+
+  it("repara layout gravado em pixels da era pixel", () => {
+    const raw = rawDashboard()
+    ;(raw.widgets as RawWidget[])[0] = {
+      ...((raw.widgets as RawWidget[])[0] as RawWidget),
+      layout: { x: 200, y: 80, w: 584, h: 304 },
+    }
+
+    expect(toDashboard(raw).widgets.find((w) => w.id === "w1")?.layout).toEqual({ x: 2, y: 1, w: 6, h: 4 })
+  })
 })
 
 describe("toDashboardPayload (widget v2)", () => {

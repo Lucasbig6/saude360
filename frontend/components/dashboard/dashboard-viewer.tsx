@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { Dashboard } from "@/lib/types/dashboard"
 import { getDistinctValues } from "@/lib/api/datasets"
+import { getPublicFilterDistinct } from "@/lib/api/dashboards"
 import { resolveActivePageId, widgetsForPage } from "@/lib/dashboard-pages"
 import { ShareDashboardDialog } from "./share-dashboard-dialog"
 import { DashboardCopilot } from "./dashboard-copilot"
@@ -24,6 +25,12 @@ interface DashboardViewerProps {
    * a IA não é exposta fora de uma sessão autenticada.
    */
   enableCopilot?: boolean
+  /**
+   * Painel compartilhado (rota /painel/[slug]): a marca SIGDATA aparece
+   * sempre na footer, mesmo com "Exibir marca" desativado na aparência —
+   * padrão Power BI de publicação na web.
+   */
+  sharedView?: boolean
 }
 
 export function DashboardViewer({
@@ -32,6 +39,7 @@ export function DashboardViewer({
   publicMode = false,
   editHref,
   enableCopilot = false,
+  sharedView = false,
 }: DashboardViewerProps) {
   const [shareOpen, setShareOpen] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
@@ -51,41 +59,57 @@ export function DashboardViewer({
     return initial
   })
   const [distinctValues, setDistinctValues] = useState<Record<string, string[]>>({})
-  const [loadingDistinct, setLoadingDistinct] = useState(false)
+  // Loading por filterId: um filtro carregando não congela os demais.
+  const [loadingDistinct, setLoadingDistinct] = useState<Record<string, boolean>>({})
 
   const isDark = dashboard.appearance?.theme === "dark"
-  const showBrand = dashboard.appearance?.showBrand !== false
+  const showBrand =
+    sharedView || dashboard.appearance?.showBrand !== false
 
-  // Valores distintos alimentam os selects dos filtros, mas o endpoint é
-  // autenticado: no modo público (anônimo) nunca é chamado — os controles
-  // usam os inputs livres como fallback e nenhuma requisição exige login.
-  // O viewer monta com o dashboard já carregado (filtros fixos durante a
-  // sessão), então o estado inicial dos valores já está correto.
+  // Valores distintos alimentam os selects dos filtros. No modo público o
+  // endpoint autenticado é substituído pela rota pública
+  // /by-slug/{slug}/filters/{id}/distinct — nenhuma requisição exige login.
   useEffect(() => {
-    if (publicMode || dashboard.filters.length === 0) return
+    if (dashboard.filters.length === 0) {
+      requestAnimationFrame(() => {
+        setDistinctValues({})
+        setLoadingDistinct({})
+      })
+      return
+    }
 
     let cancelled = false
     async function load() {
-      setLoadingDistinct(true)
-      const next: Record<string, string[]> = {}
+      setLoadingDistinct((prev) => {
+        const next = { ...prev }
+        for (const f of dashboard.filters) next[f.id] = true
+        return next
+      })
+
       for (const f of dashboard.filters) {
+        let values: string[] = []
         try {
-          const res = await getDistinctValues(f.datasetId, f.column)
-          if (!cancelled) next[f.id] = res.result ?? []
+          if (publicMode) {
+            if (dashboard.slug) {
+              values =
+                (await getPublicFilterDistinct(dashboard.slug, f.id)).result ?? []
+            }
+          } else {
+            values = (await getDistinctValues(f.datasetId, f.column)).result ?? []
+          }
         } catch {
-          if (!cancelled) next[f.id] = []
+          values = []
         }
-      }
-      if (!cancelled) {
-        setDistinctValues(next)
-        setLoadingDistinct(false)
+        if (cancelled) return
+        setDistinctValues((prev) => ({ ...prev, [f.id]: values }))
+        setLoadingDistinct((prev) => ({ ...prev, [f.id]: false }))
       }
     }
     void load()
     return () => {
       cancelled = true
     }
-  }, [dashboard.filters, publicMode])
+  }, [dashboard.filters, dashboard.slug, publicMode])
 
   const handleFilterValueChange = useCallback(
     (filterId: string, value: string | string[]) => {

@@ -28,6 +28,7 @@ from app.schemas.dashboards import (
     WidgetIn,
     decode_filter_value,
 )
+from app.superset import datasets as superset_datasets
 from app.superset.naming import slugify_table_name
 
 router = APIRouter(prefix="/dashboards", tags=["Dashboards"])
@@ -434,6 +435,46 @@ def get_dashboard_by_slug(
     if dashboard is None:
         raise HTTPException(status_code=404, detail="Dashboard não encontrado")
     return _to_response(dashboard, include_analysis=True)
+
+
+# Limite de opções expostas por filtro no link público (evita payload gigante).
+PUBLIC_DISTINCT_LIMIT = 1000
+
+
+@router.get("/by-slug/{slug}/filters/{filter_id}/distinct")
+async def get_public_filter_distinct(
+    slug: str,
+    filter_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> dict[str, list[str]]:
+    """Valores distintos de um filtro de painel compartilhado (sem auth).
+
+    Segurança: só devolve valores de datasets referenciados pelos filtros do
+    próprio painel compartilhado (mesmo modelo do ``/queries/execute-public``).
+    """
+    dashboard = db.scalar(
+        select(Dashboard).where(Dashboard.slug == slug.strip().lower())
+    )
+    if dashboard is None:
+        raise HTTPException(status_code=404, detail="Dashboard não encontrado")
+    target = next(
+        (f for f in dashboard.filters if str(f.id) == str(filter_id)),
+        None,
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="Filtro não encontrado")
+    if target.dataset_id is None or not target.column_name:
+        return {"result": []}
+    try:
+        payload = await superset_datasets.get_distinct_values(
+            target.dataset_id, target.column_name
+        )
+    except Exception as exc:  # noqa: BLE001 — Superset indisponível não derruba o link
+        raise HTTPException(status_code=404, detail=str(exc))
+    result = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(result, list):
+        return {"result": []}
+    return {"result": [str(value) for value in result[:PUBLIC_DISTINCT_LIMIT]]}
 
 
 @router.post("", status_code=201, response_model=DashboardResponse)

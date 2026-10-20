@@ -137,7 +137,10 @@ export function AddFilterDialog({
 
   useEffect(() => {
     if (!selectedDataset || !selectedColumn) {
-      requestAnimationFrame(() => setDistinctValues([]))
+      requestAnimationFrame(() => {
+        setDistinctValues([])
+        setLoadingDistinct(false)
+      })
       return
     }
 
@@ -159,7 +162,7 @@ export function AddFilterDialog({
     return () => {
       cancelled = true
     }
-  }, [selectedDataset, selectedColumn])
+  }, [selectedDataset, selectedColumn, step])
 
   function handleSelectDataset(dataset: DatasetListItem) {
     setSelectedDataset(dataset)

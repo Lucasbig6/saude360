@@ -122,18 +122,24 @@ export function GridstackCanvas({
       margin: 16,
       float: false,
       acceptWidgets: ".grid-stack-item-drag-in",
-      columnOpts: {
-        columnMax: GRID_COLUMNS,
-        breakpointForWindow: true,
-        breakpoints: [
-          { w: 1024, c: 10 },
-          { w: 768, c: 6 },
-        ],
-      },
+      // Só o editor se adapta a janelas estreitas. Em leitura/compartilhamento
+      // as 12 colunas ficam fixas para o formato ser idêntico ao do editor.
+      ...(editable
+        ? {
+            columnOpts: {
+              columnMax: GRID_COLUMNS,
+              breakpointForWindow: true,
+              breakpoints: [
+                { w: 1024, c: 10 },
+                { w: 768, c: 6 },
+              ],
+            },
+          }
+        : {}),
       draggable: { handle: ".grid-drag-handle" },
       children,
     }),
-    [children]
+    [children, editable]
   )
 
   // Emite apenas quando o snapshot difere do estado do chamador: eventos

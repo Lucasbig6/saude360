@@ -2,47 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { DashboardCanvas } from "./dashboard-canvas"
 import type { Dashboard } from "@/lib/types/dashboard"
-import type { CanvasItem } from "./gridstack-canvas"
 
-// O WidgetPortal só vive dentro do GridStack real; estes hooks mockados
-// permitem que ele renderize dentro do mock do GridstackCanvas.
-vi.mock("gridstack/dist/react", () => ({
-  useGridStack: () => ({ grid: null }),
-  useGridStackItem: () => ({ id: "a" }),
-}))
-
-interface GridstackCanvasMockProps {
-  items: CanvasItem[]
-  editable?: boolean
-  components?: Record<string, React.ComponentType>
-  onLayoutChange?: (items: CanvasItem[]) => void
-}
-
-vi.mock("./gridstack-canvas", () => ({
-  GridstackCanvas: ({
-    items,
-    components,
-    onLayoutChange,
-  }: GridstackCanvasMockProps) => (
-    <div data-testid="stage">
-      {items.map((item) => {
-        const Widget = components?.widget
-        return (
-          <div key={item.id} data-testid={`item-${item.id}`}>
-            {Widget ? <Widget /> : item.id}
-          </div>
-        )
-      })}
-      <button
-        onClick={() =>
-          onLayoutChange?.(items.map((item) => ({ ...item, x: item.x + 2 })))
-        }
-      >
-        move
-      </button>
-    </div>
-  ),
-}))
 vi.mock("./dashboard-widget", () => ({
   DashboardWidgetView: ({
     widget,
@@ -74,26 +34,64 @@ const dashboard: Dashboard = {
   activePageId: "p",
 }
 
+function stageItem(id: string): HTMLElement {
+  return document.querySelector(`[data-stage-item="${id}"]`) as HTMLElement
+}
+
 describe("DashboardCanvas", () => {
-  it("renderiza o GridStack com os widgets", () => {
+  it("renderiza os widgets no stage com geometria derivada da grade", () => {
     render(<DashboardCanvas dashboard={dashboard} editing filterValues={{}} />)
-    expect(screen.getByTestId("item-a")).toHaveTextContent("a")
+    expect(screen.getByTestId("widget")).toHaveTextContent("a")
+    // grade {0,0,6,4} → pixels {0,0,960,384} na página 1920
+    const el = stageItem("a")
+    expect(el.style.left).toBe("0px")
+    expect(el.style.top).toBe("0px")
+    expect(el.style.width).toBe("960px")
+    expect(el.style.height).toBe("384px")
   })
 
-  it("encaminha o layout atualizado ao GridStack", () => {
-    const onLayoutChange = vi.fn()
+  it("usa geometria pixel-authoritative do layoutDocument quando presente", () => {
+    const pixelated: Dashboard = {
+      ...dashboard,
+      appearance: {
+        layoutDocument: {
+          version: 2,
+          pages: { p: { width: 1920, height: 1080 } },
+          objects: {
+            a: {
+              x: 123,
+              y: 45,
+              w: 300,
+              h: 210,
+              zIndex: 0,
+              visible: true,
+              layer: "data",
+              unit: "pixel",
+            },
+          },
+        },
+      },
+    }
+    render(<DashboardCanvas dashboard={pixelated} editing filterValues={{}} />)
+    const el = stageItem("a")
+    expect(el.style.left).toBe("123px")
+    expect(el.style.top).toBe("45px")
+    expect(el.style.width).toBe("300px")
+    expect(el.style.height).toBe("210px")
+  })
+
+  it("encaminha a seleção ao clicar no widget", () => {
+    const onSelectWidget = vi.fn()
     render(
       <DashboardCanvas
         dashboard={dashboard}
         editing
         filterValues={{}}
-        onLayoutChange={onLayoutChange}
+        onSelectWidget={onSelectWidget}
       />
     )
-    fireEvent.click(screen.getByText("move"))
-    expect(onLayoutChange).toHaveBeenCalledWith([
-      expect.objectContaining({ id: "a", x: 2, y: 0, w: 6, h: 4 }),
-    ])
+    fireEvent.click(screen.getByTestId("widget"))
+    expect(onSelectWidget).toHaveBeenCalledWith("a")
   })
 
   it("repassa onFilterValueChange aos widgets de filtro do canvas", () => {

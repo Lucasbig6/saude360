@@ -13,7 +13,7 @@ function textWidget(): DashboardWidget {
   return {
     id: "w1",
     analysisId: null,
-    layout: { x: 0, y: 120, w: 400, h: 200 },
+    layout: { x: 0, y: 4, w: 6, h: 3 },
     config: { type: "text", title: "Nota", content: "Olá" },
     pageId: "p1",
   }
@@ -23,7 +23,7 @@ function filterWidget(): DashboardWidget {
   return {
     id: "w2",
     analysisId: null,
-    layout: { x: 0, y: 0, w: 400, h: 160 },
+    layout: { x: 0, y: 0, w: 4, h: 2 },
     config: { type: "filter", filterId: "f1", title: "Filtro" },
     pageId: "p1",
   }
@@ -42,11 +42,14 @@ const baseFilter: DashboardFilter = {
 function baseProps(overrides?: Record<string, unknown>) {
   return {
     widget: textWidget(),
+    // grade {0,4,6,3} → pixels {0,384,960,288} na página 1920×1080
+    pixel: { x: 0, y: 384, w: 960, h: 288 },
+    page: { width: 1920, height: 1080 },
     filters: [],
     dashboardAnalysisIds: [],
     linkedCards: 0,
     filterValues: {},
-    onSaveLayout: vi.fn(),
+    onSavePixelLayout: vi.fn(),
     onSaveConfig: vi.fn(),
     onSaveFilter: vi.fn(),
     onClearFilterValue: vi.fn(),
@@ -68,20 +71,25 @@ describe("DashboardPropertiesPanel", () => {
     vi.mocked(analysesApi.getAnalyses).mockResolvedValue([])
   })
 
-  it("valida posição e dimensões antes de salvar o layout", async () => {
-    const onSaveLayout = vi.fn()
-    render(<DashboardPropertiesPanel {...baseProps({ onSaveLayout })} />)
+  it("valida posição e dimensões em pixels antes de salvar o layout", async () => {
+    const onSavePixelLayout = vi.fn()
+    render(<DashboardPropertiesPanel {...baseProps({ onSavePixelLayout })} />)
 
     const xInput = screen.getByLabelText("X") as HTMLInputElement
     expect(xInput.value).toBe("0")
 
-    fireEvent.change(xInput, { target: { value: "2000" } })
-    expect(await screen.findByRole("alert")).toHaveTextContent(/X 0–1920/)
-    expect(onSaveLayout).not.toHaveBeenCalled()
+    fireEvent.change(xInput, { target: { value: "99999" } })
+    expect(await screen.findByRole("alert")).toHaveTextContent(/pixels dentro da página/)
+    expect(onSavePixelLayout).not.toHaveBeenCalled()
 
-    fireEvent.change(xInput, { target: { value: "3" } })
+    fireEvent.change(xInput, { target: { value: "320" } })
     await waitFor(() => {
-      expect(onSaveLayout).toHaveBeenCalledWith("w1", { x: 3, y: 120, w: 400, h: 200 })
+      expect(onSavePixelLayout).toHaveBeenCalledWith("w1", {
+        x: 320,
+        y: 384,
+        w: 960,
+        h: 288,
+      })
     })
   })
 
@@ -153,7 +161,13 @@ describe("DashboardPropertiesPanel", () => {
 
     const control = screen.getByLabelText(/Tipo de controle/i) as HTMLSelectElement
     fireEvent.change(control, { target: { value: "multi-select" } })
-    expect(onSaveFilter).toHaveBeenCalledWith("f1", { controlType: "multi-select" })
+    // tipo e operador andam juntos (multi-select ↔ in) e o valor padrão é
+    // re-coerido para a forma do novo operador
+    expect(onSaveFilter).toHaveBeenCalledWith("f1", {
+      controlType: "multi-select",
+      operator: "in",
+      defaultValue: [],
+    })
 
     const clear = screen.getByRole("button", { name: /Limpar seleção/i })
     await user.click(clear)
@@ -288,12 +302,26 @@ describe("DashboardPropertiesPanel", () => {
 
     const filtroIdx = headings.findIndex((h) => h === "Filtro")
     const aparenciaIdx = headings.findIndex((h) => h === "Aparência")
-    const dimensoesIdx = headings.findIndex((h) => h === "Dimensões e posicionamento")
+    const dimensoesIdx = headings.findIndex((h) =>
+      h?.startsWith("Dimensões e posicionamento")
+    )
     const camadasIdx = headings.findIndex((h) => h === "Camadas")
 
     expect(filtroIdx).toBeGreaterThanOrEqual(0)
     expect(aparenciaIdx).toBeGreaterThan(filtroIdx)
     expect(dimensoesIdx).toBeGreaterThan(aparenciaIdx)
     expect(camadasIdx).toBeGreaterThan(dimensoesIdx)
+  })
+
+  it("alinha o elemento à página pela seção de alinhamento", async () => {
+    const onAlignToPage = vi.fn()
+    const user = userEvent.setup()
+    render(<DashboardPropertiesPanel {...baseProps({ onAlignToPage })} />)
+
+    await user.click(screen.getByRole("button", { name: "Centro" }))
+    expect(onAlignToPage).toHaveBeenCalledWith("w1", "center-h")
+
+    await user.click(screen.getByRole("button", { name: "Base" }))
+    expect(onAlignToPage).toHaveBeenCalledWith("w1", "bottom")
   })
 })

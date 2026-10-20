@@ -3,12 +3,17 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { DashboardViewer } from "./dashboard-viewer"
 import type { Dashboard } from "@/lib/types/dashboard"
 
-const { getDistinctValuesMock } = vi.hoisted(() => ({
+const { getDistinctValuesMock, getPublicFilterDistinctMock } = vi.hoisted(() => ({
   getDistinctValuesMock: vi.fn(),
+  getPublicFilterDistinctMock: vi.fn(),
 }))
 
 vi.mock("@/lib/api/datasets", () => ({
   getDistinctValues: getDistinctValuesMock,
+}))
+
+vi.mock("@/lib/api/dashboards", () => ({
+  getPublicFilterDistinct: getPublicFilterDistinctMock,
 }))
 
 vi.mock("./dashboard-canvas", () => ({
@@ -93,6 +98,8 @@ describe("DashboardViewer", () => {
   beforeEach(() => {
     getDistinctValuesMock.mockReset()
     getDistinctValuesMock.mockResolvedValue({ result: ["Norte", "Sul"] })
+    getPublicFilterDistinctMock.mockReset()
+    getPublicFilterDistinctMock.mockResolvedValue({ result: ["Norte", "Sul"] })
   })
 
   it("mantém a footer no fluxo, abaixo da área de rolagem, sem sobreposição", () => {
@@ -132,6 +139,15 @@ describe("DashboardViewer", () => {
     render(<DashboardViewer dashboard={dashboard} />)
 
     expect(screen.queryByAltText("SIGDATA")).not.toBeInTheDocument()
+  })
+
+  it("exibe o logo no painel compartilhado mesmo com a marca desativada", () => {
+    const dashboard = dashboardFixture()
+    dashboard.appearance = { showBrand: false }
+    render(<DashboardViewer dashboard={dashboard} sharedView />)
+
+    const footer = screen.getByTestId("dashboard-footer")
+    expect(within(footer).getByAltText("SIGDATA")).toBeInTheDocument()
   })
 
   it("escopa os widgets pela página ativa e troca de aba re-renderiza", async () => {
@@ -200,19 +216,23 @@ describe("DashboardViewer", () => {
     })
   })
 
-  it("carrega valores distintos apenas no modo autenticado", async () => {
+  it("carrega valores distintos: autenticado usa o endpoint próprio e o público usa a rota do slug", async () => {
     const { unmount } = render(<DashboardViewer dashboard={dashboardFixture()} />)
     await screen.findByTestId("canvas")
 
     await waitFor(() => {
       expect(getDistinctValuesMock).toHaveBeenCalledWith(7, "regiao")
     })
+    expect(getPublicFilterDistinctMock).not.toHaveBeenCalled()
     unmount()
 
     getDistinctValuesMock.mockClear()
     render(<DashboardViewer dashboard={dashboardFixture()} publicMode />)
     await screen.findByTestId("canvas")
 
+    await waitFor(() => {
+      expect(getPublicFilterDistinctMock).toHaveBeenCalledWith("painel", "f1")
+    })
     expect(getDistinctValuesMock).not.toHaveBeenCalled()
   })
 

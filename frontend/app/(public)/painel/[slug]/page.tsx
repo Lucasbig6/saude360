@@ -129,6 +129,8 @@ export default function PainelViewerPage({
       canEdit={canEdit}
       publicMode={isPublic}
       editHref={`/paineis/${dashboard.id}`}
+      // Painel compartilhado: marca SIGDATA sempre presente na footer.
+      sharedView
       // Copiloto desativado nos painéis compartilhados por enquanto.
       // Para reativar: enableCopilot={canEdit} (só com sessão autenticada).
       enableCopilot={false}
